@@ -5,6 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { getHealth } from "../../lib/health";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { SignOutButton } from "@/components/sign-out-button";
 
 type ConnectionState =
   | { status: "checking" }
@@ -67,6 +68,7 @@ export default function HomeScreen() {
             <ThemedText>{connection.message}</ThemedText>
           </ThemedView>
         )}
+        <SignOutButton />
       </SafeAreaView>
     </ThemedView>
   );
