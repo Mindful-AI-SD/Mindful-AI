@@ -1,6 +1,12 @@
 import { router } from "expo-router";
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  useColorScheme,
+  View,
+} from "react-native";
 
 type BreathingState =
   | "idle"
@@ -11,6 +17,12 @@ type BreathingState =
 
 export default function BreathingPlayer() {
   const [state, setState] = useState<BreathingState>("idle");
+  const colorScheme = useColorScheme();
+
+  const isDarkMode = colorScheme === "dark";
+
+  const textColor = isDarkMode ? "#ffffff" : "#000000";
+  const backgroundColor = isDarkMode ? "#121212" : "#ffffff";
 
   function handleStart() {
     if (state === "idle") {
@@ -60,10 +72,12 @@ export default function BreathingPlayer() {
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Breathing Player</Text>
+    <View style={[styles.container, { backgroundColor }]}>
+      <Text style={[styles.title, { color: textColor }]}>
+        Breathing Player
+      </Text>
 
-      <Text style={styles.state}>
+      <Text style={[styles.state, { color: textColor }]}>
         Current State: {state}
       </Text>
 
@@ -98,6 +112,7 @@ export default function BreathingPlayer() {
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
     padding: 24,
     gap: 16,
   },
