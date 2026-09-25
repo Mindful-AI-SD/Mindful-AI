@@ -170,15 +170,7 @@ export default function BreathingPlayer() {
       return;
     }
 
-    // Nothing has started yet, so there is nothing to discard.
-    if (state === "idle") {
-      exitSession();
-      return;
-    }
-
-    // The session is already complete, so there is no unfinished
-    // session to discard.
-    if (state === "completed") {
+    if (state === "idle" || state === "completed") {
       exitSession();
       return;
     }
