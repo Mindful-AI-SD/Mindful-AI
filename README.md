@@ -21,9 +21,11 @@ Mindful-AI/
 │   ├── .env.example        Required mobile environment variables
 │   └── package.json
 └── supabase/
-    ├── functions/          Server-side Edge Functions
+    ├── functions/          Server-side Edge Functions and Deno config
     ├── migrations/         Database schema and RLS policies
-    └── config.toml
+    ├── schema/             Shared Zod validation schemas
+    ├── tests/              Deno schema and backend tests
+    └── config.toml         Supabase local configuration
 ```
 
 ## Requirements
@@ -35,6 +37,7 @@ Install the following before starting:
 - Expo Go on a physical phone, or an Android/iOS emulator
 - Visual Studio Code or another code editor
 - Supabase CLI access for backend developers
+- Deno for Supabase Edge Function and schema tests
 
 ## Clone and Run the Mobile App
 
@@ -162,6 +165,34 @@ npx supabase functions deploy function-name
 ```
 
 The existing `health` function is a public endpoint containing only non-sensitive service status information. Future endpoints involving users, student data, or AI calls must require authentication.
+
+### Guided Reflection Validation
+
+The guided-reflection request is validated with the shared Zod schema at:
+
+```text
+supabase/schema/guidedReflectionSchema.ts
+```
+
+The schema requires `activityId`, `activityContext`, `userReflection`, and exactly three `intentions`. Unexpected fields are rejected. The schema tests cover valid data, empty reflection text, oversized reflection text, missing intentions, and unexpected fields.
+
+From the repository root, run the schema tests with:
+
+```bash
+deno test \
+    --config supabase/functions/guided-reflection/deno.json \
+    supabase/tests/schema/guidedReflectionSchema.tests.ts
+```
+
+If you are already inside the `supabase` directory, use:
+
+```bash
+deno test \
+    --config functions/guided-reflection/deno.json \
+    tests/schema/guidedReflectionSchema.tests.ts
+```
+
+The guided-reflection function uses the same schema before querying Supabase. Keep `deno.lock` committed when dependencies change so the Zod version remains reproducible.
 
 ## Security Rules
 
