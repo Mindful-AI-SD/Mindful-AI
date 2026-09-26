@@ -1,4 +1,11 @@
-import {guidedReflectionSchema} from "../../schema/guidedReflectionSchema.ts";
+import { z } from "zod";
+
+const guidedReflectionSchema = z.object({
+  activityId: z.uuid(),
+  activityContext: z.string().trim().min(1).max(4000),
+  userReflection: z.string().trim().min(3).max(2000),
+}).strict();
+
 import { withSupabase } from "@supabase/server";
 
 
@@ -32,7 +39,7 @@ export default {
       );
     }
 
-    const { activityId, activityContext, userReflection, intentions } = validationResult.data;
+    const { activityId, userReflection } = validationResult.data;
 
     const { data: activity, error: activityError } = await ctx.supabase
       .from("activities")

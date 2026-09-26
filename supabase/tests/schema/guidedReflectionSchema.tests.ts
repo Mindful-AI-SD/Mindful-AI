@@ -1,99 +1,115 @@
-import { guidedReflectionSchema } from "../../schema/guidedReflectionSchema.ts";
+import {
+  guidedReflectionSchema,
+  guidedReflectionResponseSchema,
+} from "../../schema/guidedReflectionSchema.ts";
 
-const validFixture = {
-	activityId: "550e8400-e29b-41d4-a716-446655440000",
-	activityContext: "A breathing exercise about noticing physical sensations.",
-	userReflection: "I noticed my breathing slow down.",
-	intentions: [
-		"Pause before reacting",
-		"Notice my breathing",
-		"Respond thoughtfully",
-	],
+const request = {
+  activityId: "week-1-intention",
+  activityContext: "Intention Mirror",
+  userReflection: "I noticed my breathing slow down.",
 };
 
-const emptyReflectionFixture = {
-	...validFixture,
-	userReflection: "   ",
+const response = {
+  intentions: [
+    { title: "Pause", explanation: "Take a breath before reacting." },
+    { title: "Notice", explanation: "Observe a feeling without judgment." },
+    { title: "Choose", explanation: "Choose a thoughtful next step." },
+  ],
+  provider: "mock",
 };
 
-const oversizedReflectionFixture = {
-	...validFixture,
-	userReflection: "x".repeat(2001),
-};
+const cases = [
+  {
+    name: "accepts a request with an activity slug, context, and reflection",
+    schema: guidedReflectionSchema,
+    value: request,
+    valid: true,
+  },
+  {
+    name: "rejects an empty reflection",
+    schema: guidedReflectionSchema,
+    value: { ...request, userReflection: "   " },
+    valid: false,
+  },
+  {
+    name: "rejects an oversized reflection",
+    schema: guidedReflectionSchema,
+    value: { ...request, userReflection: "x".repeat(2001) },
+    valid: false,
+  },
+  {
+    name: "rejects a missing context",
+    schema: guidedReflectionSchema,
+    value: {
+      activityId: request.activityId,
+      userReflection: request.userReflection,
+    },
+    valid: false,
+  },
+  {
+    name: "rejects intentions in the request",
+    schema: guidedReflectionSchema,
+    value: { ...request, intentions: [] },
+    valid: false,
+  },
+  {
+    name: "accepts exactly three complete intentions",
+    schema: guidedReflectionResponseSchema,
+    value: response,
+    valid: true,
+  },
+  {
+    name: "rejects fewer than three intentions",
+    schema: guidedReflectionResponseSchema,
+    value: { ...response, intentions: response.intentions.slice(0, 2) },
+    valid: false,
+  },
+  {
+    name: "rejects more than three intentions",
+    schema: guidedReflectionResponseSchema,
+    value: {
+      ...response,
+      intentions: [
+        ...response.intentions,
+        { title: "Extra", explanation: "An extra reason." },
+      ],
+    },
+    valid: false,
+  },
+  {
+    name: "rejects a missing explanation",
+    schema: guidedReflectionResponseSchema,
+    value: {
+      ...response,
+      intentions: [
+        { title: "Pause" },
+        ...response.intentions.slice(1),
+      ],
+    },
+    valid: false,
+  },
+  {
+    name: "rejects a blank title",
+    schema: guidedReflectionResponseSchema,
+    value: {
+      ...response,
+      intentions: [
+        { title: " ", explanation: "A reason." },
+        ...response.intentions.slice(1),
+      ],
+    },
+    valid: false,
+  },
+];
 
-const missingIntentionsFixture = {
-	activityId: validFixture.activityId,
-	activityContext: validFixture.activityContext,
-	userReflection: validFixture.userReflection,
-};
+for (const testCase of cases) {
+  Deno.test(testCase.name, () => {
+    const result = testCase.schema.safeParse(testCase.value);
 
-const unexpectedFieldFixture = {
-	...validFixture,
-	unexpectedField: true,
-};
-
-function assert(condition: boolean, message: string): void {
-	if (!condition) {
-		throw new Error(message);
-	}
+    if (result.success !== testCase.valid) {
+      throw new Error(
+        `${testCase.name}: expected valid=${testCase.valid}`,
+      );
+    }
+  });
 }
-
-Deno.test("accepts a valid guided reflection fixture", () => {
-	const result = guidedReflectionSchema.safeParse(validFixture);
-
-	assert(result.success, "The valid fixture should be accepted");
-});
-
-Deno.test("rejects empty reflection text", () => {
-	const result = guidedReflectionSchema.safeParse(emptyReflectionFixture);
-
-	assert(!result.success, "Empty reflection text should be rejected");
-	if (!result.success) {
-		assert(
-			result.error.issues.some(
-				(issue) => issue.path[0] === "userReflection",
-			),
-			"The error should identify userReflection",
-		);
-	}
-});
-
-Deno.test("rejects oversized reflection text", () => {
-	const result = guidedReflectionSchema.safeParse(oversizedReflectionFixture);
-
-	assert(!result.success, "Oversized reflection text should be rejected");
-	if (!result.success) {
-		assert(
-			result.error.issues.some(
-				(issue) => issue.path[0] === "userReflection" && issue.code === "too_big",
-			),
-			"The error should identify an oversized userReflection",
-		);
-	}
-});
-
-Deno.test("rejects missing intentions", () => {
-	const result = guidedReflectionSchema.safeParse(missingIntentionsFixture);
-
-	assert(!result.success, "Missing intentions should be rejected");
-	if (!result.success) {
-		assert(
-			result.error.issues.some((issue) => issue.path[0] === "intentions"),
-			"The error should identify intentions",
-		);
-	}
-});
-
-Deno.test("rejects unexpected fields", () => {
-	const result = guidedReflectionSchema.safeParse(unexpectedFieldFixture);
-
-	assert(!result.success, "Unexpected fields should be rejected");
-	if (!result.success) {
-		assert(
-			result.error.issues.some(
-				(issue) => issue.code === "unrecognized_keys",
-			),
-			"The error should identify an unexpected field",
-		);
-	}
-});
