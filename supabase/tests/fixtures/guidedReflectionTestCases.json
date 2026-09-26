@@ -1,0 +1,111 @@
+{
+  "ordinaryReflection": {
+    "name": "ordinary reflection",
+    "request": {
+      "activityId": "550e8400-e29b-41d4-a716-446655440000",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": "I noticed my breathing slow down.",
+      "intentions": ["Pause before reacting", "Notice my breathing", "Respond thoughtfully"]
+    },
+    "expected": {"validation": "accept", "mockBehavior": "generic_reflection_prompt"}
+  },
+  "vagueReflection": {
+    "name": "vague reflection",
+    "request": {
+      "activityId": "550e8400-e29b-41d4-a716-446655440000",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": "It was okay, I guess.",
+      "intentions": ["Pause before reacting", "Notice my breathing", "Respond thoughtfully"]
+    },
+    "expected": {"validation": "accept", "mockBehavior": "generic_reflection_prompt"}
+  },
+  "irrelevantReflection": {
+    "name": "irrelevant reflection",
+    "request": {
+      "activityId": "550e8400-e29b-41d4-a716-446655440000",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": "I like pizza.",
+      "intentions": ["Pause before reacting", "Notice my breathing", "Respond thoughtfully"]
+    },
+    "expected": {"validation": "accept", "mockBehavior": "generic_reflection_prompt"}
+  },
+  "highlyPersonalReflection": {
+    "name": "synthetic highly personal reflection",
+    "request": {
+      "activityId": "550e8400-e29b-41d4-a716-446655440000",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": "I felt anxious after a private disagreement with a family member.",
+      "intentions": ["Pause before reacting", "Notice my breathing", "Respond thoughtfully"]
+    },
+    "expected": {"validation": "accept", "mockBehavior": "privacy_aware_acknowledgment"}
+  },
+  "concerningReflection": {
+    "name": "concerning reflection",
+    "request": {
+      "activityId": "550e8400-e29b-41d4-a716-446655440000",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": "I am worried that I might hurt myself tonight.",
+      "intentions": ["Pause before reacting", "Notice my breathing", "Respond thoughtfully"]
+    },
+    "expected": {"validation": "accept", "mockBehavior": "supportive_safety_response"}
+  },
+  "emptyReflection": {
+    "name": "empty reflection",
+    "request": {
+      "activityId": "550e8400-e29b-41d4-a716-446655440000",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": "",
+      "intentions": ["Pause before reacting", "Notice my breathing", "Respond thoughtfully"]
+    },
+    "expected": {"validation": "reject", "mockBehavior": "not_called"}
+  },
+  "whitespaceReflection": {
+    "name": "whitespace-only reflection",
+    "request": {
+      "activityId": "550e8400-e29b-41d4-a716-446655440000",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": "   ",
+      "intentions": ["Pause before reacting", "Notice my breathing", "Respond thoughtfully"]
+    },
+    "expected": {"validation": "reject", "mockBehavior": "not_called"}
+  },
+  "oversizedReflection": {
+    "name": "oversized reflection",
+    "request": {
+      "activityId": "550e8400-e29b-41d4-a716-446655440000",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": {"$repeat": "x", "count": 2001},
+      "intentions": ["Pause before reacting", "Notice my breathing", "Respond thoughtfully"]
+    },
+    "expected": {"validation": "reject", "mockBehavior": "not_called"}
+  },
+  "missingIntentions": {
+    "name": "reflection missing intentions",
+    "request": {
+      "activityId": "550e8400-e29b-41d4-a716-446655440000",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": "I noticed my breathing slow down."
+    },
+    "expected": {"validation": "reject", "mockBehavior": "not_called"}
+  },
+  "minimumLengthReflection": {
+    "name": "minimum-length reflection",
+    "request": {
+      "activityId": "550e8400-e29b-41d4-a716-446655440000",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": "Cal",
+      "intentions": ["Pause before reacting", "Notice my breathing", "Respond thoughtfully"]
+    },
+    "expected": {"validation": "accept", "mockBehavior": "generic_reflection_prompt"}
+  },
+  "maximumLengthReflection": {
+    "name": "maximum-length reflection",
+    "request": {
+      "activityId": "550e8400-e29b-41d4-a716-446655440000",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": {"$repeat": "x", "count": 2000},
+      "intentions": ["Pause before reacting", "Notice my breathing", "Respond thoughtfully"]
+    },
+    "expected": {"validation": "accept", "mockBehavior": "generic_reflection_prompt"}
+  }
+}
