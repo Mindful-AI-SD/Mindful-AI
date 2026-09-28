@@ -1,12 +1,14 @@
-import { withSupabase } from "npm:@supabase/server@1";
+import { z } from "zod";
 
-type GuidedReflectionRequest = {
-  activityId?: unknown;
-  reflection?: unknown;
-};
+const guidedReflectionSchema = z.object({
+  activityId: z.uuid(),
+  activityContext: z.string().trim().min(1).max(4000),
+  userReflection: z.string().trim().min(3).max(2000),
+}).strict();
 
-const uuidPattern =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import { withSupabase } from "@supabase/server";
+
+
 
 export default {
   fetch: withSupabase({ auth: "user" }, async (req, ctx) => {
@@ -17,40 +19,27 @@ export default {
       );
     }
 
-    let requestBody: GuidedReflectionRequest;
+    let requestBody: unknown;
 
     try {
       requestBody = await req.json();
     } catch {
       return Response.json(
-        { error: "Request body must be valid JSON" },
+        { error: "Invalid JSON in request body" },
         { status: 400 },
       );
     }
 
-    const activityId =
-      typeof requestBody.activityId === "string"
-        ? requestBody.activityId.trim()
-        : "";
+    const validationResult = guidedReflectionSchema.safeParse(requestBody);
 
-    const reflection =
-      typeof requestBody.reflection === "string"
-        ? requestBody.reflection.trim()
-        : "";
-
-    if (!uuidPattern.test(activityId)) {
+    if (!validationResult.success) {
       return Response.json(
-        { error: "A valid activityId is required" },
+        { error: "INVALID_GUIDED_REFLECTION", message: "The guided reflection request is invalid"},
         { status: 400 },
       );
     }
 
-    if (reflection.length < 3 || reflection.length > 2000) {
-      return Response.json(
-        { error: "Reflection must contain between 3 and 2000 characters" },
-        { status: 400 },
-      );
-    }
+    const { activityId, userReflection } = validationResult.data;
 
     const { data: activity, error: activityError } = await ctx.supabase
       .from("activities")

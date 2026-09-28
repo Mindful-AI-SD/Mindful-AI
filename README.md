@@ -21,9 +21,11 @@ Mindful-AI/
 │   ├── .env.example        Required mobile environment variables
 │   └── package.json
 └── supabase/
-    ├── functions/          Server-side Edge Functions
+    ├── functions/          Server-side Edge Functions and Deno config
     ├── migrations/         Database schema and RLS policies
-    └── config.toml
+    ├── schema/             Shared Zod validation schemas
+    ├── tests/              Deno schema and backend tests
+    └── config.toml         Supabase local configuration
 ```
 
 ## Requirements
@@ -35,6 +37,7 @@ Install the following before starting:
 - Expo Go on a physical phone, or an Android/iOS emulator
 - Visual Studio Code or another code editor
 - Supabase CLI access for backend developers
+- Deno for Supabase Edge Function and schema tests
 
 ## Clone and Run the Mobile App
 
@@ -162,6 +165,26 @@ npx supabase functions deploy function-name
 ```
 
 The existing `health` function is a public endpoint containing only non-sensitive service status information. Future endpoints involving users, student data, or AI calls must require authentication.
+
+### Guided Reflection Validation
+
+The guided-reflection request is validated with the shared Zod schema at:
+
+```text
+supabase/schema/guidedReflectionSchema.ts
+```
+
+The schema requires `activityId`, `activityContext`, and `userReflection` for requests, and exactly three `intentions` for responses. Unexpected fields are rejected. The schema tests cover individual validation rules, and the fixture test runs every case in `supabase/tests/fixtures/guidedReflectionTestCases.json` through the appropriate request or response validator. Deno reports each fixture by name and exits nonzero if a case does not match its expected validation result.
+
+From the repository root, run all tests with:
+
+```bash
+deno task tests
+```
+
+The task discovers test files recursively under `supabase/tests/` and `supabase/functions/mindfulness-response/`, using each directory's Deno config. New tests in either directory are included automatically when named with Deno's test-file suffix, such as `feature_test.ts`.
+
+The guided-reflection function uses the same schema before querying Supabase. Keep `deno.lock` committed when dependencies change so the Zod version remains reproducible.
 
 ## Security Rules
 

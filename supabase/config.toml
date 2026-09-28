@@ -434,3 +434,10 @@ entrypoint = "./functions/guided-reflection/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/guided-reflection/*.html" ]
+
+[functions.mindfulness-response]
+enabled = true
+# withSupabase verifies the user JWT and handles unsigned requests and CORS.
+verify_jwt = false
+import_map = "./functions/mindfulness-response/deno.json"
+entrypoint = "./functions/mindfulness-response/index.ts"

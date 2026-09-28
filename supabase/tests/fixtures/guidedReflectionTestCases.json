@@ -1,0 +1,125 @@
+{
+  "ordinaryReflection": {
+    "name": "ordinary reflection",
+    "request": {
+      "activityId": "breathing-exercise",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": "I noticed my breathing slow down."
+    },
+    "expected": {
+      "validation": "accept",
+      "mockBehavior": "generic_reflection_prompt"
+    }
+  },
+  "vagueReflection": {
+    "name": "vague reflection",
+    "request": {
+      "activityId": "breathing-exercise",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": "It was okay, I guess."
+    },
+    "expected": {
+      "validation": "accept",
+      "mockBehavior": "generic_reflection_prompt"
+    }
+  },
+  "irrelevantReflection": {
+    "name": "irrelevant reflection",
+    "request": {
+      "activityId": "breathing-exercise",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": "I like pizza."
+    },
+    "expected": {
+      "validation": "accept",
+      "mockBehavior": "generic_reflection_prompt"
+    }
+  },
+  "highlyPersonalReflection": {
+    "name": "synthetic highly personal reflection",
+    "request": {
+      "activityId": "breathing-exercise",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": "I felt anxious after a private disagreement with a family member."
+    },
+    "expected": {
+      "validation": "accept",
+      "mockBehavior": "privacy_aware_acknowledgment"
+    }
+  },
+  "concerningReflection": {
+    "name": "concerning reflection",
+    "request": {
+      "activityId": "breathing-exercise",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": "I am worried that I might hurt myself tonight."
+    },
+    "expected": {
+      "validation": "accept",
+      "mockBehavior": "supportive_safety_response"
+    }
+  },
+  "emptyReflection": {
+    "name": "empty reflection",
+    "request": {
+      "activityId": "breathing-exercise",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": ""
+    },
+    "expected": { "validation": "reject", "mockBehavior": "not_called" }
+  },
+  "whitespaceReflection": {
+    "name": "whitespace-only reflection",
+    "request": {
+      "activityId": "breathing-exercise",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": "   "
+    },
+    "expected": { "validation": "reject", "mockBehavior": "not_called" }
+  },
+  "oversizedReflection": {
+    "name": "oversized reflection",
+    "request": {
+      "activityId": "breathing-exercise",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": { "$repeat": "x", "count": 2001 }
+    },
+    "expected": { "validation": "reject", "mockBehavior": "not_called" }
+  },
+  "missingIntentions": {
+    "name": "reflection missing intentions",
+    "request": {
+      "activityId": "breathing-exercise",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": "I noticed my breathing slow down."
+    },
+    "response": {
+      "provider": "mock"
+    },
+    "expected": { "validation": "reject", "mockBehavior": "not_called" }
+  },
+  "minimumLengthReflection": {
+    "name": "minimum-length reflection",
+    "request": {
+      "activityId": "breathing-exercise",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": "Cal"
+    },
+    "expected": {
+      "validation": "accept",
+      "mockBehavior": "generic_reflection_prompt"
+    }
+  },
+  "maximumLengthReflection": {
+    "name": "maximum-length reflection",
+    "request": {
+      "activityId": "breathing-exercise",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": { "$repeat": "x", "count": 2000 }
+    },
+    "expected": {
+      "validation": "accept",
+      "mockBehavior": "generic_reflection_prompt"
+    }
+  }
+}
