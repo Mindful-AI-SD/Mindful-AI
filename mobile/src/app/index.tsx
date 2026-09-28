@@ -10,6 +10,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { SignOutButton } from "@/components/sign-out-button";
 import { IntentionMirrorScreen } from "@/components/intention-mirror-screen";
+import { AiGapReflectionScreen } from "@/components/ai-gap-reflection-screen";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import {
@@ -18,7 +19,7 @@ import {
 } from "../../lib/curriculum";
 
 export default function HomeScreen() {
-  const [isWritingIntention, setIsWritingIntention] = useState(false);
+  const [activeScreen, setActiveScreen] = useState<"curriculum" | "intention" | "gap">("curriculum");
   const [week, setWeek] = useState<CurriculumWeek | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -50,12 +51,24 @@ export default function HomeScreen() {
     (activity) => activity.activity_type === "reflection",
   );
 
-  if (isWritingIntention && writingActivity) {
+  if (activeScreen === "gap" && writingActivity) {
+    return (
+      <AiGapReflectionScreen
+        key={writingActivity.id}
+        activityId={writingActivity.id}
+        onBack={() => setActiveScreen("curriculum")}
+        onOpenIntention={() => setActiveScreen("intention")}
+      />
+    );
+  }
+
+  if (activeScreen === "intention" && writingActivity) {
     return (
       <IntentionMirrorScreen
         key={writingActivity.id}
         activityId={writingActivity.id}
-        onBack={() => setIsWritingIntention(false)}
+        onBack={() => setActiveScreen("curriculum")}
+        onOpenGap={() => setActiveScreen("gap")}
       />
     );
   }
@@ -114,7 +127,7 @@ export default function HomeScreen() {
                 {writingActivity && (
                   <Pressable
                     accessibilityRole="button"
-                    onPress={() => setIsWritingIntention(true)}
+                    onPress={() => setActiveScreen("intention")}
                     style={({ pressed }) => [
                       styles.retryButton,
                       pressed && styles.buttonPressed,
@@ -123,6 +136,12 @@ export default function HomeScreen() {
                     <ThemedText style={styles.retryButtonText}>
                       Open Intention Mirror
                     </ThemedText>
+                  </Pressable>
+                )}
+                {writingActivity && (
+                  <Pressable accessibilityRole="button" onPress={() => setActiveScreen("gap")}
+                    style={styles.retryButton}>
+                    <ThemedText style={styles.retryButtonText}>Open AI gap reflection</ThemedText>
                   </Pressable>
                 )}
               </ThemedView>

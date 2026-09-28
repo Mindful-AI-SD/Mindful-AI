@@ -17,6 +17,7 @@ import { useTheme } from "@/hooks/use-theme";
 import { useSignedInUserId } from "@/components/auth-gate";
 import { useWritingDraft } from "@/hooks/use-writing-draft";
 import { getIntentions, type IntentionResponse } from "../../lib/intention";
+import { saveProgressIntentions } from "../../lib/progress";
 
 // Match the existing reflection request schema's trimmed character limits.
 const MIN_CHARACTERS = 3;
@@ -38,9 +39,11 @@ type SubmissionState =
 export function IntentionMirrorScreen({
   activityId,
   onBack,
+  onOpenGap,
 }: {
   activityId: string;
   onBack: () => void;
+  onOpenGap: () => void;
 }) {
   const theme = useTheme();
   const userId = useSignedInUserId();
@@ -89,13 +92,15 @@ export function IntentionMirrorScreen({
           timedOut: result.error.code === "TIMEOUT",
         });
       } else {
+        await saveProgressIntentions(userId, activityId, result.data.intentions);
+        if (activeRequest.current !== controller) return;
         setSubmission({ status: "success", data: result.data });
       }
-    } catch {
+    } catch (error) {
       if (activeRequest.current === controller) {
         setSubmission({
           status: "error",
-          message: "Unable to submit your writing. Please try again.",
+          message: error instanceof Error ? error.message : "Unable to submit your writing. Please try again.",
           timedOut: false,
         });
       }
@@ -266,6 +271,15 @@ export function IntentionMirrorScreen({
                     <ThemedText>{intention.explanation}</ThemedText>
                   </ThemedView>
                 ))}
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => void flush().then((saved) => {
+                    if (saved) onOpenGap();
+                  })}
+                  style={styles.submitButton}
+                >
+                  <ThemedText style={styles.submitText}>Reflect on the AI gap</ThemedText>
+                </Pressable>
               </View>
             )}
 

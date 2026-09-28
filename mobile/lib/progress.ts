@@ -82,3 +82,85 @@ export async function saveProgressWriting(
     throw new Error("Could not save your writing. Please retry.");
   }
 }
+
+export type GapReflectionAnswers = {
+  ai_gap_got_right: string;
+  ai_gap_missed: string;
+  ai_gap_reveals: string;
+};
+
+export type GapReflection = {
+  intentions: GeneratedIntention[] | null;
+  answers: GapReflectionAnswers;
+};
+
+function hasThreeIntentions(value: unknown): value is GeneratedIntention[] {
+  return Array.isArray(value) && value.length === 3 && value.every((item) =>
+    item && typeof item.title === "string" && item.title.trim().length > 0 &&
+    typeof item.explanation === "string" && item.explanation.trim().length > 0
+  );
+}
+
+function readReflectionAnswers(value: unknown): ReflectionAnswers {
+  if (value === undefined || value === null) return {};
+  if (typeof value !== "object" || Array.isArray(value) ||
+    Object.values(value).some((answer) => typeof answer !== "string")) {
+    throw new Error("Could not read your saved reflection. Please retry.");
+  }
+  return value as ReflectionAnswers;
+}
+
+export async function saveProgressIntentions(
+  userId: string,
+  activityId: string,
+  intentions: GeneratedIntention[],
+): Promise<void> {
+  if (!hasThreeIntentions(intentions)) throw new Error("Three complete intentions are required.");
+  await requireDraftOwner(userId);
+  const { data, error } = await supabase.from("progress").upsert(
+    { user_id: userId, activity_id: activityId, generated_intentions: intentions },
+    { onConflict: "user_id,activity_id" },
+  ).select("user_id").single();
+  if (error || !data) throw new Error("Could not save your intentions. Please retry.");
+}
+
+export async function getGapReflection(userId: string, activityId: string): Promise<GapReflection> {
+  await requireDraftOwner(userId);
+  const { data, error } = await supabase.from("progress")
+    .select("generated_intentions, reflection_answers")
+    .eq("user_id", userId).eq("activity_id", activityId).maybeSingle();
+  if (error) throw new Error("Could not load your saved intentions and reflection. Please retry.");
+  await requireDraftOwner(userId);
+  const answers = readReflectionAnswers(data?.reflection_answers);
+  return {
+    intentions: hasThreeIntentions(data?.generated_intentions) ? data.generated_intentions : null,
+    answers: {
+      ai_gap_got_right: answers.ai_gap_got_right ?? "",
+      ai_gap_missed: answers.ai_gap_missed ?? "",
+      ai_gap_reveals: answers.ai_gap_reveals ?? "",
+    },
+  };
+}
+
+export async function saveGapReflection(
+  userId: string,
+  activityId: string,
+  answers: GapReflectionAnswers,
+): Promise<void> {
+  await requireDraftOwner(userId);
+  const { data: existing, error: readError } = await supabase.from("progress")
+    .select("reflection_answers")
+    .eq("user_id", userId).eq("activity_id", activityId).maybeSingle();
+  if (readError) throw new Error("Could not save your reflection. Please retry.");
+  const previousAnswers = readReflectionAnswers(existing?.reflection_answers);
+  await requireDraftOwner(userId);
+  const { data, error } = await supabase.from("progress").upsert(
+    {
+      user_id: userId,
+      activity_id: activityId,
+      reflection_answers: { ...previousAnswers, ...answers },
+    },
+    { onConflict: "user_id,activity_id" },
+  ).select("user_id").single();
+  if (error || !data) throw new Error("Could not save your reflection. Please retry.");
+}

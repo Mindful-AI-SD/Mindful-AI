@@ -110,7 +110,7 @@ test("cancellation stops the delayed mock and clears its timers", async () => {
 
 // Render the screen's JSX with native widgets replaced by inspectable elements.
 // The real API service runs; only React hooks and persistence are isolated here.
-function screen(provider) {
+function screen(provider, saveIntentions = async () => {}) {
   let cursor = 0, writing = "  My original\nwriting  ", draftStatus = "saved";
   const slots = [], effects = [], calls = [];
   const react = {
@@ -135,6 +135,7 @@ function screen(provider) {
     "@/components/themed-view": { ThemedView: "ThemedView" },
     "@/hooks/use-theme": { useTheme: () => ({}) },
     "@/components/auth-gate": { useSignedInUserId: () => "user-a" },
+    "../../lib/progress": { saveProgressIntentions: saveIntentions },
     "@/hooks/use-writing-draft": { useWritingDraft: () => ({
       writing, status: draftStatus, setWriting: value => { writing = value; }, retry() {}, flush: async () => true,
     }) },
@@ -252,4 +253,28 @@ test("unmount cancels an active request and ignores its late response", async ()
   await turn();
   assert.doesNotMatch(ui.text(), /Mock intentions/);
   assert.equal(ui.timers.size, 0);
+});
+
+test("intentions must be saved before opening gap reflection; failed saves can retry", async () => {
+  const saving = deferred();
+  const saved = [];
+  const ui = screen(async () => fixture, async (user, activity, data) => {
+    saved.push({ user, activity, data });
+    if (saved.length === 1) await saving.promise;
+  });
+  ui.acknowledge();
+  ui.button("Submit").props.onPress();
+  await turn();
+  assert.match(ui.text(), /Preparing your intentions/);
+  assert.equal(ui.button("Reflect on the AI gap"), undefined);
+  saving.reject(new Error("Could not save intentions"));
+  await turn();
+  assert.ok(ui.button("Retry"));
+  assert.equal(ui.button("Reflect on the AI gap"), undefined);
+  ui.button("Retry").props.onPress();
+  await turn();
+  assert.ok(ui.button("Reflect on the AI gap"));
+  assert.equal(saved[1].user, "user-a");
+  assert.equal(saved[1].activity, "real-activity-id");
+  assert.deepEqual(saved[1].data, fixture.intentions);
 });
