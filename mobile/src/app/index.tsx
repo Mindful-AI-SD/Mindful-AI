@@ -9,6 +9,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { SignOutButton } from "@/components/sign-out-button";
+import { IntentionMirrorScreen } from "@/components/intention-mirror-screen";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import {
@@ -17,6 +18,7 @@ import {
 } from "../../lib/curriculum";
 
 export default function HomeScreen() {
+  const [isWritingIntention, setIsWritingIntention] = useState(false);
   const [week, setWeek] = useState<CurriculumWeek | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -43,6 +45,20 @@ export default function HomeScreen() {
   useEffect(() => {
     void loadWeek();
   }, [loadWeek]);
+
+  const writingActivity = week?.activities.find(
+    (activity) => activity.activity_type === "reflection",
+  );
+
+  if (isWritingIntention && writingActivity) {
+    return (
+      <IntentionMirrorScreen
+        key={writingActivity.id}
+        activityId={writingActivity.id}
+        onBack={() => setIsWritingIntention(false)}
+      />
+    );
+  }
 
   return (
     <ThemedView style={styles.container}>
@@ -94,6 +110,20 @@ export default function HomeScreen() {
                   <ThemedText style={styles.description}>
                     {week.description}
                   </ThemedText>
+                )}
+                {writingActivity && (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => setIsWritingIntention(true)}
+                    style={({ pressed }) => [
+                      styles.retryButton,
+                      pressed && styles.buttonPressed,
+                    ]}
+                  >
+                    <ThemedText style={styles.retryButtonText}>
+                      Open Intention Mirror
+                    </ThemedText>
+                  </Pressable>
                 )}
               </ThemedView>
 

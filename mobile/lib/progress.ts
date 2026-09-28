@@ -1,3 +1,5 @@
+import { supabase } from "./supabase";
+
 export const WEEK_ONE_STEPS = [
   "breathing",
   "post_breathing_check_in",
@@ -35,3 +37,48 @@ export type WeekOneProgress = {
   completed_at: string | null;
   updated_at: string;
 };
+
+async function requireDraftOwner(userId: string) {
+  const { data, error } = await supabase.auth.getSession();
+  if (error || data.session?.user.id !== userId) {
+    throw new Error("Sign in again to access your saved writing.");
+  }
+}
+
+export async function getProgressWriting(
+  userId: string,
+  activityId: string,
+): Promise<string> {
+  await requireDraftOwner(userId);
+  const { data, error } = await supabase
+    .from("progress")
+    .select("writing")
+    .eq("user_id", userId)
+    .eq("activity_id", activityId)
+    .maybeSingle();
+
+  if (error) throw new Error("Could not load your saved writing. Please retry.");
+  await requireDraftOwner(userId);
+  return data?.writing ?? "";
+}
+
+export async function saveProgressWriting(
+  userId: string,
+  activityId: string,
+  writing: string,
+): Promise<void> {
+  await requireDraftOwner(userId);
+  // Only update writing; preserve completion and all other progress fields.
+  const { data, error } = await supabase
+    .from("progress")
+    .upsert(
+      { user_id: userId, activity_id: activityId, writing },
+      { onConflict: "user_id,activity_id" },
+    )
+    .select("user_id")
+    .single();
+
+  if (error || !data) {
+    throw new Error("Could not save your writing. Please retry.");
+  }
+}

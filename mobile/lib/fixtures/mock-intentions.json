@@ -1,0 +1,17 @@
+{
+  "provider": "mock",
+  "intentions": [
+    {
+      "title": "Pause and notice",
+      "explanation": "Take a short pause to notice one thought, one feeling, and one physical sensation."
+    },
+    {
+      "title": "Return to one thing",
+      "explanation": "Choose one everyday activity and gently bring your attention back whenever it wanders."
+    },
+    {
+      "title": "Reflect with curiosity",
+      "explanation": "At the end of the day, describe a moment you noticed without judging how well you did."
+    }
+  ]
+}
