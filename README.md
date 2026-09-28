@@ -174,23 +174,15 @@ The guided-reflection request is validated with the shared Zod schema at:
 supabase/schema/guidedReflectionSchema.ts
 ```
 
-The schema requires `activityId`, `activityContext`, `userReflection`, and exactly three `intentions`. Unexpected fields are rejected. The schema tests cover valid data, empty reflection text, oversized reflection text, missing intentions, and unexpected fields.
+The schema requires `activityId`, `activityContext`, and `userReflection` for requests, and exactly three `intentions` for responses. Unexpected fields are rejected. The schema tests cover individual validation rules, and the fixture test runs every case in `supabase/tests/fixtures/guidedReflectionTestCases.json` through the appropriate request or response validator. Deno reports each fixture by name and exits nonzero if a case does not match its expected validation result.
 
-From the repository root, run the schema tests with:
-
-```bash
-deno test \
-    --config supabase/functions/guided-reflection/deno.json \
-    supabase/tests/schema/guidedReflectionSchema.tests.ts
-```
-
-If you are already inside the `supabase` directory, use:
+From the repository root, run all tests with:
 
 ```bash
-deno test \
-    --config functions/guided-reflection/deno.json \
-    tests/schema/guidedReflectionSchema.tests.ts
+deno task tests
 ```
+
+The task discovers test files recursively under `supabase/tests/` and `supabase/functions/mindfulness-response/`, using each directory's Deno config. New tests in either directory are included automatically when named with Deno's test-file suffix, such as `feature_test.ts`.
 
 The guided-reflection function uses the same schema before querying Supabase. Keep `deno.lock` committed when dependencies change so the Zod version remains reproducible.
 

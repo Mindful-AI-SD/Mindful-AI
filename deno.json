@@ -1,0 +1,5 @@
+{
+  "tasks": {
+    "tests": "deno test --allow-read=supabase/tests/fixtures/guidedReflectionTestCases.json --config=supabase/functions/guided-reflection/deno.json supabase/tests/ supabase/tests/schema/guidedReflectionSchema.tests.ts && deno test --allow-env --config=supabase/functions/mindfulness-response/deno.json supabase/functions/mindfulness-response/"
+  }
+}
