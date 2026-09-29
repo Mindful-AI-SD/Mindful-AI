@@ -174,7 +174,7 @@ The guided-reflection request is validated with the shared Zod schema at:
 supabase/schema/guidedReflectionSchema.ts
 ```
 
-The schema requires `activityId`, `activityContext`, and `userReflection` for requests, and exactly three `intentions` for responses. Unexpected fields are rejected. The schema tests cover individual validation rules, and the fixture test runs every case in `supabase/tests/fixtures/guidedReflectionTestCases.json` through the appropriate request or response validator. Deno reports each fixture by name and exits nonzero if a case does not match its expected validation result.
+The schema requires `activityId`, `activityContext`, and `userReflection` for requests, and exactly three `intentions` for responses. Unexpected fields are rejected. The fixture tests cover individual validation rules and run each reflection through the deterministic local mock policy, asserting its category and exact result. Empty, too-short, and oversized reflections return a controlled validation error; ordinary inputs receive the generic mock reply; and clearly concerning text receives a fixed, supportive non-clinical reply. The policy makes no external provider calls and does not diagnose or assess crisis risk.
 
 From the repository root, run all tests with:
 
