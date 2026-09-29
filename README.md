@@ -186,6 +186,51 @@ The task discovers test files recursively under `supabase/tests/` and `supabase/
 
 The guided-reflection function uses the same schema before querying Supabase. Keep `deno.lock` committed when dependencies change so the Zod version remains reproducible.
 
+### Mock Provider Adapter
+
+The mock LLM provider adapter lives at:
+
+```text
+supabase/functions/_shared/providers/mockProviderAdapter.ts
+```
+
+It exposes `generateMockGuidedReflection(activityContext, userReflection, scenario?, timing?)`, which any real provider adapter will later implement behind the same signature. Four scenarios are supported: `success` (default), `delayed`, `timeout`, and `error`. The active scenario is chosen server-side, by the `MOCK_PROVIDER_SCENARIO` environment variable or, only when `MOCK_PROVIDER_ALLOW_SCENARIO_OVERRIDE=true` is explicitly set, by a `devMockScenario` field on the request body. That field is stripped before schema validation and is never part of the production request contract.
+
+Run the adapter's contract test suite on its own with:
+
+```bash
+deno task test:mock-adapter
+```
+
+This suite asserts the frozen response contract: exactly three `intentions` on success, `provider: "mock"`, stable `title`/`explanation` field names with no extra keys, and stable `PROVIDER_TIMEOUT`/`PROVIDER_ERROR` error codes on failure. It fails if that contract changes unexpectedly. It also runs as part of `deno task tests`.
+
+### Provider Selection
+
+Which guided-reflection provider runs is chosen server-side by the `GUIDED_REFLECTION_PROVIDER` environment variable, defined in:
+
+```text
+supabase/functions/_shared/providers/providerSelector.ts
+```
+
+It defaults to `mock`, and an unset or unrecognized value always falls back to `mock` (with a logged warning for the latter) so the endpoint can never be left without a working provider. Every provider — mock included — implements the shared `GuidedReflectionProvider` interface in `supabase/functions/_shared/providers/types.ts`: `(activityContext, userReflection) => Promise<ProviderResponse>`.
+
+`supabase/functions/_shared/providers/futureProviderAdapter.ts` is an unimplemented stub for the next real provider (a candidate is UCF Copilot, pending API access; not yet final). Selecting it via `GUIDED_REFLECTION_PROVIDER=future` fails every call with a `ProviderNotConfiguredError` (HTTP 501) until it's implemented. Because it satisfies the same interface, implementing it later requires no changes to the endpoint, the response schema, or the frontend — only filling in that one file. None of these provider modules are imported anywhere under `mobile/`.
+
+### QA Demo Scenarios
+
+Each of the four mock provider states can be triggered repeatedly during QA by setting **one environment variable on the server** — no source changes and no edits to the app's request body are needed. Set `MOCK_PROVIDER_SCENARIO` to exactly one of:
+
+| `MOCK_PROVIDER_SCENARIO` value | What happens | How to recognize it |
+| --- | --- | --- |
+| `success` (default) | Resolves immediately | Response `intentions[].title` starts with `[Demo: Normal Success]` |
+| `delayed` | Resolves after `MOCK_PROVIDER_DELAY_MS` (default 1500ms) | Response `intentions[].title` starts with `[Demo: Slow Success]` |
+| `timeout` | Fails after `MOCK_PROVIDER_TIMEOUT_MS` (default 5000ms) | HTTP 504, `message` starts with `[Demo: Timeout]` |
+| `error` | Fails immediately | HTTP 502, `message` starts with `[Demo: Provider Failure]` |
+
+Restart or redeploy the function after changing the variable for it to take effect. This is the supported way to demo/QA all four states; the separate `devMockScenario` request-body override (gated behind `MOCK_PROVIDER_ALLOW_SCENARIO_OVERRIDE=true`) still exists for automated per-request testing, but is not required for manual QA.
+
+**Production safety:** with no server-side configuration set, the scenario is always `success` and a `devMockScenario` field on the request body has no effect — it's stripped before validation and only ever consulted if `MOCK_PROVIDER_ALLOW_SCENARIO_OVERRIDE=true` was explicitly set on the server. An ordinary client can never reach `delayed`, `timeout`, or `error` on its own. This is covered by `supabase/tests/providers/mockScenarioSecurity_test.ts`.
+
 ## Security Rules
 
 - Never commit `.env` files.
