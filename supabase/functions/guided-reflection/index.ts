@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { getReflectionOutcome } from "./reflectionPolicy.ts";
 
 const guidedReflectionSchema = z.object({
   activityId: z.uuid(),
@@ -7,8 +8,6 @@ const guidedReflectionSchema = z.object({
 }).strict();
 
 import { withSupabase } from "@supabase/server";
-
-
 
 export default {
   fetch: withSupabase({ auth: "user" }, async (req, ctx) => {
@@ -30,16 +29,44 @@ export default {
       );
     }
 
+    const rawReflection = requestBody && typeof requestBody === "object" &&
+        !Array.isArray(requestBody) && "userReflection" in requestBody &&
+        typeof requestBody.userReflection === "string"
+      ? requestBody.userReflection
+      : undefined;
+    const reflectionOutcome = rawReflection === undefined
+      ? undefined
+      : getReflectionOutcome(rawReflection);
+
+    if (reflectionOutcome?.validation === "reject") {
+      return Response.json(reflectionOutcome.result.body, {
+        status: reflectionOutcome.result.status,
+      });
+    }
+
     const validationResult = guidedReflectionSchema.safeParse(requestBody);
 
     if (!validationResult.success) {
       return Response.json(
-        { error: "INVALID_GUIDED_REFLECTION", message: "The guided reflection request is invalid"},
+        {
+          error: "INVALID_GUIDED_REFLECTION",
+          message: "The guided reflection request is invalid",
+        },
         { status: 400 },
       );
     }
 
-    const { activityId, userReflection } = validationResult.data;
+    if (!reflectionOutcome || reflectionOutcome.validation !== "accept") {
+      return Response.json(
+        {
+          error: "INVALID_GUIDED_REFLECTION",
+          message: "The guided reflection request is invalid",
+        },
+        { status: 400 },
+      );
+    }
+
+    const { activityId } = validationResult.data;
 
     const { data: activity, error: activityError } = await ctx.supabase
       .from("activities")
@@ -93,14 +120,9 @@ export default {
       );
     }
 
-    const reply =
-      "Thank you for taking a moment to notice your experience. Try identifying one thought, one feeling, and one physical sensation. What changed when you observed them without judging them?";
-
     return Response.json({
       sessionId: session.id,
-      reply,
-      provider: "mock",
-      model: "mindful-reflection-v0",
+      ...reflectionOutcome.result.body,
     });
   }),
 };

@@ -2,6 +2,10 @@ import {
   guidedReflectionResponseSchema,
   guidedReflectionSchema,
 } from "../../schema/guidedReflectionSchema.ts";
+import {
+  getReflectionOutcome,
+  type ReflectionCategory,
+} from "../../functions/guided-reflection/reflectionPolicy.ts";
 
 type ReflectionTestCase = {
   name: string;
@@ -12,6 +16,11 @@ type ReflectionTestCase = {
   expected: {
     validation: "accept" | "reject";
     mockBehavior: string;
+    category?: ReflectionCategory;
+    result?: {
+      status: number;
+      body: Record<string, string>;
+    };
   };
 };
 
@@ -50,8 +59,9 @@ Deno.test("fixture dataset contains at least ten cases", () => {
 
 for (const testCase of Object.values(testCases)) {
   Deno.test(testCase.name, () => {
+    const request = materializeRequest(testCase);
     const result = testCase.response === undefined
-      ? guidedReflectionSchema.safeParse(materializeRequest(testCase))
+      ? guidedReflectionSchema.safeParse(request)
       : guidedReflectionResponseSchema.safeParse(testCase.response);
     const expectedToPass = testCase.expected.validation === "accept";
 
@@ -59,9 +69,30 @@ for (const testCase of Object.values(testCases)) {
       result.success === expectedToPass,
       `Expected validation to ${testCase.expected.validation}`,
     );
-    assert(
-      testCase.expected.mockBehavior.length > 0,
-      "Expected a mock behavior for each fixture",
-    );
+
+    if (
+      testCase.response === undefined &&
+      typeof request.userReflection === "string"
+    ) {
+      const outcome = getReflectionOutcome(request.userReflection);
+      assert(
+        outcome.category === testCase.expected.category,
+        `Expected category ${testCase.expected.category}, received ${outcome.category}`,
+      );
+      assert(
+        outcome.mockBehavior === testCase.expected.mockBehavior,
+        `Expected mock behavior ${testCase.expected.mockBehavior}, received ${outcome.mockBehavior}`,
+      );
+      assert(
+        JSON.stringify(outcome.result) ===
+          JSON.stringify(testCase.expected.result),
+        "Expected the exact fixture result",
+      );
+      assert(
+        request.userReflection.length === 0 ||
+          !JSON.stringify(outcome.result).includes(request.userReflection),
+        "Reflection text must not be echoed in the result",
+      );
+    }
   });
 }

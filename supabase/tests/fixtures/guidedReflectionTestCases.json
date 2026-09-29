@@ -8,7 +8,16 @@
     },
     "expected": {
       "validation": "accept",
-      "mockBehavior": "generic_reflection_prompt"
+      "category": "ordinary",
+      "mockBehavior": "generic_reflection_prompt",
+      "result": {
+        "status": 200,
+        "body": {
+          "reply": "Thank you for taking a moment to notice your experience. Try identifying one thought, one feeling, and one physical sensation. What changed when you observed them without judging them?",
+          "provider": "mock",
+          "model": "mindful-reflection-v0"
+        }
+      }
     }
   },
   "vagueReflection": {
@@ -20,7 +29,16 @@
     },
     "expected": {
       "validation": "accept",
-      "mockBehavior": "generic_reflection_prompt"
+      "category": "ordinary",
+      "mockBehavior": "generic_reflection_prompt",
+      "result": {
+        "status": 200,
+        "body": {
+          "reply": "Thank you for taking a moment to notice your experience. Try identifying one thought, one feeling, and one physical sensation. What changed when you observed them without judging them?",
+          "provider": "mock",
+          "model": "mindful-reflection-v0"
+        }
+      }
     }
   },
   "irrelevantReflection": {
@@ -32,7 +50,16 @@
     },
     "expected": {
       "validation": "accept",
-      "mockBehavior": "generic_reflection_prompt"
+      "category": "ordinary",
+      "mockBehavior": "generic_reflection_prompt",
+      "result": {
+        "status": 200,
+        "body": {
+          "reply": "Thank you for taking a moment to notice your experience. Try identifying one thought, one feeling, and one physical sensation. What changed when you observed them without judging them?",
+          "provider": "mock",
+          "model": "mindful-reflection-v0"
+        }
+      }
     }
   },
   "highlyPersonalReflection": {
@@ -44,7 +71,16 @@
     },
     "expected": {
       "validation": "accept",
-      "mockBehavior": "privacy_aware_acknowledgment"
+      "category": "ordinary",
+      "mockBehavior": "generic_reflection_prompt",
+      "result": {
+        "status": 200,
+        "body": {
+          "reply": "Thank you for taking a moment to notice your experience. Try identifying one thought, one feeling, and one physical sensation. What changed when you observed them without judging them?",
+          "provider": "mock",
+          "model": "mindful-reflection-v0"
+        }
+      }
     }
   },
   "concerningReflection": {
@@ -56,7 +92,16 @@
     },
     "expected": {
       "validation": "accept",
-      "mockBehavior": "supportive_safety_response"
+      "category": "concerning",
+      "mockBehavior": "supportive_non_clinical_message",
+      "result": {
+        "status": 200,
+        "body": {
+          "reply": "That sounds difficult. You deserve support, and it may help to talk with someone you trust.",
+          "provider": "mock",
+          "model": "mindful-reflection-v0"
+        }
+      }
     }
   },
   "emptyReflection": {
@@ -66,7 +111,18 @@
       "activityContext": "A breathing exercise about noticing physical sensations.",
       "userReflection": ""
     },
-    "expected": { "validation": "reject", "mockBehavior": "not_called" }
+    "expected": {
+      "validation": "reject",
+      "category": "empty",
+      "mockBehavior": "not_called",
+      "result": {
+        "status": 400,
+        "body": {
+          "error": "INVALID_GUIDED_REFLECTION",
+          "message": "The guided reflection request is invalid"
+        }
+      }
+    }
   },
   "whitespaceReflection": {
     "name": "whitespace-only reflection",
@@ -75,7 +131,18 @@
       "activityContext": "A breathing exercise about noticing physical sensations.",
       "userReflection": "   "
     },
-    "expected": { "validation": "reject", "mockBehavior": "not_called" }
+    "expected": {
+      "validation": "reject",
+      "category": "empty",
+      "mockBehavior": "not_called",
+      "result": {
+        "status": 400,
+        "body": {
+          "error": "INVALID_GUIDED_REFLECTION",
+          "message": "The guided reflection request is invalid"
+        }
+      }
+    }
   },
   "oversizedReflection": {
     "name": "oversized reflection",
@@ -84,7 +151,18 @@
       "activityContext": "A breathing exercise about noticing physical sensations.",
       "userReflection": { "$repeat": "x", "count": 2001 }
     },
-    "expected": { "validation": "reject", "mockBehavior": "not_called" }
+    "expected": {
+      "validation": "reject",
+      "category": "oversized",
+      "mockBehavior": "not_called",
+      "result": {
+        "status": 400,
+        "body": {
+          "error": "INVALID_GUIDED_REFLECTION",
+          "message": "The guided reflection request is invalid"
+        }
+      }
+    }
   },
   "missingIntentions": {
     "name": "reflection missing intentions",
@@ -107,7 +185,36 @@
     },
     "expected": {
       "validation": "accept",
-      "mockBehavior": "generic_reflection_prompt"
+      "category": "ordinary",
+      "mockBehavior": "generic_reflection_prompt",
+      "result": {
+        "status": 200,
+        "body": {
+          "reply": "Thank you for taking a moment to notice your experience. Try identifying one thought, one feeling, and one physical sensation. What changed when you observed them without judging them?",
+          "provider": "mock",
+          "model": "mindful-reflection-v0"
+        }
+      }
+    }
+  },
+  "tooShortReflection": {
+    "name": "too-short reflection",
+    "request": {
+      "activityId": "breathing-exercise",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": "No"
+    },
+    "expected": {
+      "validation": "reject",
+      "category": "too_short",
+      "mockBehavior": "not_called",
+      "result": {
+        "status": 400,
+        "body": {
+          "error": "INVALID_GUIDED_REFLECTION",
+          "message": "The guided reflection request is invalid"
+        }
+      }
     }
   },
   "maximumLengthReflection": {
@@ -119,7 +226,16 @@
     },
     "expected": {
       "validation": "accept",
-      "mockBehavior": "generic_reflection_prompt"
+      "category": "ordinary",
+      "mockBehavior": "generic_reflection_prompt",
+      "result": {
+        "status": 200,
+        "body": {
+          "reply": "Thank you for taking a moment to notice your experience. Try identifying one thought, one feeling, and one physical sensation. What changed when you observed them without judging them?",
+          "provider": "mock",
+          "model": "mindful-reflection-v0"
+        }
+      }
     }
   }
 }
