@@ -1,5 +1,20 @@
 import { z } from "zod";
 import { getReflectionOutcome } from "./reflectionPolicy.ts";
+import {
+  extractDevScenarioOverride,
+  generateMockGuidedReflection,
+  resolveMockScenario,
+  resolveMockTimingConfig,
+} from "../_shared/providers/mockProviderAdapter.ts";
+import {
+  ProviderError,
+  ProviderNotConfiguredError,
+  ProviderTimeoutError,
+} from "../_shared/providers/types.ts";
+import {
+  getGuidedReflectionProvider,
+  resolveProviderName,
+} from "../_shared/providers/providerSelector.ts";
 
 const guidedReflectionSchema = z.object({
   activityId: z.uuid(),
@@ -44,7 +59,14 @@ export default {
       });
     }
 
-    const validationResult = guidedReflectionSchema.safeParse(requestBody);
+    // devMockScenario is a development-only fixture (see resolveMockScenario)
+    // and is stripped before schema validation so it never appears as a
+    // production-facing request field, regardless of whether the override
+    // is actually enabled server-side.
+    const { override: devScenarioOverride, sanitizedBody } =
+      extractDevScenarioOverride(requestBody);
+
+    const validationResult = guidedReflectionSchema.safeParse(sanitizedBody);
 
     if (!validationResult.success) {
       return Response.json(
@@ -66,7 +88,8 @@ export default {
       );
     }
 
-    const { activityId } = validationResult.data;
+    const { activityId, activityContext, userReflection } =
+      validationResult.data;
 
     const { data: activity, error: activityError } = await ctx.supabase
       .from("activities")
@@ -100,6 +123,55 @@ export default {
       );
     }
 
+    const providerName = resolveProviderName();
+
+    let providerResponse;
+
+    try {
+      if (providerName === "mock") {
+        // The scenario/timing fixtures only make sense for the mock
+        // provider; other providers use the plain two-argument interface.
+        providerResponse = await generateMockGuidedReflection(
+          activityContext,
+          userReflection,
+          resolveMockScenario(devScenarioOverride),
+          resolveMockTimingConfig(),
+        );
+      } else {
+        const provider = getGuidedReflectionProvider(providerName);
+        providerResponse = await provider(activityContext, userReflection);
+      }
+    } catch (error) {
+      if (error instanceof ProviderTimeoutError) {
+        console.error("Provider timed out:", error.message);
+
+        return Response.json(
+          { error: error.code, message: error.message },
+          { status: 504 },
+        );
+      }
+
+      if (error instanceof ProviderNotConfiguredError) {
+        console.error("Provider is not configured:", error.message);
+
+        return Response.json(
+          { error: error.code, message: error.message },
+          { status: 501 },
+        );
+      }
+
+      if (error instanceof ProviderError) {
+        console.error("Provider returned an error:", error.message);
+
+        return Response.json(
+          { error: error.code, message: error.message },
+          { status: 502 },
+        );
+      }
+
+      throw error;
+    }
+
     const { data: session, error: sessionError } = await ctx.supabase
       .from("ai_sessions")
       .insert({
@@ -122,7 +194,7 @@ export default {
 
     return Response.json({
       sessionId: session.id,
-      ...reflectionOutcome.result.body,
+      ...providerResponse,
     });
   }),
 };
