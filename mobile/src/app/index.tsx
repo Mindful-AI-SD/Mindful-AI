@@ -1,3 +1,4 @@
+import { router } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -19,7 +20,10 @@ import {
 } from "../../lib/curriculum";
 
 export default function HomeScreen() {
-  const [activeScreen, setActiveScreen] = useState<"curriculum" | "intention" | "gap">("curriculum");
+  const [activeScreen, setActiveScreen] = useState<
+    "curriculum" | "intention" | "gap"
+  >("curriculum");
+
   const [week, setWeek] = useState<CurriculumWeek | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -50,6 +54,19 @@ export default function HomeScreen() {
   const writingActivity = week?.activities.find(
     (activity) => activity.activity_type === "reflection",
   );
+
+  const breathingActivity = week?.activities.find(
+    (activity) => activity.sequence_number === 1,
+  );
+
+  function openBreathingActivity(activityId: string) {
+    router.push({
+      pathname: "/breathing-player",
+      params: {
+        activityId,
+      },
+    });
+  }
 
   if (activeScreen === "gap" && writingActivity) {
     return (
@@ -91,7 +108,10 @@ export default function HomeScreen() {
 
           {!isLoading && errorMessage && (
             <ThemedView style={styles.messageCard}>
-              <ThemedText type="subtitle">Unable to load Week 1</ThemedText>
+              <ThemedText type="subtitle">
+                Unable to load Week 1
+              </ThemedText>
+
               <ThemedText>{errorMessage}</ThemedText>
 
               <Pressable
@@ -115,19 +135,26 @@ export default function HomeScreen() {
                   WEEK {week.week_number}
                 </ThemedText>
 
-                <ThemedText type="title">{week.title}</ThemedText>
+                <ThemedText type="title">
+                  {week.title}
+                </ThemedText>
 
-                <ThemedText style={styles.theme}>{week.theme}</ThemedText>
+                <ThemedText style={styles.theme}>
+                  {week.theme}
+                </ThemedText>
 
                 {week.description && (
                   <ThemedText style={styles.description}>
                     {week.description}
                   </ThemedText>
                 )}
+
                 {writingActivity && (
                   <Pressable
                     accessibilityRole="button"
-                    onPress={() => setActiveScreen("intention")}
+                    onPress={() =>
+                      setActiveScreen("intention")
+                    }
                     style={({ pressed }) => [
                       styles.retryButton,
                       pressed && styles.buttonPressed,
@@ -138,49 +165,89 @@ export default function HomeScreen() {
                     </ThemedText>
                   </Pressable>
                 )}
+
                 {writingActivity && (
-                  <Pressable accessibilityRole="button" onPress={() => setActiveScreen("gap")}
-                    style={styles.retryButton}>
-                    <ThemedText style={styles.retryButtonText}>Open AI gap reflection</ThemedText>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() =>
+                      setActiveScreen("gap")
+                    }
+                    style={({ pressed }) => [
+                      styles.retryButton,
+                      pressed && styles.buttonPressed,
+                    ]}
+                  >
+                    <ThemedText style={styles.retryButtonText}>
+                      Open AI gap reflection
+                    </ThemedText>
                   </Pressable>
                 )}
               </ThemedView>
 
               <View style={styles.section}>
-                <ThemedText type="subtitle">Activities</ThemedText>
+                <ThemedText type="subtitle">
+                  Activities
+                </ThemedText>
 
                 {week.activities.length === 0 ? (
                   <ThemedText>
                     No published activities are available yet.
                   </ThemedText>
                 ) : (
-                  week.activities.map((activity) => (
-                    <ThemedView key={activity.id} style={styles.activityCard}>
-                      <View style={styles.activityMetadata}>
-                        <ThemedText style={styles.activityType}>
-                          {activity.activity_type
-                            .replace("_", " ")
-                            .toUpperCase()}
+                  week.activities.map((activity) => {
+                    const isBreathingActivity =
+                      breathingActivity?.id === activity.id;
+
+                    return (
+                      <ThemedView
+                        key={activity.id}
+                        style={styles.activityCard}
+                      >
+                        <View style={styles.activityMetadata}>
+                          <ThemedText style={styles.activityType}>
+                            {activity.activity_type
+                              .replace("_", " ")
+                              .toUpperCase()}
+                          </ThemedText>
+
+                          {activity.duration_minutes !== null && (
+                            <ThemedText style={styles.duration}>
+                              {activity.duration_minutes} min
+                            </ThemedText>
+                          )}
+                        </View>
+
+                        <ThemedText type="subtitle">
+                          {activity.title}
                         </ThemedText>
 
-                        {activity.duration_minutes !== null && (
-                          <ThemedText style={styles.duration}>
-                            {activity.duration_minutes} min
+                        {activity.content && (
+                          <ThemedText style={styles.description}>
+                            {activity.content}
                           </ThemedText>
                         )}
-                      </View>
 
-                      <ThemedText type="subtitle">
-                        {activity.title}
-                      </ThemedText>
-
-                      {activity.content && (
-                        <ThemedText style={styles.description}>
-                          {activity.content}
-                        </ThemedText>
-                      )}
-                    </ThemedView>
-                  ))
+                        {isBreathingActivity && (
+                          <Pressable
+                            accessibilityRole="button"
+                            onPress={() =>
+                              openBreathingActivity(activity.id)
+                            }
+                            style={({ pressed }) => [
+                              styles.openActivityButton,
+                              pressed && styles.buttonPressed,
+                            ]}
+                          >
+                            <ThemedText
+                              style={styles.openActivityButtonText}
+                            >
+                              Open breathing activity
+                            </ThemedText>
+                          </Pressable>
+                        )}
+                      </ThemedView>
+                    );
+                  })
                 )}
               </View>
             </>
@@ -286,6 +353,18 @@ const styles = StyleSheet.create({
     backgroundColor: "#41644a",
   },
   retryButtonText: {
+    color: "#ffffff",
+    fontWeight: "700",
+  },
+  openActivityButton: {
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    backgroundColor: "#41644a",
+  },
+  openActivityButtonText: {
     color: "#ffffff",
     fontWeight: "700",
   },

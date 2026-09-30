@@ -1,6 +1,7 @@
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   AppState,
   Platform,
@@ -10,6 +11,9 @@ import {
   useColorScheme,
   View,
 } from "react-native";
+
+import { completeBreathingStep } from "../../lib/progress";
+import { supabase } from "../../lib/supabase";
 
 type BreathingState =
   | "idle"
@@ -21,18 +25,43 @@ type BreathingState =
 const SESSION_DURATION_MS = 10 * 60 * 1000;
 
 export default function BreathingPlayer() {
-  const [state, setState] = useState<BreathingState>("idle");
+  const params = useLocalSearchParams<{
+    activityId?: string;
+  }>();
+
+  const activityId =
+    typeof params.activityId === "string"
+      ? params.activityId
+      : "";
+
+  const [state, setState] =
+    useState<BreathingState>("idle");
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [isCompleting, setIsCompleting] =
+    useState(false);
+  const [errorMessage, setErrorMessage] = useState<
+    string | null
+  >(null);
 
   const accumulatedTimeRef = useRef(0);
-  const activeStartTimeRef = useRef<number | null>(null);
+  const activeStartTimeRef = useRef<number | null>(
+    null,
+  );
   const stateRef = useRef<BreathingState>("idle");
+
+  // Prevents the completion logic from running more than once.
+  const completionHandledRef = useRef(false);
 
   const colorScheme = useColorScheme();
   const isDarkMode = colorScheme === "dark";
 
-  const textColor = isDarkMode ? "#ffffff" : "#000000";
-  const backgroundColor = isDarkMode ? "#121212" : "#ffffff";
+  const textColor = isDarkMode
+    ? "#ffffff"
+    : "#000000";
+
+  const backgroundColor = isDarkMode
+    ? "#121212"
+    : "#ffffff";
 
   function changeState(newState: BreathingState) {
     stateRef.current = newState;
@@ -53,6 +82,57 @@ export default function BreathingPlayer() {
     setElapsedTime(accumulatedTimeRef.current);
   }
 
+  async function finishBreathingSession() {
+    if (completionHandledRef.current) {
+      return;
+    }
+
+    completionHandledRef.current = true;
+    setIsCompleting(true);
+    setErrorMessage(null);
+
+    try {
+      if (!activityId) {
+        throw new Error(
+          "This breathing activity could not be identified.",
+        );
+      }
+
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (sessionError || !session?.user) {
+        throw new Error(
+          "Please sign in again before continuing.",
+        );
+      }
+
+      await completeBreathingStep(
+        session.user.id,
+        activityId,
+      );
+
+      router.replace({
+        pathname: "/post-breathing-check-in",
+        params: {
+          activityId,
+        },
+      });
+    } catch (error) {
+      completionHandledRef.current = false;
+
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not save your breathing progress.",
+      );
+    } finally {
+      setIsCompleting(false);
+    }
+  }
+
   useEffect(() => {
     if (state !== "running") {
       return;
@@ -67,14 +147,18 @@ export default function BreathingPlayer() {
         Date.now() - activeStartTimeRef.current;
 
       const totalElapsed =
-        accumulatedTimeRef.current + currentActiveTime;
+        accumulatedTimeRef.current +
+        currentActiveTime;
 
       if (totalElapsed >= SESSION_DURATION_MS) {
-        accumulatedTimeRef.current = SESSION_DURATION_MS;
+        accumulatedTimeRef.current =
+          SESSION_DURATION_MS;
+
         activeStartTimeRef.current = null;
 
         setElapsedTime(SESSION_DURATION_MS);
         changeState("completed");
+
         return;
       }
 
@@ -83,25 +167,35 @@ export default function BreathingPlayer() {
 
     updateTimer();
 
-    const interval = setInterval(updateTimer, 250);
+    const interval = setInterval(
+      updateTimer,
+      250,
+    );
 
     return () => clearInterval(interval);
   }, [state]);
 
   useEffect(() => {
-    const subscription = AppState.addEventListener(
-      "change",
-      (nextAppState) => {
-        if (
-          (nextAppState === "background" ||
-            nextAppState === "inactive") &&
-          stateRef.current === "running"
-        ) {
-          saveCurrentActiveTime();
-          changeState("paused");
-        }
-      },
-    );
+    if (state === "completed") {
+      void finishBreathingSession();
+    }
+  }, [state]);
+
+  useEffect(() => {
+    const subscription =
+      AppState.addEventListener(
+        "change",
+        (nextAppState) => {
+          if (
+            (nextAppState === "background" ||
+              nextAppState === "inactive") &&
+            stateRef.current === "running"
+          ) {
+            saveCurrentActiveTime();
+            changeState("paused");
+          }
+        },
+      );
 
     return () => {
       subscription.remove();
@@ -110,10 +204,13 @@ export default function BreathingPlayer() {
 
   function handleStart() {
     if (state === "idle") {
+      completionHandledRef.current = false;
+
       accumulatedTimeRef.current = 0;
       activeStartTimeRef.current = Date.now();
 
       setElapsedTime(0);
+      setErrorMessage(null);
       changeState("running");
     }
   }
@@ -138,20 +235,27 @@ export default function BreathingPlayer() {
       state === "paused" ||
       state === "completed"
     ) {
+      completionHandledRef.current = false;
+
       accumulatedTimeRef.current = 0;
       activeStartTimeRef.current = Date.now();
 
       setElapsedTime(0);
+      setErrorMessage(null);
       changeState("running");
     }
   }
 
   function exitSession() {
+    completionHandledRef.current = false;
+
     changeState("exited");
 
     accumulatedTimeRef.current = 0;
     activeStartTimeRef.current = null;
+
     setElapsedTime(0);
+    setErrorMessage(null);
 
     router.replace("/");
 
@@ -170,7 +274,10 @@ export default function BreathingPlayer() {
       return;
     }
 
-    if (state === "idle" || state === "completed") {
+    if (
+      state === "idle" ||
+      state === "completed"
+    ) {
       exitSession();
       return;
     }
@@ -209,45 +316,121 @@ export default function BreathingPlayer() {
     SESSION_DURATION_MS - elapsedTime,
   );
 
-  const totalSeconds = Math.ceil(remainingTime / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
+  const totalSeconds = Math.ceil(
+    remainingTime / 1000,
+  );
+
+  const minutes = Math.floor(
+    totalSeconds / 60,
+  );
+
   const seconds = totalSeconds % 60;
 
   const formattedTime =
-    `${minutes}:${seconds.toString().padStart(2, "0")}`;
+    `${minutes}:${seconds
+      .toString()
+      .padStart(2, "0")}`;
 
   return (
-    <View style={[styles.container, { backgroundColor }]}>
-      <Text style={[styles.title, { color: textColor }]}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor },
+      ]}
+    >
+      <Text
+        style={[
+          styles.title,
+          { color: textColor },
+        ]}
+      >
         Breathing Player
       </Text>
 
-      <Text style={[styles.state, { color: textColor }]}>
+      <Text
+        style={[
+          styles.state,
+          { color: textColor },
+        ]}
+      >
         Current State: {state}
       </Text>
 
-      <Text style={[styles.timer, { color: textColor }]}>
+      <Text
+        style={[
+          styles.timer,
+          { color: textColor },
+        ]}
+      >
         {formattedTime}
       </Text>
 
-      <Pressable style={styles.button} onPress={handleStart}>
-        <Text style={styles.buttonText}>Start</Text>
+      {isCompleting && (
+        <View style={styles.savingRow}>
+          <ActivityIndicator
+            color="#41644a"
+          />
+
+          <Text style={{ color: textColor }}>
+            Saving breathing progress...
+          </Text>
+        </View>
+      )}
+
+      {errorMessage && (
+        <Text style={styles.errorText}>
+          {errorMessage}
+        </Text>
+      )}
+
+      <Pressable
+        style={styles.button}
+        onPress={handleStart}
+        disabled={isCompleting}
+      >
+        <Text style={styles.buttonText}>
+          Start
+        </Text>
       </Pressable>
 
-      <Pressable style={styles.button} onPress={handlePause}>
-        <Text style={styles.buttonText}>Pause</Text>
+      <Pressable
+        style={styles.button}
+        onPress={handlePause}
+        disabled={isCompleting}
+      >
+        <Text style={styles.buttonText}>
+          Pause
+        </Text>
       </Pressable>
 
-      <Pressable style={styles.button} onPress={handleResume}>
-        <Text style={styles.buttonText}>Resume</Text>
+      <Pressable
+        style={styles.button}
+        onPress={handleResume}
+        disabled={isCompleting}
+      >
+        <Text style={styles.buttonText}>
+          Resume
+        </Text>
       </Pressable>
 
-      <Pressable style={styles.button} onPress={handleRestart}>
-        <Text style={styles.buttonText}>Restart</Text>
+      <Pressable
+        style={styles.button}
+        onPress={handleRestart}
+        disabled={isCompleting}
+      >
+        <Text style={styles.buttonText}>
+          Restart
+        </Text>
       </Pressable>
 
-      <Pressable style={styles.exitButton} onPress={handleExit}>
-        <Text style={styles.buttonText}>Exit</Text>
+      <Pressable
+        style={styles.exitButton}
+        onPress={handleExit}
+        disabled={isCompleting}
+      >
+        <Text style={styles.buttonText}>
+          Exit
+        </Text>
       </Pressable>
     </View>
   );
@@ -272,6 +455,18 @@ const styles = StyleSheet.create({
   timer: {
     fontSize: 48,
     fontWeight: "700",
+  },
+
+  savingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  errorText: {
+    color: "#b42318",
+    fontSize: 14,
+    maxWidth: 400,
   },
 
   button: {
