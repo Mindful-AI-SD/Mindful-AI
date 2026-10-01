@@ -10,3 +10,22 @@ drafts, and records completion only after the final step.
 Verification: `node --test tests/week-one.test.cjs` covers normal progression,
 restoration at writing/results, failed or conflicting saves, account isolation,
 and completion data. These checks use a simulated database, not live Supabase.
+
+## Repair 2: connected screens and restart restoration
+
+Connected breathing, post-breathing check-in, writing, saved mock results,
+data self-portrait, gap reflection, Yellowdig draft, and completion. The home
+screen now restores progress. Saved results open without another generation
+request, and submission waits for writing to save before generating intentions.
+
+Verification: TypeScript and the 45 focused tests pass. Added real-browser tests
+for the normal path and restarts after writing and mock generation. The first
+browser run reached writing on both paths but found that the web checkbox did
+not expose its checked state. That separate accessibility repair is recorded
+below; this run was not counted as a completed end-to-end pass.
+
+Browser setup: `npm run export -- --platform web`, then
+`npm run test:returning-user`. Uses installed Edge by default; set
+`PLAYWRIGHT_CHANNEL=chrome` to use Chrome. The tests operate the actual exported
+frontend, simulate Supabase HTTP responses, and advance the browser clock for
+the ten-minute breathing timer. They do not contact live Supabase or Yellowdig.

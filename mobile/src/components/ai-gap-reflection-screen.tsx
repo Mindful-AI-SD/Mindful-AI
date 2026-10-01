@@ -21,10 +21,11 @@ const QUESTIONS: { key: keyof GapReflectionAnswers; label: string }[] = [
   { key: "ai_gap_reveals", label: "What does the gap reveal?" },
 ];
 
-export function AiGapReflectionScreen({ activityId, onBack, onOpenIntention }: {
+export function AiGapReflectionScreen({ activityId, onBack, onOpenIntention, onContinue }: {
   activityId: string;
   onBack: () => void;
   onOpenIntention: () => void;
+  onContinue?: () => Promise<boolean>;
 }) {
   const userId = useSignedInUserId();
   const theme = useTheme();
@@ -162,6 +163,19 @@ export function AiGapReflectionScreen({ activityId, onBack, onOpenIntention }: {
                   style={[styles.saveButton, (isSaving || !dirty) && styles.disabled]}>
                   <ThemedText style={styles.buttonText}>{saveError ? "Retry save" : "Save reflection"}</ThemedText>
                 </Pressable>
+                {onContinue && (
+                  <>
+                    {!QUESTIONS.every(({ key }) => reflection.answers[key].trim()) && (
+                      <ThemedText>Answer all three questions to continue.</ThemedText>
+                    )}
+                    <Pressable accessibilityRole="button" style={styles.saveButton}
+                      disabled={isSaving || !QUESTIONS.every(({ key }) => reflection.answers[key].trim())}
+                      accessibilityHint="Saves your answers and opens your discussion draft."
+                      onPress={() => void save().then(saved => { if (saved) void onContinue(); })}>
+                      <ThemedText style={styles.buttonText}>Continue to Yellowdig draft</ThemedText>
+                    </Pressable>
+                  </>
+                )}
               </>
             )}
           </ScrollView>

@@ -20,7 +20,11 @@ type BreathingState =
 
 const SESSION_DURATION_MS = 10 * 60 * 1000;
 
-export default function BreathingPlayer() {
+export default function BreathingPlayer({ onContinue, onExit, isSaving = false }: {
+  onContinue?: () => void;
+  onExit?: () => void;
+  isSaving?: boolean;
+} = {}) {
   const [state, setState] = useState<BreathingState>("idle");
   const [elapsedTime, setElapsedTime] = useState(0);
 
@@ -153,7 +157,8 @@ export default function BreathingPlayer() {
     activeStartTimeRef.current = null;
     setElapsedTime(0);
 
-    router.replace("/");
+    if (onExit) onExit();
+    else router.replace("/");
 
     setTimeout(() => {
       changeState("idle");
@@ -260,6 +265,12 @@ export default function BreathingPlayer() {
         accessibilityLabel="Exit breathing session" accessibilityHint="Returns to Week 1. You will be asked before discarding an active session.">
         <Text style={styles.buttonText}>Exit</Text>
       </Pressable>
+      {state === "completed" && onContinue && (
+        <Pressable style={styles.button} accessibilityRole="button" disabled={isSaving}
+          accessibilityState={{ disabled: isSaving, busy: isSaving }} onPress={onContinue}>
+          <Text style={styles.buttonText}>Continue to check-in</Text>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -268,6 +279,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 24,
+    paddingTop: Platform.OS === "web" ? 88 : 24,
     gap: 16,
   },
 

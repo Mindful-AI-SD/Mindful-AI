@@ -41,10 +41,18 @@ export function IntentionMirrorScreen({
   activityId,
   onBack,
   onOpenGap,
+  initialIntentions,
+  onGenerated,
+  onEditWriting,
+  continueLabel = "Reflect on the AI gap",
 }: {
   activityId: string;
   onBack: () => void;
   onOpenGap: () => void;
+  initialIntentions?: IntentionResponse;
+  onGenerated?: () => Promise<void>;
+  onEditWriting?: () => Promise<boolean>;
+  continueLabel?: string;
 }) {
   const theme = useTheme();
   const userId = useSignedInUserId();
@@ -54,7 +62,8 @@ export function IntentionMirrorScreen({
   );
   const draftReady = status !== "loading" && status !== "load-error";
   const [acknowledged, setAcknowledged] = useState(false);
-  const [submission, setSubmission] = useState<SubmissionState>({ status: "writing" });
+  const [submission, setSubmission] = useState<SubmissionState>(initialIntentions
+    ? { status: "success", data: initialIntentions } : { status: "writing" });
   const activeRequest = useRef<AbortController | null>(null);
   const isSubmitting = submission.status === "loading";
 
@@ -78,6 +87,8 @@ export function IntentionMirrorScreen({
     setSubmission({ status: "loading" });
 
     try {
+      if (!(await flush())) throw new Error("Could not save your writing. Please retry before generating intentions.");
+      if (activeRequest.current !== controller) return;
       const result = await getIntentions({
         activityId,
         activityContext: `Week 1: Mindful Attention. Intention Mirror. ${INSTRUCTIONS}`,
@@ -94,6 +105,8 @@ export function IntentionMirrorScreen({
         });
       } else {
         await saveProgressIntentions(userId, activityId, result.data.intentions);
+        if (activeRequest.current !== controller) return;
+        await onGenerated?.();
         if (activeRequest.current !== controller) return;
         setSubmission({ status: "success", data: result.data });
       }
@@ -288,13 +301,13 @@ export function IntentionMirrorScreen({
                 ))}
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityHint="Opens three reflection questions with your saved intentions above them."
+                  accessibilityHint="Saves your writing and opens the next Week 1 activity."
                   onPress={() => void flush().then((saved) => {
                     if (saved) onOpenGap();
                   })}
                   style={styles.submitButton}
                 >
-                  <ThemedText style={styles.submitText}>Reflect on the AI gap</ThemedText>
+                  <ThemedText style={styles.submitText}>{continueLabel}</ThemedText>
                 </Pressable>
               </View>
             )}
@@ -303,7 +316,12 @@ export function IntentionMirrorScreen({
               <Pressable
                 accessibilityRole="button"
                 accessibilityHint="Returns to your writing without changing it."
-                onPress={() => setSubmission({ status: "writing" })}
+                onPress={() => {
+                  if (onEditWriting) void onEditWriting().then(saved => {
+                    if (saved) setSubmission({ status: "writing" });
+                  });
+                  else setSubmission({ status: "writing" });
+                }}
                 style={styles.backButton}
               >
                 <ThemedText>Back to writing</ThemedText>

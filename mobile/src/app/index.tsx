@@ -9,8 +9,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { SignOutButton } from "@/components/sign-out-button";
-import { IntentionMirrorScreen } from "@/components/intention-mirror-screen";
-import { AiGapReflectionScreen } from "@/components/ai-gap-reflection-screen";
+import { WeekOneFlow } from "@/components/week-one-flow";
+import { useSignedInUserId } from "@/components/auth-gate";
+import { getWeekOneProgress } from "../../lib/week-one";
 import { AccessibleHeading } from "@/components/accessibility";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -20,7 +21,8 @@ import {
 } from "../../lib/curriculum";
 
 export default function HomeScreen() {
-  const [activeScreen, setActiveScreen] = useState<"curriculum" | "intention" | "gap">("curriculum");
+  const userId = useSignedInUserId();
+  const [activeScreen, setActiveScreen] = useState<"curriculum" | "week-one">("curriculum");
   const [week, setWeek] = useState<CurriculumWeek | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -31,7 +33,10 @@ export default function HomeScreen() {
 
     try {
       const weekOne = await getPublishedWeekOne();
+      const activity = weekOne.activities.find(value => value.activity_type === "reflection");
+      const progress = activity ? await getWeekOneProgress(userId, activity.id) : null;
       setWeek(weekOne);
+      if (progress) setActiveScreen("week-one");
     } catch (error) {
       setWeek(null);
       setErrorMessage(
@@ -42,7 +47,7 @@ export default function HomeScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     void loadWeek();
@@ -52,24 +57,12 @@ export default function HomeScreen() {
     (activity) => activity.activity_type === "reflection",
   );
 
-  if (activeScreen === "gap" && writingActivity) {
+  if (activeScreen === "week-one" && writingActivity) {
     return (
-      <AiGapReflectionScreen
+      <WeekOneFlow
         key={writingActivity.id}
         activityId={writingActivity.id}
-        onBack={() => setActiveScreen("curriculum")}
-        onOpenIntention={() => setActiveScreen("intention")}
-      />
-    );
-  }
-
-  if (activeScreen === "intention" && writingActivity) {
-    return (
-      <IntentionMirrorScreen
-        key={writingActivity.id}
-        activityId={writingActivity.id}
-        onBack={() => setActiveScreen("curriculum")}
-        onOpenGap={() => setActiveScreen("gap")}
+        onExit={() => setActiveScreen("curriculum")}
       />
     );
   }
@@ -131,23 +124,16 @@ export default function HomeScreen() {
                 {writingActivity && (
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityHint="Opens your writing and saved draft."
-                    onPress={() => setActiveScreen("intention")}
+                    accessibilityHint="Starts Week 1 or restores your saved step."
+                    onPress={() => setActiveScreen("week-one")}
                     style={({ pressed }) => [
                       styles.retryButton,
                       pressed && styles.buttonPressed,
                     ]}
                   >
                     <ThemedText style={styles.retryButtonText}>
-                      Open Intention Mirror
+                      Start or continue Week 1
                     </ThemedText>
-                  </Pressable>
-                )}
-                {writingActivity && (
-                  <Pressable accessibilityRole="button" onPress={() => setActiveScreen("gap")}
-                    accessibilityHint="Opens your saved intentions and reflection questions."
-                    style={styles.retryButton}>
-                    <ThemedText style={styles.retryButtonText}>Open AI gap reflection</ThemedText>
                   </Pressable>
                 )}
               </ThemedView>

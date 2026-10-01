@@ -188,6 +188,7 @@ test("delayed success renders returned titles and explanations with no duplicate
   const submit = ui.button("Submit");
   submit.props.onPress();
   submit.props.onPress();
+  await turn();
   assert.equal(ui.calls.length, 1);
   assert.equal(ui.calls[0].activityId, "real-activity-id");
   assert.equal(ui.calls[0].userReflection, "My original\nwriting");
@@ -323,6 +324,7 @@ test("timeout exposes recovery; retry is single-submit and late results cannot r
   const retry = ui.button("Retry");
   retry.props.onPress();
   retry.props.onPress();
+  await turn();
   assert.equal(ui.calls.length, 2);
   late.resolve(fixture);
   await turn();
