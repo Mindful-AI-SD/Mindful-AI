@@ -30,7 +30,7 @@ type BreathingState =
   | "completed"
   | "exited";
 
-const SESSION_DURATION_MS = 10 * 1000;
+const SESSION_DURATION_MS = 10 * 60 * 1000;
 
 export default function BreathingPlayer() {
   const params = useLocalSearchParams<{
