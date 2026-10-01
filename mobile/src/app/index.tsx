@@ -43,6 +43,10 @@ import {
 } from "./data-self-portrait";
 
 import {
+  YellowDigDraftScreen,
+} from "./yellowdig-draft";
+
+import {
   type CurriculumWeek,
   getPublishedWeekOne,
 } from "../../lib/curriculum";
@@ -51,10 +55,14 @@ type ActiveScreen =
   | "curriculum"
   | "intention"
   | "data-self-portrait"
-  | "gap";
+  | "gap"
+  | "yellowdig";
 
 export default function HomeScreen() {
-  const [activeScreen, setActiveScreen] =
+  const [
+    activeScreen,
+    setActiveScreen,
+  ] =
     useState<ActiveScreen>(
       "curriculum",
     );
@@ -67,7 +75,10 @@ export default function HomeScreen() {
   const [
     errorMessage,
     setErrorMessage,
-  ] = useState<string | null>(null);
+  ] =
+    useState<string | null>(
+      null,
+    );
 
   const [isLoading, setIsLoading] =
     useState(true);
@@ -116,12 +127,33 @@ export default function HomeScreen() {
     activityId: string,
   ) {
     router.push({
-      pathname: "/breathing-player",
+      pathname:
+        "/breathing-player",
 
       params: {
         activityId,
       },
     });
+  }
+
+  if (
+    activeScreen ===
+      "yellowdig" &&
+    writingActivity
+  ) {
+    return (
+      <YellowDigDraftScreen
+        key={writingActivity.id}
+        activityId={
+          writingActivity.id
+        }
+        onBack={() =>
+          setActiveScreen(
+            "curriculum",
+          )
+        }
+      />
+    );
   }
 
   if (
@@ -169,7 +201,8 @@ export default function HomeScreen() {
   }
 
   if (
-    activeScreen === "intention" &&
+    activeScreen ===
+      "intention" &&
     writingActivity
   ) {
     return (
@@ -208,12 +241,16 @@ export default function HomeScreen() {
             style={styles.header}
           >
             <ThemedText
-              style={styles.eyebrow}
+              style={
+                styles.eyebrow
+              }
             >
               MINDFUL AI
             </ThemedText>
 
-            <ThemedText type="title">
+            <ThemedText
+              type="title"
+            >
               Your curriculum
             </ThemedText>
           </View>
@@ -242,7 +279,9 @@ export default function HomeScreen() {
                   styles.messageCard
                 }
               >
-                <ThemedText type="subtitle">
+                <ThemedText
+                  type="subtitle"
+                >
                   Unable to load
                   Week 1
                 </ThemedText>
@@ -289,10 +328,14 @@ export default function HomeScreen() {
                     }
                   >
                     WEEK{" "}
-                    {week.week_number}
+                    {
+                      week.week_number
+                    }
                   </ThemedText>
 
-                  <ThemedText type="title">
+                  <ThemedText
+                    type="title"
+                  >
                     {week.title}
                   </ThemedText>
 
@@ -402,6 +445,35 @@ export default function HomeScreen() {
                       </ThemedText>
                     </Pressable>
                   )}
+
+                  {writingActivity && (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Open YellowDig draft"
+                      onPress={() =>
+                        setActiveScreen(
+                          "yellowdig",
+                        )
+                      }
+                      style={({
+                        pressed,
+                      }) => [
+                        styles.retryButton,
+
+                        pressed &&
+                          styles.buttonPressed,
+                      ]}
+                    >
+                      <ThemedText
+                        style={
+                          styles.retryButtonText
+                        }
+                      >
+                        Open YellowDig
+                        Draft
+                      </ThemedText>
+                    </Pressable>
+                  )}
                 </ThemedView>
 
                 <View
@@ -409,12 +481,15 @@ export default function HomeScreen() {
                     styles.section
                   }
                 >
-                  <ThemedText type="subtitle">
+                  <ThemedText
+                    type="subtitle"
+                  >
                     Activities
                   </ThemedText>
 
                   {week.activities
-                    .length === 0 ? (
+                    .length ===
+                  0 ? (
                     <ThemedText>
                       No published
                       activities are
@@ -469,7 +544,9 @@ export default function HomeScreen() {
                               )}
                             </View>
 
-                            <ThemedText type="subtitle">
+                            <ThemedText
+                              type="subtitle"
+                            >
                               {
                                 activity.title
                               }
