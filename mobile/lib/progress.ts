@@ -38,10 +38,114 @@ export type WeekOneProgress = {
   updated_at: string;
 };
 
+export type ActivityProgress = Pick<
+  WeekOneProgress,
+  "activity_id" | "status" | "current_step" | "started_at" | "completed_at"
+>;
+
 async function requireDraftOwner(userId: string) {
   const { data, error } = await supabase.auth.getSession();
   if (error || data.session?.user.id !== userId) {
     throw new Error("Sign in again to access your saved writing.");
+  }
+}
+
+export async function getActivityProgress(
+  userId: string,
+  activityIds: string[],
+): Promise<ActivityProgress[]> {
+  if (activityIds.length === 0) return [];
+
+  await requireDraftOwner(userId);
+  const { data, error } = await supabase
+    .from("progress")
+    .select("activity_id, status, current_step, started_at, completed_at")
+    .eq("user_id", userId)
+    .in("activity_id", activityIds);
+
+  if (error) {
+    throw new Error("Could not load your Week 1 progress. Please retry.");
+  }
+
+  await requireDraftOwner(userId);
+  return (data ?? []) as ActivityProgress[];
+}
+
+export async function saveProgressStep(
+  userId: string,
+  activityId: string,
+  currentStep: WeekOneStep,
+): Promise<void> {
+  await requireDraftOwner(userId);
+  const { data: existing, error: readError } = await supabase
+    .from("progress")
+    .select("started_at")
+    .eq("user_id", userId)
+    .eq("activity_id", activityId)
+    .maybeSingle();
+
+  if (readError) {
+    throw new Error("Could not update your Week 1 progress. Please retry.");
+  }
+
+  await requireDraftOwner(userId);
+  const { data, error } = await supabase
+    .from("progress")
+    .upsert(
+      {
+        user_id: userId,
+        activity_id: activityId,
+        status: "in_progress",
+        current_step: currentStep,
+        started_at: existing?.started_at ?? new Date().toISOString(),
+        completed_at: null,
+      },
+      { onConflict: "user_id,activity_id" },
+    )
+    .select("activity_id")
+    .single();
+
+  if (error || !data) {
+    throw new Error("Could not update your Week 1 progress. Please retry.");
+  }
+}
+
+export async function completeProgressActivity(
+  userId: string,
+  activityId: string,
+): Promise<void> {
+  await requireDraftOwner(userId);
+  const { data: existing, error: readError } = await supabase
+    .from("progress")
+    .select("started_at")
+    .eq("user_id", userId)
+    .eq("activity_id", activityId)
+    .maybeSingle();
+
+  if (readError) {
+    throw new Error("Could not complete this activity. Please retry.");
+  }
+
+  const completedAt = new Date().toISOString();
+  await requireDraftOwner(userId);
+  const { data, error } = await supabase
+    .from("progress")
+    .upsert(
+      {
+        user_id: userId,
+        activity_id: activityId,
+        status: "completed",
+        current_step: "completed",
+        started_at: existing?.started_at ?? completedAt,
+        completed_at: completedAt,
+      },
+      { onConflict: "user_id,activity_id" },
+    )
+    .select("activity_id")
+    .single();
+
+  if (error || !data) {
+    throw new Error("Could not complete this activity. Please retry.");
   }
 }
 

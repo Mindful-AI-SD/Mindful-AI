@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -11,6 +11,9 @@ import {
   View,
 } from "react-native";
 
+import { useSignedInUserId } from "@/components/auth-gate";
+import { saveProgressStep } from "../../lib/progress";
+
 type BreathingState =
   | "idle"
   | "running"
@@ -21,12 +24,15 @@ type BreathingState =
 const SESSION_DURATION_MS = 10 * 60 * 1000;
 
 export default function BreathingPlayer() {
+  const { activityId } = useLocalSearchParams<{ activityId?: string }>();
+  const userId = useSignedInUserId();
   const [state, setState] = useState<BreathingState>("idle");
   const [elapsedTime, setElapsedTime] = useState(0);
 
   const accumulatedTimeRef = useRef(0);
   const activeStartTimeRef = useRef<number | null>(null);
   const stateRef = useRef<BreathingState>("idle");
+  const savedCompletionRef = useRef(false);
 
   const colorScheme = useColorScheme();
   const isDarkMode = colorScheme === "dark";
@@ -53,6 +59,21 @@ export default function BreathingPlayer() {
     setElapsedTime(accumulatedTimeRef.current);
   }
 
+  async function saveCompletedBreathingStep() {
+    if (!activityId || savedCompletionRef.current) return;
+    savedCompletionRef.current = true;
+
+    try {
+      await saveProgressStep(userId, activityId, "writing");
+    } catch (error) {
+      savedCompletionRef.current = false;
+      Alert.alert(
+        "Unable to save progress",
+        error instanceof Error ? error.message : "Please try again.",
+      );
+    }
+  }
+
   useEffect(() => {
     if (state !== "running") {
       return;
@@ -75,6 +96,7 @@ export default function BreathingPlayer() {
 
         setElapsedTime(SESSION_DURATION_MS);
         changeState("completed");
+        void saveCompletedBreathingStep();
         return;
       }
 
@@ -140,6 +162,7 @@ export default function BreathingPlayer() {
     ) {
       accumulatedTimeRef.current = 0;
       activeStartTimeRef.current = Date.now();
+      savedCompletionRef.current = false;
 
       setElapsedTime(0);
       changeState("running");

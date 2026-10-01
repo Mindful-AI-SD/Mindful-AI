@@ -39,10 +39,12 @@ type SubmissionState =
 export function IntentionMirrorScreen({
   activityId,
   onBack,
+  onIntentionsReady,
   onOpenGap,
 }: {
   activityId: string;
   onBack: () => void;
+  onIntentionsReady: () => Promise<void> | void;
   onOpenGap: () => void;
 }) {
   const theme = useTheme();
@@ -93,6 +95,7 @@ export function IntentionMirrorScreen({
         });
       } else {
         await saveProgressIntentions(userId, activityId, result.data.intentions);
+        await onIntentionsReady();
         if (activeRequest.current !== controller) return;
         setSubmission({ status: "success", data: result.data });
       }

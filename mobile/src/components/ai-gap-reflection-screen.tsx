@@ -20,10 +20,11 @@ const QUESTIONS: { key: keyof GapReflectionAnswers; label: string }[] = [
   { key: "ai_gap_reveals", label: "What does the gap reveal?" },
 ];
 
-export function AiGapReflectionScreen({ activityId, onBack, onOpenIntention }: {
+export function AiGapReflectionScreen({ activityId, onBack, onOpenIntention, onComplete }: {
   activityId: string;
   onBack: () => void;
   onOpenIntention: () => void;
+  onComplete: () => Promise<void> | void;
 }) {
   const userId = useSignedInUserId();
   const theme = useTheme();
@@ -72,6 +73,9 @@ export function AiGapReflectionScreen({ activityId, onBack, onOpenIntention }: {
       await saveGapReflection(userId, activityId, answers);
       if (version.current !== current) return false;
       setSavedAnswers(answers);
+      if (QUESTIONS.every(({ key }) => answers[key].trim().length > 0)) {
+        await onComplete();
+      }
       return true;
     } catch {
       if (version.current === current) {

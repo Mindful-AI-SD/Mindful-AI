@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -9,6 +10,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { SignOutButton } from "@/components/sign-out-button";
+import { useSignedInUserId } from "@/components/auth-gate";
 import { IntentionMirrorScreen } from "@/components/intention-mirror-screen";
 import { AiGapReflectionScreen } from "@/components/ai-gap-reflection-screen";
 import { ThemedText } from "@/components/themed-text";
@@ -17,12 +19,32 @@ import {
   type CurriculumWeek,
   getPublishedWeekOne,
 } from "../../lib/curriculum";
+import {
+  type ActivityProgress,
+  completeProgressActivity,
+  getActivityProgress,
+  saveProgressStep,
+} from "../../lib/progress";
+
+type ActiveScreen = "curriculum" | "intention" | "gap";
+
+const STATUS_LABELS = {
+  not_started: "Not started",
+  in_progress: "In progress",
+  completed: "Completed",
+} as const;
 
 export default function HomeScreen() {
-  const [activeScreen, setActiveScreen] = useState<"curriculum" | "intention" | "gap">("curriculum");
+  const userId = useSignedInUserId();
+  const [activeScreen, setActiveScreen] = useState<ActiveScreen>("curriculum");
+  const [activeActivityId, setActiveActivityId] = useState<string | null>(null);
   const [week, setWeek] = useState<CurriculumWeek | null>(null);
+  const [progressByActivityId, setProgressByActivityId] = useState<
+    Record<string, ActivityProgress>
+  >({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [openingActivityId, setOpeningActivityId] = useState<string | null>(null);
 
   const loadWeek = useCallback(async () => {
     setIsLoading(true);
@@ -30,7 +52,14 @@ export default function HomeScreen() {
 
     try {
       const weekOne = await getPublishedWeekOne();
+      const progress = await getActivityProgress(
+        userId,
+        weekOne.activities.map((activity) => activity.id),
+      );
       setWeek(weekOne);
+      setProgressByActivityId(
+        Object.fromEntries(progress.map((item) => [item.activity_id, item])),
+      );
     } catch (error) {
       setWeek(null);
       setErrorMessage(
@@ -41,34 +70,105 @@ export default function HomeScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [userId]);
 
-  useEffect(() => {
-    void loadWeek();
-  }, [loadWeek]);
-
-  const writingActivity = week?.activities.find(
-    (activity) => activity.activity_type === "reflection",
+  useFocusEffect(
+    useCallback(() => {
+      if (activeScreen === "curriculum") void loadWeek();
+    }, [activeScreen, loadWeek]),
   );
 
-  if (activeScreen === "gap" && writingActivity) {
+  const activeActivity = week?.activities.find(
+    (activity) => activity.id === activeActivityId,
+  );
+
+  function returnToCurriculum() {
+    setActiveScreen("curriculum");
+    setActiveActivityId(null);
+  }
+
+  async function openActivity(activityId: string) {
+    if (openingActivityId) return;
+    setOpeningActivityId(activityId);
+
+    try {
+      const progress = progressByActivityId[activityId];
+      const currentStep = progress?.current_step ?? "breathing";
+      setActiveActivityId(activityId);
+
+      if (!progress) {
+        await saveProgressStep(userId, activityId, "breathing");
+        router.replace({ pathname: "/breathing-player", params: { activityId } });
+        return;
+      }
+
+      if (progress.status === "completed") {
+        setActiveScreen("gap");
+        return;
+      }
+
+      if (currentStep === "breathing") {
+        router.replace({ pathname: "/breathing-player", params: { activityId } });
+        return;
+      }
+
+      if (
+        currentStep === "ai_gap_reflection" ||
+        currentStep === "yellowdig_draft"
+      ) {
+        setActiveScreen("gap");
+        return;
+      }
+
+      if (currentStep === "post_breathing_check_in") {
+        await saveProgressStep(userId, activityId, "writing");
+      }
+      setActiveScreen("intention");
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Could not open this activity.",
+      );
+    } finally {
+      setOpeningActivityId(null);
+    }
+  }
+
+  if (activeScreen === "gap" && activeActivity) {
     return (
       <AiGapReflectionScreen
-        key={writingActivity.id}
-        activityId={writingActivity.id}
-        onBack={() => setActiveScreen("curriculum")}
+        key={activeActivity.id}
+        activityId={activeActivity.id}
+        onBack={returnToCurriculum}
         onOpenIntention={() => setActiveScreen("intention")}
+        onComplete={async () => {
+          await completeProgressActivity(userId, activeActivity.id);
+          returnToCurriculum();
+        }}
       />
     );
   }
 
-  if (activeScreen === "intention" && writingActivity) {
+  if (activeScreen === "intention" && activeActivity) {
     return (
       <IntentionMirrorScreen
-        key={writingActivity.id}
-        activityId={writingActivity.id}
-        onBack={() => setActiveScreen("curriculum")}
-        onOpenGap={() => setActiveScreen("gap")}
+        key={activeActivity.id}
+        activityId={activeActivity.id}
+        onBack={returnToCurriculum}
+        onIntentionsReady={() =>
+          saveProgressStep(userId, activeActivity.id, "intention_mirror")
+        }
+        onOpenGap={() => {
+          void saveProgressStep(userId, activeActivity.id, "ai_gap_reflection")
+            .then(() => setActiveScreen("gap"))
+            .catch((error) => {
+              setErrorMessage(
+                error instanceof Error
+                  ? error.message
+                  : "Could not save your current step.",
+              );
+              returnToCurriculum();
+            });
+        }}
       />
     );
   }
@@ -124,26 +224,6 @@ export default function HomeScreen() {
                     {week.description}
                   </ThemedText>
                 )}
-                {writingActivity && (
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => setActiveScreen("intention")}
-                    style={({ pressed }) => [
-                      styles.retryButton,
-                      pressed && styles.buttonPressed,
-                    ]}
-                  >
-                    <ThemedText style={styles.retryButtonText}>
-                      Open Intention Mirror
-                    </ThemedText>
-                  </Pressable>
-                )}
-                {writingActivity && (
-                  <Pressable accessibilityRole="button" onPress={() => setActiveScreen("gap")}
-                    style={styles.retryButton}>
-                    <ThemedText style={styles.retryButtonText}>Open AI gap reflection</ThemedText>
-                  </Pressable>
-                )}
               </ThemedView>
 
               <View style={styles.section}>
@@ -154,8 +234,23 @@ export default function HomeScreen() {
                     No published activities are available yet.
                   </ThemedText>
                 ) : (
-                  week.activities.map((activity) => (
-                    <ThemedView key={activity.id} style={styles.activityCard}>
+                  week.activities.map((activity) => {
+                    const progress = progressByActivityId[activity.id];
+                    const status = progress?.status ?? "not_started";
+                    const isOpening = openingActivityId === activity.id;
+
+                    return (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`${activity.title}. ${STATUS_LABELS[status]}`}
+                      disabled={openingActivityId !== null}
+                      key={activity.id}
+                      onPress={() => void openActivity(activity.id)}
+                      style={({ pressed }) => [
+                        styles.activityCard,
+                        pressed && styles.buttonPressed,
+                      ]}
+                    >
                       <View style={styles.activityMetadata}>
                         <ThemedText style={styles.activityType}>
                           {activity.activity_type
@@ -174,13 +269,17 @@ export default function HomeScreen() {
                         {activity.title}
                       </ThemedText>
 
+                      <ThemedText style={styles.status}>
+                        {isOpening ? "Opening…" : STATUS_LABELS[status]}
+                      </ThemedText>
+
                       {activity.content && (
                         <ThemedText style={styles.description}>
                           {activity.content}
                         </ThemedText>
                       )}
-                    </ThemedView>
-                  ))
+                    </Pressable>
+                  );})
                 )}
               </View>
             </>
@@ -260,6 +359,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#d4ddd3",
     borderRadius: 16,
+    backgroundColor: "transparent",
   },
   activityMetadata: {
     flexDirection: "row",
@@ -276,6 +376,11 @@ const styles = StyleSheet.create({
   duration: {
     fontSize: 14,
     opacity: 0.7,
+  },
+  status: {
+    color: "#41644a",
+    fontSize: 15,
+    fontWeight: "700",
   },
   retryButton: {
     minHeight: 48,

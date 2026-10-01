@@ -103,7 +103,9 @@ export function AuthScreen() {
         />
 
         <Pressable
+          accessibilityRole="button"
           disabled={isSubmitting}
+          hitSlop={12}
           onPress={handleSubmit}
           style={({ pressed }) => [
             styles.primaryButton,
@@ -121,7 +123,9 @@ export function AuthScreen() {
         </Pressable>
 
         <Pressable
+          accessibilityRole="button"
           disabled={isSubmitting}
+          hitSlop={12}
           onPress={() => setIsSignUp((current) => !current)}
           style={styles.secondaryButton}
         >
@@ -188,8 +192,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   secondaryButton: {
+    minHeight: 48,
+    width: "100%",
     alignItems: "center",
-    padding: 8,
+    justifyContent: "center",
+    paddingHorizontal: 12,
   },
   secondaryButtonText: {
     color: "#41644a",
