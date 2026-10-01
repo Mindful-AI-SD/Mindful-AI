@@ -1,67 +1,110 @@
 import { withSupabase } from "@supabase/server";
+import {
+  type GuidedReflectionRequest,
+  type GuidedReflectionResponse,
+  guidedReflectionResponseSchema,
+  guidedReflectionSchema,
+} from "../../schema/guidedReflectionSchema.ts";
+import {
+  generateMockGuidedReflection,
+  resolveMockScenario,
+  resolveMockTimingConfig,
+} from "../_shared/providers/mockProviderAdapter.ts";
+import { ProviderTimeoutError } from "../_shared/providers/types.ts";
 
-export type MindfulnessResponseRequest = {
-  activityId: string;
-  activityContext: string;
-  userReflection: string;
-};
+export type MindfulnessResponseRequest = GuidedReflectionRequest;
+export type MindfulnessResponse = GuidedReflectionResponse;
 
-export type MindfulnessResponse = {
-  activityId: string;
-  reply: string;
-  status: "placeholder";
-};
+type Provider = (context: string, reflection: string) => Promise<unknown>;
+const errors = {
+  400: {
+    error: "INVALID_INPUT",
+    message: "The mindfulness request is invalid.",
+  },
+  401: { error: "AUTH_REQUIRED", message: "Sign in to request intentions." },
+  408: {
+    error: "PROVIDER_TIMEOUT",
+    message: "The provider timed out. Please try again.",
+  },
+  502: {
+    error: "PROVIDER_ERROR",
+    message: "Intentions are unavailable. Please try again.",
+  },
+} as const;
 
-export default {
-  fetch: withSupabase({ auth: "user" }, async (req, ctx) => {
-    const userId = ctx.userClaims?.id;
-    if (!userId) {
-      return Response.json({ error: "Authenticated user not found" }, {
-        status: 401,
-      });
-    }
+function failure(status: keyof typeof errors, headers?: Headers): Response {
+  return Response.json(errors[status], { status, headers });
+}
 
+const mockProvider: Provider = (context, reflection) =>
+  generateMockGuidedReflection(
+    context,
+    reflection,
+    resolveMockScenario(),
+    resolveMockTimingConfig(),
+  );
+
+// Injection is server-side only, for testing failures without replacing the adapter.
+export function createMindfulnessEndpoint(
+  provider: Provider = mockProvider,
+  timeoutMs = 5000,
+) {
+  const authenticated = withSupabase({ auth: "user" }, async (req, ctx) => {
+    if (!ctx.userClaims?.id) return failure(401);
     if (req.method !== "POST") {
-      return Response.json({ error: "Method not allowed" }, {
+      return Response.json({
+        error: "METHOD_NOT_ALLOWED",
+        message: "Use POST.",
+      }, {
         status: 405,
         headers: { Allow: "POST" },
       });
     }
-
     let body: unknown;
     try {
       body = await req.json();
     } catch {
-      return Response.json({ error: "Request body must be valid JSON" }, {
-        status: 400,
-      });
+      return failure(400);
     }
+    const input = guidedReflectionSchema.safeParse(body);
+    if (!input.success) return failure(400);
 
-    if (
-      !body || typeof body !== "object" || Array.isArray(body) ||
-      !("activityId" in body) || typeof body.activityId !== "string" ||
-      !("activityContext" in body) ||
-      typeof body.activityContext !== "string" ||
-      !("userReflection" in body) || typeof body.userReflection !== "string"
-    ) {
-      return Response.json({
-        error:
-          "activityId, activityContext, and userReflection must be strings",
-      }, { status: 400 });
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const result = await Promise.race([
+        Promise.resolve().then(() =>
+          provider(input.data.activityContext, input.data.userReflection)
+        ),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new ProviderTimeoutError("Deadline exceeded")),
+            timeoutMs,
+          );
+        }),
+      ]);
+      const output = guidedReflectionResponseSchema.safeParse(result);
+      if (!output.success) return failure(502);
+      return Response.json(output.data);
+    } catch (error) {
+      return failure(error instanceof ProviderTimeoutError ? 408 : 502);
+    } finally {
+      clearTimeout(timer);
     }
+  });
+  return {
+    async fetch(req: Request): Promise<Response> {
+      const response = await authenticated(req);
+      // Middleware rejects unsigned requests before our handler; normalize its
+      // diagnostics too, preserving CORS headers for browser callers.
+      if (response.status === 401) {
+        await response.body?.cancel();
+        const headers = new Headers(response.headers);
+        headers.delete("content-length");
+        return failure(401, headers);
+      }
+      return response;
+    },
+  };
+}
 
-    const input: MindfulnessResponseRequest = {
-      activityId: body.activityId,
-      activityContext: body.activityContext,
-      userReflection: body.userReflection,
-    };
-    // Shell only: no provider call, persistence, or reflection echoing.
-    const response: MindfulnessResponse = {
-      activityId: input.activityId,
-      reply:
-        "Your reflection has been received. Mindfulness responses are coming soon.",
-      status: "placeholder",
-    };
-    return Response.json(response);
-  }),
-};
+export default createMindfulnessEndpoint();
