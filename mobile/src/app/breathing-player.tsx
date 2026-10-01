@@ -1,5 +1,7 @@
 import { router, useLocalSearchParams } from "expo-router";
+
 import { useEffect, useRef, useState } from "react";
+
 import {
   ActivityIndicator,
   Alert,
@@ -15,6 +17,12 @@ import {
 import { completeBreathingStep } from "../../lib/progress";
 import { supabase } from "../../lib/supabase";
 
+import {
+  clearBreathingSession,
+  loadBreathingSession,
+  saveBreathingSession,
+} from "../../lib/breathing-session-storage";
+
 type BreathingState =
   | "idle"
   | "running"
@@ -22,7 +30,7 @@ type BreathingState =
   | "completed"
   | "exited";
 
-const SESSION_DURATION_MS = 10 * 60 * 1000;
+const SESSION_DURATION_MS = 10 * 1000;
 
 export default function BreathingPlayer() {
   const params = useLocalSearchParams<{
@@ -36,23 +44,40 @@ export default function BreathingPlayer() {
 
   const [state, setState] =
     useState<BreathingState>("idle");
-  const [elapsedTime, setElapsedTime] = useState(0);
+
+  const [elapsedTime, setElapsedTime] =
+    useState(0);
+
   const [isCompleting, setIsCompleting] =
     useState(false);
+
+  const [isRestoring, setIsRestoring] =
+    useState(true);
+
   const [errorMessage, setErrorMessage] = useState<
     string | null
   >(null);
 
   const accumulatedTimeRef = useRef(0);
+
   const activeStartTimeRef = useRef<number | null>(
     null,
   );
+
+  const sessionStartedAtRef = useRef<number | null>(
+    null,
+  );
+
   const stateRef = useRef<BreathingState>("idle");
 
-  // Prevents the completion logic from running more than once.
+  // Prevents completion from being handled twice.
   const completionHandledRef = useRef(false);
 
+  // Prevents the saved session from being restored twice.
+  const restorationHandledRef = useRef(false);
+
   const colorScheme = useColorScheme();
+
   const isDarkMode = colorScheme === "dark";
 
   const textColor = isDarkMode
@@ -68,18 +93,221 @@ export default function BreathingPlayer() {
     setState(newState);
   }
 
-  function saveCurrentActiveTime() {
-    if (activeStartTimeRef.current === null) {
+  async function getCurrentUserId() {
+    const {
+      data: { session },
+      error,
+    } = await supabase.auth.getSession();
+
+    if (error || !session?.user) {
+      throw new Error(
+        "Please sign in again before continuing.",
+      );
+    }
+
+    return session.user.id;
+  }
+
+  async function persistSession(
+    persistedState: "running" | "paused",
+    accumulatedOverride?: number,
+  ) {
+    if (
+      !activityId ||
+      sessionStartedAtRef.current === null
+    ) {
       return;
+    }
+
+    try {
+      const userId = await getCurrentUserId();
+
+      const accumulatedActiveMs =
+        accumulatedOverride ??
+        accumulatedTimeRef.current;
+
+      await saveBreathingSession(userId, {
+        activityId,
+        startedAt: sessionStartedAtRef.current,
+
+        accumulatedActiveMs: Math.min(
+          accumulatedActiveMs,
+          SESSION_DURATION_MS,
+        ),
+
+        state: persistedState,
+
+        // We never manufacture completion from
+        // restored local state.
+        completed: false,
+
+        savedAt: Date.now(),
+      });
+    } catch (error) {
+      console.error(
+        "Could not save breathing session:",
+        error,
+      );
+    }
+  }
+
+  async function clearSavedSession() {
+    if (!activityId) {
+      return;
+    }
+
+    try {
+      const userId = await getCurrentUserId();
+
+      await clearBreathingSession(
+        userId,
+        activityId,
+      );
+    } catch (error) {
+      console.error(
+        "Could not clear breathing session:",
+        error,
+      );
+    }
+  }
+
+  useEffect(() => {
+    if (restorationHandledRef.current) {
+      return;
+    }
+
+    restorationHandledRef.current = true;
+
+    async function restoreSession() {
+      if (!activityId) {
+        setIsRestoring(false);
+        return;
+      }
+
+      try {
+        const userId = await getCurrentUserId();
+
+        const savedSession =
+          await loadBreathingSession(
+            userId,
+            activityId,
+          );
+
+        if (!savedSession) {
+          setIsRestoring(false);
+          return;
+        }
+
+        /*
+         * Restore conservatively.
+         *
+         * We ONLY restore the accumulated active
+         * time that was explicitly saved.
+         *
+         * We do NOT add:
+         *
+         * Date.now() - savedSession.savedAt
+         *
+         * because time while the app was closed
+         * must never count toward completion.
+         */
+        const safeAccumulatedTime =
+          Math.max(
+            0,
+            Math.min(
+              savedSession.accumulatedActiveMs,
+              SESSION_DURATION_MS - 1,
+            ),
+          );
+
+        accumulatedTimeRef.current =
+          safeAccumulatedTime;
+
+        sessionStartedAtRef.current =
+          savedSession.startedAt;
+
+        activeStartTimeRef.current = null;
+
+        completionHandledRef.current = false;
+
+        setElapsedTime(
+          safeAccumulatedTime,
+        );
+
+        setErrorMessage(null);
+
+        /*
+         * Even if the session was saved as
+         * "running", reopening the app restores
+         * it as paused.
+         *
+         * The user must explicitly press Resume.
+         */
+        changeState("paused");
+
+        await saveBreathingSession(userId, {
+          activityId,
+          startedAt:
+            savedSession.startedAt,
+
+          accumulatedActiveMs:
+            safeAccumulatedTime,
+
+          state: "paused",
+          completed: false,
+          savedAt: Date.now(),
+        });
+      } catch (error) {
+        console.error(
+          "Could not restore breathing session:",
+          error,
+        );
+
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "Could not restore your previous breathing session.",
+        );
+      } finally {
+        setIsRestoring(false);
+      }
+    }
+
+    void restoreSession();
+  }, [activityId]);
+
+  function getCurrentActiveTime() {
+    if (activeStartTimeRef.current === null) {
+      return accumulatedTimeRef.current;
     }
 
     const currentActiveTime =
       Date.now() - activeStartTimeRef.current;
 
-    accumulatedTimeRef.current += currentActiveTime;
+    return (
+      accumulatedTimeRef.current +
+      currentActiveTime
+    );
+  }
+
+  function saveCurrentActiveTime() {
+    if (activeStartTimeRef.current === null) {
+      return accumulatedTimeRef.current;
+    }
+
+    const currentActiveTime =
+      Date.now() - activeStartTimeRef.current;
+
+    accumulatedTimeRef.current +=
+      currentActiveTime;
+
     activeStartTimeRef.current = null;
 
-    setElapsedTime(accumulatedTimeRef.current);
+    setElapsedTime(
+      accumulatedTimeRef.current,
+    );
+
+    return accumulatedTimeRef.current;
   }
 
   async function finishBreathingSession() {
@@ -98,30 +326,34 @@ export default function BreathingPlayer() {
         );
       }
 
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession();
-
-      if (sessionError || !session?.user) {
-        throw new Error(
-          "Please sign in again before continuing.",
-        );
-      }
+      const userId =
+        await getCurrentUserId();
 
       await completeBreathingStep(
-        session.user.id,
+        userId,
+        activityId,
+      );
+
+      /*
+       * The legitimate completion is now stored
+       * in Supabase, so the local temporary timer
+       * state can be removed.
+       */
+      await clearBreathingSession(
+        userId,
         activityId,
       );
 
       router.replace({
-        pathname: "/post-breathing-check-in",
+        pathname:
+          "/post-breathing-check-in",
         params: {
           activityId,
         },
       });
     } catch (error) {
-      completionHandledRef.current = false;
+      completionHandledRef.current =
+        false;
 
       setErrorMessage(
         error instanceof Error
@@ -134,29 +366,36 @@ export default function BreathingPlayer() {
   }
 
   useEffect(() => {
-    if (state !== "running") {
+    if (
+      state !== "running" ||
+      isRestoring
+    ) {
       return;
     }
 
     const updateTimer = () => {
-      if (activeStartTimeRef.current === null) {
+      if (
+        activeStartTimeRef.current === null
+      ) {
         return;
       }
 
-      const currentActiveTime =
-        Date.now() - activeStartTimeRef.current;
-
       const totalElapsed =
-        accumulatedTimeRef.current +
-        currentActiveTime;
+        getCurrentActiveTime();
 
-      if (totalElapsed >= SESSION_DURATION_MS) {
+      if (
+        totalElapsed >=
+        SESSION_DURATION_MS
+      ) {
         accumulatedTimeRef.current =
           SESSION_DURATION_MS;
 
         activeStartTimeRef.current = null;
 
-        setElapsedTime(SESSION_DURATION_MS);
+        setElapsedTime(
+          SESSION_DURATION_MS,
+        );
+
         changeState("completed");
 
         return;
@@ -172,14 +411,52 @@ export default function BreathingPlayer() {
       250,
     );
 
-    return () => clearInterval(interval);
-  }, [state]);
+    return () =>
+      clearInterval(interval);
+  }, [state, isRestoring]);
 
   useEffect(() => {
     if (state === "completed") {
       void finishBreathingSession();
     }
   }, [state]);
+
+  /*
+   * Save approximately once per second while
+   * actively running.
+   *
+   * If the app is killed suddenly, we may lose
+   * a small amount of time, but we will never
+   * invent extra breathing time.
+   */
+  useEffect(() => {
+    if (
+      state !== "running" ||
+      isRestoring
+    ) {
+      return;
+    }
+
+    const persistenceInterval =
+      setInterval(() => {
+        const currentTotal =
+          getCurrentActiveTime();
+
+        void persistSession(
+          "running",
+          currentTotal,
+        );
+      }, 1000);
+
+    return () =>
+      clearInterval(
+        persistenceInterval,
+      );
+  }, [
+    state,
+    isRestoring,
+    activityId,
+  ]);
 
   useEffect(() => {
     const subscription =
@@ -191,8 +468,15 @@ export default function BreathingPlayer() {
               nextAppState === "inactive") &&
             stateRef.current === "running"
           ) {
-            saveCurrentActiveTime();
+            const savedTime =
+              saveCurrentActiveTime();
+
             changeState("paused");
+
+            void persistSession(
+              "paused",
+              savedTime,
+            );
           }
         },
       );
@@ -200,32 +484,65 @@ export default function BreathingPlayer() {
     return () => {
       subscription.remove();
     };
-  }, []);
+  }, [activityId]);
 
   function handleStart() {
-    if (state === "idle") {
-      completionHandledRef.current = false;
-
-      accumulatedTimeRef.current = 0;
-      activeStartTimeRef.current = Date.now();
-
-      setElapsedTime(0);
-      setErrorMessage(null);
-      changeState("running");
+    if (
+      state !== "idle" ||
+      isRestoring
+    ) {
+      return;
     }
+
+    const now = Date.now();
+
+    completionHandledRef.current = false;
+
+    accumulatedTimeRef.current = 0;
+
+    activeStartTimeRef.current = now;
+
+    sessionStartedAtRef.current = now;
+
+    setElapsedTime(0);
+
+    setErrorMessage(null);
+
+    changeState("running");
+
+    void persistSession(
+      "running",
+      0,
+    );
   }
 
   function handlePause() {
     if (state === "running") {
-      saveCurrentActiveTime();
+      const savedTime =
+        saveCurrentActiveTime();
+
       changeState("paused");
+
+      void persistSession(
+        "paused",
+        savedTime,
+      );
     }
   }
 
   function handleResume() {
     if (state === "paused") {
-      activeStartTimeRef.current = Date.now();
+      activeStartTimeRef.current =
+        Date.now();
+
+      setErrorMessage(null);
+
       changeState("running");
+
+      void persistSession(
+        "running",
+        accumulatedTimeRef.current,
+      );
     }
   }
 
@@ -235,26 +552,45 @@ export default function BreathingPlayer() {
       state === "paused" ||
       state === "completed"
     ) {
-      completionHandledRef.current = false;
+      const now = Date.now();
+
+      completionHandledRef.current =
+        false;
 
       accumulatedTimeRef.current = 0;
-      activeStartTimeRef.current = Date.now();
+
+      activeStartTimeRef.current = now;
+
+      sessionStartedAtRef.current = now;
 
       setElapsedTime(0);
+
       setErrorMessage(null);
+
       changeState("running");
+
+      void persistSession(
+        "running",
+        0,
+      );
     }
   }
 
-  function exitSession() {
+  async function exitSession() {
     completionHandledRef.current = false;
 
     changeState("exited");
 
+    await clearSavedSession();
+
     accumulatedTimeRef.current = 0;
+
     activeStartTimeRef.current = null;
 
+    sessionStartedAtRef.current = null;
+
     setElapsedTime(0);
+
     setErrorMessage(null);
 
     router.replace("/");
@@ -278,7 +614,7 @@ export default function BreathingPlayer() {
       state === "idle" ||
       state === "completed"
     ) {
-      exitSession();
+      void exitSession();
       return;
     }
 
@@ -288,7 +624,7 @@ export default function BreathingPlayer() {
       );
 
       if (confirmed) {
-        exitSession();
+        void exitSession();
       }
 
       return;
@@ -305,7 +641,9 @@ export default function BreathingPlayer() {
         {
           text: "Exit",
           style: "destructive",
-          onPress: exitSession,
+          onPress: () => {
+            void exitSession();
+          },
         },
       ],
     );
@@ -330,6 +668,38 @@ export default function BreathingPlayer() {
     `${minutes}:${seconds
       .toString()
       .padStart(2, "0")}`;
+
+  if (isRestoring) {
+    return (
+      <View
+        style={[
+          styles.container,
+          { backgroundColor },
+        ]}
+      >
+        <Text
+          style={[
+            styles.title,
+            { color: textColor },
+          ]}
+        >
+          Breathing Player
+        </Text>
+
+        <View style={styles.savingRow}>
+          <ActivityIndicator
+            color="#41644a"
+          />
+
+          <Text
+            style={{ color: textColor }}
+          >
+            Restoring breathing session...
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View
@@ -371,7 +741,9 @@ export default function BreathingPlayer() {
             color="#41644a"
           />
 
-          <Text style={{ color: textColor }}>
+          <Text
+            style={{ color: textColor }}
+          >
             Saving breathing progress...
           </Text>
         </View>
