@@ -224,6 +224,8 @@ export function IntentionMirrorScreen({
                   accessibilityLabel={PRIVACY_ACKNOWLEDGEMENT}
                   accessibilityHint="Required before submission. Activate to check or uncheck."
                   accessibilityState={{ checked: acknowledged, disabled: isSubmitting }}
+                  aria-checked={acknowledged}
+                  aria-disabled={isSubmitting}
                   disabled={isSubmitting}
                   onPress={() => setAcknowledged((value) => !value)}
                   style={styles.acknowledgement}

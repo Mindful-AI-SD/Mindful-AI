@@ -398,8 +398,10 @@ test("writing controls explain requirements and results have ordered accessible 
   assert.match(ui.text(), /check the privacy acknowledgement/);
   const checkbox = ui.nodes().find(node => node.props.accessibilityRole === "checkbox");
   assert.match(checkbox.props.accessibilityHint, /Required/);
+  assert.equal(checkbox.props["aria-checked"], false);
   assert.equal(checkbox.props.style.minHeight, 48);
   ui.acknowledge();
+  assert.equal(ui.nodes().find(node => node.props.accessibilityRole === "checkbox").props["aria-checked"], true);
   assert.equal(ui.button("Submit").props.accessibilityLabel, "Submit writing");
   ui.button("Submit").props.onPress();
   await turn();

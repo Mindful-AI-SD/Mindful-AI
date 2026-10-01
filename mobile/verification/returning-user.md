@@ -29,3 +29,25 @@ Browser setup: `npm run export -- --platform web`, then
 `PLAYWRIGHT_CHANNEL=chrome` to use Chrome. The tests operate the actual exported
 frontend, simulate Supabase HTTP responses, and advance the browser clock for
 the ten-minute breathing timer. They do not contact live Supabase or Yellowdig.
+
+## Repair 3: web checkbox state
+
+The privacy checkbox displayed a checkmark but React Native Web did not expose
+`accessibilityState.checked` as `aria-checked`. Added explicit ARIA checked and
+disabled values, keeping native accessibility state intact.
+
+Verification on October 1, 2026:
+
+- `npm run export -- --platform web`: passed, including client security scan.
+- `npm run test:returning-user`: both browser tests passed in installed Edge.
+- Normal run: breathing → check-in → writing → mock intentions → data
+  self-portrait → gap reflection → Yellowdig draft → completion.
+- Restart run: full page reload after saved writing restores the writing step
+  and exact text; reload after mock generation restores the intention step and
+  all three saved intentions. Both runs restore completion after another reload.
+- Both runs retain the writing, all three intentions, all seven answer fields,
+  completed status, and completion timestamp, with no page errors or unexpected
+  network requests. The browser uses synthetic users and simulated Supabase
+  HTTP responses. No live-backend or physical-device verification is claimed.
+- `node --test tests/*.test.cjs`: 45 focused tests passed, including checkbox
+  checked-state assertions. `npx tsc --noEmit`: passed.
