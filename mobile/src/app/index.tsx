@@ -11,6 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { SignOutButton } from "@/components/sign-out-button";
 import { IntentionMirrorScreen } from "@/components/intention-mirror-screen";
 import { AiGapReflectionScreen } from "@/components/ai-gap-reflection-screen";
+import { AccessibleHeading } from "@/components/accessibility";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import {
@@ -79,7 +80,7 @@ export default function HomeScreen() {
         <ScrollView contentContainerStyle={styles.content}>
           <View style={styles.header}>
             <ThemedText style={styles.eyebrow}>MINDFUL AI</ThemedText>
-            <ThemedText type="title">Your curriculum</ThemedText>
+            <AccessibleHeading focusKey={activeScreen}>Your curriculum</AccessibleHeading>
           </View>
 
           {isLoading && (
@@ -92,9 +93,12 @@ export default function HomeScreen() {
           {!isLoading && errorMessage && (
             <ThemedView style={styles.messageCard}>
               <ThemedText type="subtitle">Unable to load Week 1</ThemedText>
-              <ThemedText>{errorMessage}</ThemedText>
+              <ThemedText accessibilityRole="alert">{errorMessage}</ThemedText>
 
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Retry loading Week 1"
+                accessibilityHint="Loads the curriculum and activities again."
                 onPress={() => void loadWeek()}
                 style={({ pressed }) => [
                   styles.retryButton,
@@ -127,6 +131,7 @@ export default function HomeScreen() {
                 {writingActivity && (
                   <Pressable
                     accessibilityRole="button"
+                    accessibilityHint="Opens your writing and saved draft."
                     onPress={() => setActiveScreen("intention")}
                     style={({ pressed }) => [
                       styles.retryButton,
@@ -140,6 +145,7 @@ export default function HomeScreen() {
                 )}
                 {writingActivity && (
                   <Pressable accessibilityRole="button" onPress={() => setActiveScreen("gap")}
+                    accessibilityHint="Opens your saved intentions and reflection questions."
                     style={styles.retryButton}>
                     <ThemedText style={styles.retryButtonText}>Open AI gap reflection</ThemedText>
                   </Pressable>

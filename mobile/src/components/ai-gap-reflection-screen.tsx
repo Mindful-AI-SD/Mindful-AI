@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useSignedInUserId } from "@/components/auth-gate";
+import { AccessibleHeading, AccessibleStatus } from "@/components/accessibility";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useTheme } from "@/hooks/use-theme";
@@ -90,6 +91,8 @@ export function AiGapReflectionScreen({ activityId, onBack, onOpenIntention }: {
         <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : undefined}>
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
             <Pressable accessibilityRole="button" disabled={isSaving} style={styles.action}
+              accessibilityHint="Saves any changed answers before returning to Week 1."
+              accessibilityState={{ disabled: isSaving }}
               onPress={() => {
                 if (!dirty) onBack();
                 else void save().then((saved) => { if (saved) onBack(); });
@@ -97,26 +100,26 @@ export function AiGapReflectionScreen({ activityId, onBack, onOpenIntention }: {
               <ThemedText>Back to Week 1</ThemedText>
             </Pressable>
             <ThemedText type="smallBold">WEEK 1</ThemedText>
-            <ThemedText type="title">AI gap reflection</ThemedText>
+            <AccessibleHeading focusKey={isLoading ? "loading" : loadError ? "error" : "ready"}>AI gap reflection</AccessibleHeading>
 
             {isLoading && (
               <View style={styles.section} accessibilityLiveRegion="polite">
-                <ActivityIndicator color="#41644a" />
-                <ThemedText>Loading your saved intentions and reflection…</ThemedText>
+                <ActivityIndicator color="#41644a" accessible={false} />
+                <AccessibleStatus>Loading your saved intentions and reflection…</AccessibleStatus>
               </View>
             )}
             {!isLoading && loadError && (
               <View style={styles.section}>
-                <ThemedText accessibilityRole="alert">{loadError}</ThemedText>
-                <Pressable accessibilityRole="button" style={styles.action} onPress={() => setLoadAttempt((value) => value + 1)}>
+                <AccessibleStatus error>{`${loadError} Use Retry loading to try again.`}</AccessibleStatus>
+                <Pressable accessibilityRole="button" accessibilityHint="Loads your saved intentions and answers again." style={styles.action} onPress={() => setLoadAttempt((value) => value + 1)}>
                   <ThemedText>Retry loading</ThemedText>
                 </Pressable>
               </View>
             )}
             {!isLoading && reflection && !reflection.intentions && (
               <View style={styles.section}>
-                <ThemedText>No complete set of three saved intentions is available. Open Intention Mirror to create and save them first.</ThemedText>
-                <Pressable accessibilityRole="button" style={styles.action} onPress={onOpenIntention}>
+                <AccessibleStatus error>No complete set of three saved intentions is available. Open Intention Mirror to create and save them first.</AccessibleStatus>
+                <Pressable accessibilityRole="button" accessibilityHint="Opens the writing screen to create three intentions." style={styles.action} onPress={onOpenIntention}>
                   <ThemedText>Open Intention Mirror</ThemedText>
                 </Pressable>
               </View>
@@ -124,9 +127,10 @@ export function AiGapReflectionScreen({ activityId, onBack, onOpenIntention }: {
             {!isLoading && reflection?.intentions && (
               <>
                 <View style={styles.section}>
-                  <ThemedText type="subtitle">Your saved mock intentions</ThemedText>
+                  <ThemedText type="subtitle" accessibilityRole="header">Your saved mock intentions</ThemedText>
                   {reflection.intentions.map((intention, index) => (
-                    <ThemedView key={index} style={styles.card}>
+                    <ThemedView key={index} style={styles.card} accessible
+                      accessibilityLabel={`Intention ${index + 1} of 3. ${intention.title}. ${intention.explanation}`}>
                       <ThemedText type="smallBold">{intention.title}</ThemedText>
                       <ThemedText>{intention.explanation}</ThemedText>
                     </ThemedView>
@@ -137,6 +141,8 @@ export function AiGapReflectionScreen({ activityId, onBack, onOpenIntention }: {
                     <ThemedText type="smallBold">{label}</ThemedText>
                     <TextInput
                       accessibilityLabel={label} multiline textAlignVertical="top"
+                      accessibilityHint="Multiline answer. Use Save reflection after editing; the intentions are above the questions."
+                      accessibilityState={{ disabled: isSaving }}
                       editable={!isSaving} value={reflection.answers[key]}
                       onChangeText={(text) => {
                         setReflection((value) => value && ({ ...value, answers: { ...value.answers, [key]: text } }));
@@ -146,10 +152,11 @@ export function AiGapReflectionScreen({ activityId, onBack, onOpenIntention }: {
                     />
                   </View>
                 ))}
-                <ThemedText accessibilityLiveRegion="polite">
+                <AccessibleStatus error={!!saveError}>
                   {isSaving ? "Saving…" : saveError ?? (dirty ? "Unsaved changes" : "Saved")}
-                </ThemedText>
+                </AccessibleStatus>
                 <Pressable accessibilityRole="button" disabled={isSaving || !dirty}
+                  accessibilityHint="Saves all three answers to your account. Enabled when answers have changed."
                   accessibilityState={{ disabled: isSaving || !dirty, busy: isSaving }}
                   onPress={() => void save()}
                   style={[styles.saveButton, (isSaving || !dirty) && styles.disabled]}>
@@ -173,7 +180,7 @@ const styles = StyleSheet.create({
   section: { gap: 12 },
   card: { gap: 8, padding: 20, borderWidth: 1, borderColor: "#b9cbbd", borderRadius: 12 },
   editor: { minHeight: 140, padding: 16, borderWidth: 1, borderColor: "#b9cbbd", borderRadius: 12, fontSize: 16, lineHeight: 24 },
-  action: { minHeight: 48, justifyContent: "center" },
+  action: { minHeight: 48, minWidth: 48, justifyContent: "center" },
   saveButton: { minHeight: 48, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: "#41644a" },
   buttonText: { color: "#ffffff", fontWeight: "700" },
   disabled: { opacity: 0.45 },

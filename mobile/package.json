@@ -35,6 +35,14 @@
     "typescript": "~6.0.3"
   },
   "scripts": {
+    "check:client-security": "node scripts/check-client-security.cjs",
+    "prestart": "npm run check:client-security",
+    "preandroid": "npm run check:client-security",
+    "preios": "npm run check:client-security",
+    "preweb": "npm run check:client-security",
+    "preexport": "npm run check:client-security",
+    "export": "expo export",
+    "postexport": "node scripts/check-client-security.cjs --bundle dist",
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo start --android",
