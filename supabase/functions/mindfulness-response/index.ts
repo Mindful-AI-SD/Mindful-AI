@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { type SubmissionStore, submissionStore } from "./submissions.ts";
 import { withSupabase } from "@supabase/server";
 import {
   type GuidedReflectionRequest,
@@ -12,7 +14,13 @@ import {
 } from "../_shared/providers/mockProviderAdapter.ts";
 import { ProviderTimeoutError } from "../_shared/providers/types.ts";
 
-export type MindfulnessResponseRequest = GuidedReflectionRequest;
+const requestSchema = guidedReflectionSchema.extend({
+  activityId: z.uuid(),
+  submissionId: z.uuid(),
+});
+export type MindfulnessResponseRequest = GuidedReflectionRequest & {
+  submissionId: string;
+};
 export type MindfulnessResponse = GuidedReflectionResponse;
 
 type Provider = (context: string, reflection: string) => Promise<unknown>;
@@ -22,6 +30,15 @@ const errors = {
     message: "The mindfulness request is invalid.",
   },
   401: { error: "AUTH_REQUIRED", message: "Sign in to request intentions." },
+  409: {
+    error: "SUBMISSION_CONFLICT",
+    message:
+      "Submission is in progress or the ID was reused for different input.",
+  },
+  503: {
+    error: "PERSISTENCE_UNAVAILABLE",
+    message: "Could not save intentions. Retry with the same submission ID.",
+  },
   408: {
     error: "PROVIDER_TIMEOUT",
     message: "The provider timed out. Please try again.",
@@ -48,6 +65,7 @@ const mockProvider: Provider = (context, reflection) =>
 export function createMindfulnessEndpoint(
   provider: Provider = mockProvider,
   timeoutMs = 5000,
+  storeOverride?: SubmissionStore,
 ) {
   const authenticated = withSupabase({ auth: "user" }, async (req, ctx) => {
     if (!ctx.userClaims?.id) return failure(401);
@@ -66,15 +84,44 @@ export function createMindfulnessEndpoint(
     } catch {
       return failure(400);
     }
-    const input = guidedReflectionSchema.safeParse(body);
+    const input = requestSchema.safeParse(body);
     if (!input.success) return failure(400);
 
+    const store = storeOverride ?? submissionStore(ctx.supabase);
+    const { submissionId, activityId, activityContext, userReflection } =
+      input.data;
+    const bytes = await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(
+        JSON.stringify([activityId, activityContext, userReflection]),
+      ),
+    );
+    const hash = Array.from(
+      new Uint8Array(bytes),
+      (b) => b.toString(16).padStart(2, "0"),
+    ).join("");
+    const token = crypto.randomUUID();
+    try {
+      const claim = await store.claim(submissionId, activityId, hash, token);
+      if (claim.status === "invalid") return failure(400);
+      if (claim.status === "conflict" || claim.status === "processing") {
+        return failure(409);
+      }
+      if (claim.status === "completed") {
+        const saved = guidedReflectionResponseSchema.safeParse(claim.response);
+        return saved.success ? Response.json(saved.data) : failure(503);
+      }
+      if (claim.status === "failed") {
+        return failure(claim.failureStatus === 408 ? 408 : 502);
+      }
+    } catch {
+      return failure(503);
+    }
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let output: MindfulnessResponse;
     try {
       const result = await Promise.race([
-        Promise.resolve().then(() =>
-          provider(input.data.activityContext, input.data.userReflection)
-        ),
+        Promise.resolve().then(() => provider(activityContext, userReflection)),
         new Promise<never>((_, reject) => {
           timer = setTimeout(
             () => reject(new ProviderTimeoutError("Deadline exceeded")),
@@ -82,13 +129,24 @@ export function createMindfulnessEndpoint(
           );
         }),
       ]);
-      const output = guidedReflectionResponseSchema.safeParse(result);
-      if (!output.success) return failure(502);
-      return Response.json(output.data);
+      output = guidedReflectionResponseSchema.parse(result);
     } catch (error) {
-      return failure(error instanceof ProviderTimeoutError ? 408 : 502);
+      const status = error instanceof ProviderTimeoutError ? 408 : 502;
+      try {
+        await store.finish(submissionId, token, null, status);
+      } catch {
+        return failure(503);
+      }
+      return failure(status);
     } finally {
       clearTimeout(timer);
+    }
+    try {
+      await store.finish(submissionId, token, output);
+      return Response.json(output);
+    } catch {
+      // Keep the claim: never regenerate after an uncertain database commit.
+      return failure(503);
     }
   });
   return {
