@@ -82,6 +82,8 @@ export function AuthScreen() {
         </Text>
 
         <TextInput
+          accessibilityLabel="Email address"
+          accessibilityHint="Enter the email address for your account."
           autoCapitalize="none"
           autoComplete="email"
           keyboardType="email-address"
@@ -92,6 +94,8 @@ export function AuthScreen() {
         />
 
         <TextInput
+          accessibilityLabel="Password"
+          accessibilityHint="Enter your password, at least 6 characters."
           autoCapitalize="none"
           autoComplete={isSignUp ? "new-password" : "current-password"}
           onChangeText={setPassword}
@@ -104,6 +108,8 @@ export function AuthScreen() {
 
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel={isSignUp ? "Create account" : "Sign in"}
+          accessibilityState={{ disabled: isSubmitting, busy: isSubmitting }}
           disabled={isSubmitting}
           hitSlop={12}
           onPress={handleSubmit}
@@ -124,6 +130,7 @@ export function AuthScreen() {
 
         <Pressable
           accessibilityRole="button"
+          accessibilityState={{ disabled: isSubmitting }}
           disabled={isSubmitting}
           hitSlop={12}
           onPress={() => setIsSignUp((current) => !current)}
@@ -194,6 +201,7 @@ const styles = StyleSheet.create({
   secondaryButton: {
     minHeight: 48,
     width: "100%",
+    minWidth: 48,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 12,

@@ -1,4 +1,4 @@
-import { router, useFocusEffect } from "expo-router";
+import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
@@ -10,9 +10,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { SignOutButton } from "@/components/sign-out-button";
+import { WeekOneFlow } from "@/components/week-one-flow";
 import { useSignedInUserId } from "@/components/auth-gate";
-import { IntentionMirrorScreen } from "@/components/intention-mirror-screen";
-import { AiGapReflectionScreen } from "@/components/ai-gap-reflection-screen";
+import { AccessibleHeading } from "@/components/accessibility";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import {
@@ -21,12 +21,10 @@ import {
 } from "../../lib/curriculum";
 import {
   type ActivityProgress,
-  completeProgressActivity,
   getActivityProgress,
-  saveProgressStep,
 } from "../../lib/progress";
 
-type ActiveScreen = "curriculum" | "intention" | "gap";
+type ActiveScreen = "curriculum" | "week-one";
 
 const STATUS_LABELS = {
   not_started: "Not started",
@@ -87,88 +85,20 @@ export default function HomeScreen() {
     setActiveActivityId(null);
   }
 
-  async function openActivity(activityId: string) {
+  function openActivity(activityId: string) {
     if (openingActivityId) return;
     setOpeningActivityId(activityId);
-
-    try {
-      const progress = progressByActivityId[activityId];
-      const currentStep = progress?.current_step ?? "breathing";
-      setActiveActivityId(activityId);
-
-      if (!progress) {
-        await saveProgressStep(userId, activityId, "breathing");
-        router.replace({ pathname: "/breathing-player", params: { activityId } });
-        return;
-      }
-
-      if (progress.status === "completed") {
-        setActiveScreen("gap");
-        return;
-      }
-
-      if (currentStep === "breathing") {
-        router.replace({ pathname: "/breathing-player", params: { activityId } });
-        return;
-      }
-
-      if (
-        currentStep === "ai_gap_reflection" ||
-        currentStep === "yellowdig_draft"
-      ) {
-        setActiveScreen("gap");
-        return;
-      }
-
-      if (currentStep === "post_breathing_check_in") {
-        await saveProgressStep(userId, activityId, "writing");
-      }
-      setActiveScreen("intention");
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "Could not open this activity.",
-      );
-    } finally {
-      setOpeningActivityId(null);
-    }
+    setActiveActivityId(activityId);
+    setActiveScreen("week-one");
+    setOpeningActivityId(null);
   }
 
-  if (activeScreen === "gap" && activeActivity) {
+  if (activeScreen === "week-one" && activeActivity) {
     return (
-      <AiGapReflectionScreen
+      <WeekOneFlow
         key={activeActivity.id}
         activityId={activeActivity.id}
-        onBack={returnToCurriculum}
-        onOpenIntention={() => setActiveScreen("intention")}
-        onComplete={async () => {
-          await completeProgressActivity(userId, activeActivity.id);
-          returnToCurriculum();
-        }}
-      />
-    );
-  }
-
-  if (activeScreen === "intention" && activeActivity) {
-    return (
-      <IntentionMirrorScreen
-        key={activeActivity.id}
-        activityId={activeActivity.id}
-        onBack={returnToCurriculum}
-        onIntentionsReady={() =>
-          saveProgressStep(userId, activeActivity.id, "intention_mirror")
-        }
-        onOpenGap={() => {
-          void saveProgressStep(userId, activeActivity.id, "ai_gap_reflection")
-            .then(() => setActiveScreen("gap"))
-            .catch((error) => {
-              setErrorMessage(
-                error instanceof Error
-                  ? error.message
-                  : "Could not save your current step.",
-              );
-              returnToCurriculum();
-            });
-        }}
+        onExit={returnToCurriculum}
       />
     );
   }
@@ -179,7 +109,7 @@ export default function HomeScreen() {
         <ScrollView contentContainerStyle={styles.content}>
           <View style={styles.header}>
             <ThemedText style={styles.eyebrow}>MINDFUL AI</ThemedText>
-            <ThemedText type="title">Your curriculum</ThemedText>
+            <AccessibleHeading focusKey={activeScreen}>Your curriculum</AccessibleHeading>
           </View>
 
           {isLoading && (
@@ -192,9 +122,12 @@ export default function HomeScreen() {
           {!isLoading && errorMessage && (
             <ThemedView style={styles.messageCard}>
               <ThemedText type="subtitle">Unable to load Week 1</ThemedText>
-              <ThemedText>{errorMessage}</ThemedText>
+              <ThemedText accessibilityRole="alert">{errorMessage}</ThemedText>
 
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Retry loading Week 1"
+                accessibilityHint="Loads the curriculum and activities again."
                 onPress={() => void loadWeek()}
                 style={({ pressed }) => [
                   styles.retryButton,
@@ -245,7 +178,7 @@ export default function HomeScreen() {
                       accessibilityLabel={`${activity.title}. ${STATUS_LABELS[status]}`}
                       disabled={openingActivityId !== null}
                       key={activity.id}
-                      onPress={() => void openActivity(activity.id)}
+                      onPress={() => openActivity(activity.id)}
                       style={({ pressed }) => [
                         styles.activityCard,
                         pressed && styles.buttonPressed,

@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/themed-text";
+import { AccessibleHeading, AccessibleStatus } from "@/components/accessibility";
 import { ThemedView } from "@/components/themed-view";
 import { useTheme } from "@/hooks/use-theme";
 import { useSignedInUserId } from "@/components/auth-gate";
@@ -41,11 +42,19 @@ export function IntentionMirrorScreen({
   onBack,
   onIntentionsReady,
   onOpenGap,
+  initialIntentions,
+  onGenerated,
+  onEditWriting,
+  continueLabel = "Reflect on the AI gap",
 }: {
   activityId: string;
   onBack: () => void;
   onIntentionsReady: () => Promise<void> | void;
   onOpenGap: () => void;
+  initialIntentions?: IntentionResponse;
+  onGenerated?: () => Promise<void>;
+  onEditWriting?: () => Promise<boolean>;
+  continueLabel?: string;
 }) {
   const theme = useTheme();
   const userId = useSignedInUserId();
@@ -55,7 +64,8 @@ export function IntentionMirrorScreen({
   );
   const draftReady = status !== "loading" && status !== "load-error";
   const [acknowledged, setAcknowledged] = useState(false);
-  const [submission, setSubmission] = useState<SubmissionState>({ status: "writing" });
+  const [submission, setSubmission] = useState<SubmissionState>(initialIntentions
+    ? { status: "success", data: initialIntentions } : { status: "writing" });
   const activeRequest = useRef<AbortController | null>(null);
   const isSubmitting = submission.status === "loading";
 
@@ -79,6 +89,8 @@ export function IntentionMirrorScreen({
     setSubmission({ status: "loading" });
 
     try {
+      if (!(await flush())) throw new Error("Could not save your writing. Please retry before generating intentions.");
+      if (activeRequest.current !== controller) return;
       const result = await getIntentions({
         activityId,
         activityContext: `Week 1: Mindful Attention. Intention Mirror. ${INSTRUCTIONS}`,
@@ -96,6 +108,8 @@ export function IntentionMirrorScreen({
       } else {
         await saveProgressIntentions(userId, activityId, result.data.intentions);
         await onIntentionsReady();
+        if (activeRequest.current !== controller) return;
+        await onGenerated?.();
         if (activeRequest.current !== controller) return;
         setSubmission({ status: "success", data: result.data });
       }
@@ -125,6 +139,8 @@ export function IntentionMirrorScreen({
           >
             <Pressable
               accessibilityRole="button"
+              accessibilityHint="Saves your writing before returning to the Week 1 activities."
+              accessibilityState={{ disabled: isSubmitting }}
               disabled={isSubmitting}
               onPress={() => {
                 if (!draftReady) onBack();
@@ -139,22 +155,23 @@ export function IntentionMirrorScreen({
 
             <View style={styles.section}>
               <ThemedText type="smallBold">WEEK 1 · MINDFUL ATTENTION</ThemedText>
-              <ThemedText type="title">Intention Mirror</ThemedText>
+              <AccessibleHeading focus={submission.status === "writing"} focusKey={submission.status}>Intention Mirror</AccessibleHeading>
               {submission.status === "writing" && <ThemedText>{INSTRUCTIONS}</ThemedText>}
             </View>
 
             <View style={styles.section}>
-              <ThemedText accessibilityLiveRegion="polite" type="small">
-                {status === "loading" && "Loading saved writing…"}
-                {status === "unsaved" && "Unsaved changes"}
-                {status === "saving" && "Saving…"}
-                {status === "saved" && "Saved"}
-                {status === "load-error" && "Could not load your saved writing. Retry before editing."}
-                {status === "save-error" && "Could not save your writing. Your changes are still in this editor."}
-              </ThemedText>
+              <AccessibleStatus error={status === "load-error" || status === "save-error"}>
+                {status === "loading" ? "Loading saved writing…" :
+                  status === "unsaved" ? "Unsaved changes" :
+                  status === "saving" ? "Saving…" :
+                  status === "saved" ? "Saved" :
+                  status === "load-error" ? "Could not load your saved writing. Use Retry loading before editing." :
+                  "Could not save your writing. Your changes are still in this editor. Use Retry save."}
+              </AccessibleStatus>
               {(status === "load-error" || status === "save-error") && (
                 <Pressable
                   accessibilityRole="button"
+                  accessibilityHint={status === "load-error" ? "Loads your saved writing again." : "Saves your current writing again."}
                   onPress={() => void retry()}
                   style={styles.backButton}
                 >
@@ -173,7 +190,8 @@ export function IntentionMirrorScreen({
                   </ThemedText>
                   <TextInput
                     accessibilityLabel="Your writing"
-                    accessibilityHint="Write between 3 and 2,000 characters."
+                    accessibilityHint="Multiline field. Write between 3 and 2,000 characters. Your writing saves automatically."
+                    accessibilityState={{ disabled: !draftReady || isSubmitting }}
                     multiline
                     textAlignVertical="top"
                     editable={draftReady && !isSubmitting}
@@ -188,7 +206,7 @@ export function IntentionMirrorScreen({
                       { color: theme.text, backgroundColor: theme.backgroundElement },
                     ]}
                   />
-                  <ThemedText accessibilityLiveRegion="polite" type="small">
+                  <ThemedText accessibilityLabel={`${wordCount} words. ${reflection.length} of ${MAX_CHARACTERS} characters.`} type="small">
                     {wordCount} {wordCount === 1 ? "word" : "words"} · {reflection.length}
                     /{MAX_CHARACTERS} characters
                   </ThemedText>
@@ -196,23 +214,26 @@ export function IntentionMirrorScreen({
                     Your writing is saved to your account as you type.
                   </ThemedText>
                   {writing.length > 0 && !validLength && (
-                    <ThemedText accessibilityLiveRegion="polite">
+                    <AccessibleStatus error>
                       {reflection.length < MIN_CHARACTERS
                         ? "Enter at least 3 characters, excluding surrounding spaces."
                         : "Shorten your writing to 2,000 characters or fewer."}
-                    </ThemedText>
+                    </AccessibleStatus>
                   )}
                 </View>
 
                 <Pressable
                   accessibilityRole="checkbox"
                   accessibilityLabel={PRIVACY_ACKNOWLEDGEMENT}
+                  accessibilityHint="Required before submission. Activate to check or uncheck."
                   accessibilityState={{ checked: acknowledged, disabled: isSubmitting }}
+                  aria-checked={acknowledged}
+                  aria-disabled={isSubmitting}
                   disabled={isSubmitting}
                   onPress={() => setAcknowledged((value) => !value)}
                   style={styles.acknowledgement}
                 >
-                  <ThemedText style={styles.checkbox}>
+                  <ThemedText style={styles.checkbox} accessible={false} aria-hidden>
                     {acknowledged ? "☑" : "☐"}
                   </ThemedText>
                   <ThemedText style={styles.acknowledgementText}>
@@ -220,8 +241,14 @@ export function IntentionMirrorScreen({
                   </ThemedText>
                 </Pressable>
 
+                {!canSubmit && (
+                  <ThemedText>To submit, enter 3–2,000 characters and check the privacy acknowledgement.</ThemedText>
+                )}
+
                 <Pressable
                   accessibilityRole="button"
+                  accessibilityLabel="Submit writing"
+                  accessibilityHint="Creates three mock intentions from the API service."
                   accessibilityState={{ disabled: !canSubmit, busy: isSubmitting }}
                   disabled={!canSubmit}
                   onPress={() => void handleSubmit()}
@@ -240,21 +267,23 @@ export function IntentionMirrorScreen({
 
             {isSubmitting && (
               <View style={styles.section} accessibilityLiveRegion="polite" accessibilityState={{ busy: true }}>
-                <ActivityIndicator color="#41644a" size="large" />
-                <ThemedText>Preparing your intentions…</ThemedText>
+                <ActivityIndicator color="#41644a" size="large" accessible={false} />
+                <AccessibleHeading>Preparing your intentions…</AccessibleHeading>
                 <ThemedText type="small">Your writing is still here. This may take a moment.</ThemedText>
               </View>
             )}
 
             {submission.status === "error" && (
               <View style={styles.section}>
-                <ThemedText type="subtitle">
+                <AccessibleHeading>
                   {submission.timedOut ? "Request timed out" : "Unable to load intentions"}
-                </ThemedText>
-                <ThemedText accessibilityRole="alert">{submission.message}</ThemedText>
+                </AccessibleHeading>
+                <AccessibleStatus error>{submission.message}</AccessibleStatus>
                 <ThemedText>Your writing has been kept intact.</ThemedText>
                 <Pressable
                   accessibilityRole="button"
+                  accessibilityLabel="Retry loading intentions"
+                  accessibilityHint="Tries again using the same writing."
                   disabled={!canSubmit}
                   accessibilityState={{ disabled: !canSubmit }}
                   onPress={() => void handleSubmit()}
@@ -267,21 +296,23 @@ export function IntentionMirrorScreen({
 
             {submission.status === "success" && (
               <View style={styles.section} accessibilityLiveRegion="polite">
-                <ThemedText type="subtitle">Mock intentions</ThemedText>
+                <AccessibleHeading>Mock intentions</AccessibleHeading>
                 {submission.data.intentions.map((intention, index) => (
-                  <ThemedView key={index} style={styles.intentionCard}>
+                  <ThemedView key={index} style={styles.intentionCard} accessible
+                    accessibilityLabel={`Intention ${index + 1} of 3. ${intention.title}. ${intention.explanation}`}>
                     <ThemedText type="smallBold">{intention.title}</ThemedText>
                     <ThemedText>{intention.explanation}</ThemedText>
                   </ThemedView>
                 ))}
                 <Pressable
                   accessibilityRole="button"
+                  accessibilityHint="Saves your writing and opens the next Week 1 activity."
                   onPress={() => void flush().then((saved) => {
                     if (saved) onOpenGap();
                   })}
                   style={styles.submitButton}
                 >
-                  <ThemedText style={styles.submitText}>Reflect on the AI gap</ThemedText>
+                  <ThemedText style={styles.submitText}>{continueLabel}</ThemedText>
                 </Pressable>
               </View>
             )}
@@ -289,7 +320,13 @@ export function IntentionMirrorScreen({
             {(submission.status === "error" || submission.status === "success") && (
               <Pressable
                 accessibilityRole="button"
-                onPress={() => setSubmission({ status: "writing" })}
+                accessibilityHint="Returns to your writing without changing it."
+                onPress={() => {
+                  if (onEditWriting) void onEditWriting().then(saved => {
+                    if (saved) setSubmission({ status: "writing" });
+                  });
+                  else setSubmission({ status: "writing" });
+                }}
                 style={styles.backButton}
               >
                 <ThemedText>Back to writing</ThemedText>
@@ -321,7 +358,7 @@ const styles = StyleSheet.create({
     borderColor: "#b9cbbd",
     borderRadius: 12,
   },
-  backButton: { minHeight: 48, justifyContent: "center", alignSelf: "flex-start" },
+  backButton: { minHeight: 48, minWidth: 48, justifyContent: "center", alignSelf: "flex-start" },
   editor: {
     minHeight: 240,
     padding: 16,
@@ -331,7 +368,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
   },
-  acknowledgement: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+  acknowledgement: { minHeight: 48, minWidth: 48, flexDirection: "row", alignItems: "flex-start", gap: 12 },
   checkbox: { fontSize: 24, lineHeight: 28 },
   acknowledgementText: { flex: 1 },
   submitButton: {

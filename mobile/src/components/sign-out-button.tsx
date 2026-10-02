@@ -26,6 +26,9 @@ export function SignOutButton() {
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel="Sign out"
+      accessibilityHint="Signs out of your account. Your saved work remains in your account."
+      accessibilityState={{ disabled: isSigningOut, busy: isSigningOut }}
       disabled={isSigningOut}
       onPress={handleSignOut}
       style={({ pressed }) => [

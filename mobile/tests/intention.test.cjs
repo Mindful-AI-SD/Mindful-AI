@@ -112,7 +112,7 @@ test("cancellation stops the delayed mock and clears its timers", async () => {
 // The real API service runs; only React hooks and persistence are isolated here.
 function screen(provider, saveIntentions = async () => {}) {
   let cursor = 0, writing = "  My original\nwriting  ", draftStatus = "saved";
-  const slots = [], effects = [], calls = [];
+  const slots = [], effects = [], calls = [], writingChanges = [];
   const react = {
     useState(initial) {
       const id = cursor++;
@@ -133,11 +133,15 @@ function screen(provider, saveIntentions = async () => {}) {
     "react-native-safe-area-context": { SafeAreaView: "SafeAreaView" },
     "@/components/themed-text": { ThemedText: "Text" },
     "@/components/themed-view": { ThemedView: "ThemedView" },
+    "@/components/accessibility": { AccessibleHeading: "Heading", AccessibleStatus: "Status" },
     "@/hooks/use-theme": { useTheme: () => ({}) },
     "@/components/auth-gate": { useSignedInUserId: () => "user-a" },
     "../../lib/progress": { saveProgressIntentions: saveIntentions },
     "@/hooks/use-writing-draft": { useWritingDraft: () => ({
-      writing, status: draftStatus, setWriting: value => { writing = value; }, retry() {}, flush: async () => true,
+      writing, status: draftStatus, setWriting: value => {
+        writingChanges.push(value);
+        writing = value;
+      }, retry() {}, flush: async () => true,
     }) },
   };
   const env = environment(overrides);
@@ -164,8 +168,10 @@ function screen(provider, saveIntentions = async () => {}) {
     return [tree.props?.children].flat(Infinity).map(text).join("");
   }
   return {
-    ...env, calls,
+    ...env, calls, writingChanges,
+    get draft() { return writing; },
     text: () => text(render()),
+    nodes: () => nodes(render()),
     input: () => nodes(render()).find(node => node.type === "TextInput"),
     button: label => nodes(render()).find(node => node.type === "Pressable" && text(node) === label),
     acknowledge() { nodes(render()).find(node => node.props.accessibilityRole === "checkbox").props.onPress(); },
@@ -182,6 +188,7 @@ test("delayed success renders returned titles and explanations with no duplicate
   const submit = ui.button("Submit");
   submit.props.onPress();
   submit.props.onPress();
+  await turn();
   assert.equal(ui.calls.length, 1);
   assert.equal(ui.calls[0].activityId, "real-activity-id");
   assert.equal(ui.calls[0].userReflection, "My original\nwriting");
@@ -201,6 +208,109 @@ test("delayed success renders returned titles and explanations with no duplicate
   assert.equal(ui.input().props.value, "  My original\nwriting  ");
 });
 
+function assertThreeReturnedIntentions(ui, expected) {
+  const cards = ui.nodes().filter(node => node.props.accessibilityLabel?.startsWith("Intention "));
+  assert.equal(cards.length, 3);
+  assert.deepEqual(JSON.parse(JSON.stringify(cards.map(card =>
+    card.props.children.map(child => child.props.children)
+  ))), expected.intentions.map(item => [item.title, item.explanation]));
+}
+
+test("frontend uses the default service mock, keeps loading until completion, and preserves the draft", async () => {
+  const ui = screen();
+  const draft = "  My original\nwriting  ";
+  ui.acknowledge();
+  const submit = ui.button("Submit");
+  for (let tap = 0; tap < 5; tap++) submit.props.onPress();
+  await turn();
+  assert.equal(ui.calls.length, 1);
+  assert.match(ui.text(), /Preparing your intentions/);
+  assert.equal(ui.button("Submit"), undefined);
+  assert.equal(ui.draft, draft);
+  await ui.advance(799);
+  assert.match(ui.text(), /Preparing your intentions/);
+  assert.equal(ui.calls.length, 1);
+  assert.equal(ui.draft, draft);
+  await ui.advance(1);
+  assertThreeReturnedIntentions(ui, fixture);
+  assert.equal(ui.calls.length, 1);
+  assert.equal(ui.draft, draft);
+  assert.deepEqual(ui.writingChanges, []);
+  ui.button("Back to writing").props.onPress();
+  assert.equal(ui.input().props.value, draft);
+});
+
+for (const scenario of ["timeout", "provider failure", "invalid response", "save failure"]) {
+  test(`${scenario}: preserves exact writing, retries once, and allows a later intentional submission`, async () => {
+    const first = deferred(), retried = deferred();
+    let providerCalls = 0, saveCalls = 0;
+    const ui = screen(() => {
+      providerCalls++;
+      if (providerCalls === 1) return first.promise;
+      if (providerCalls === 2) return retried.promise;
+      return Promise.resolve(fixture);
+    }, async () => {
+      saveCalls++;
+      if (scenario === "save failure" && saveCalls === 1) throw Error("Save failed");
+    });
+    const draft = "  I noticed my breathing.\n\nI want to pause — and listen.  ";
+    ui.input().props.onChangeText(draft);
+    ui.acknowledge();
+    const submit = ui.button("Submit");
+    submit.props.onPress();
+    submit.props.onPress();
+    await turn();
+    assert.equal(providerCalls, 1);
+    assert.equal(ui.draft, draft);
+    assert.match(ui.text(), /Preparing your intentions/);
+
+    if (scenario === "timeout") {
+      await ui.advance(14_999);
+      assert.match(ui.text(), /Preparing your intentions/);
+      assert.equal(ui.draft, draft);
+      await ui.advance(1);
+      assert.match(ui.text(), /Request timed out/);
+    } else {
+      if (scenario === "provider failure") first.reject(Error("Provider unavailable"));
+      else first.resolve(scenario === "invalid response" ? { intentions: [] } : fixture);
+      await turn();
+      assert.match(ui.text(), /Unable to load intentions/);
+    }
+    assert.equal(ui.draft, draft);
+    assert.ok(ui.button("Back to writing"));
+    assert.equal(ui.calls.length, 1);
+    assert.equal(providerCalls, 1);
+    await ui.advance(30_000);
+    assert.equal(ui.calls.length, 1, "Failure must not launch an automatic retry");
+
+    const retry = ui.button("Retry");
+    for (let tap = 0; tap < 5; tap++) retry.props.onPress();
+    await turn();
+    assert.equal(ui.calls.length, 2);
+    assert.equal(providerCalls, 2);
+    assert.equal(ui.draft, draft);
+    assert.equal(ui.calls[1].userReflection, draft.trim());
+    assert.match(ui.text(), /Preparing your intentions/);
+    retried.resolve(fixture);
+    await turn();
+    assertThreeReturnedIntentions(ui, fixture);
+    assert.equal(ui.draft, draft);
+    assert.deepEqual(ui.writingChanges, [draft], "Submission and recovery must never change the draft");
+
+    ui.button("Back to writing").props.onPress();
+    assert.equal(ui.input().props.value, draft);
+    const updated = draft + "\nA new thought.";
+    ui.input().props.onChangeText(updated);
+    ui.button("Submit").props.onPress();
+    await turn();
+    assert.equal(ui.calls.length, 3);
+    assert.equal(providerCalls, 3);
+    assert.equal(ui.calls[2].userReflection, updated.trim());
+    assert.equal(ui.draft, updated);
+    assertThreeReturnedIntentions(ui, fixture);
+  });
+}
+
 test("timeout exposes recovery; retry is single-submit and late results cannot replace it", async () => {
   const late = deferred(), retried = deferred();
   let count = 0;
@@ -214,6 +324,7 @@ test("timeout exposes recovery; retry is single-submit and late results cannot r
   const retry = ui.button("Retry");
   retry.props.onPress();
   retry.props.onPress();
+  await turn();
   assert.equal(ui.calls.length, 2);
   late.resolve(fixture);
   await turn();
@@ -277,4 +388,29 @@ test("intentions must be saved before opening gap reflection; failed saves can r
   assert.equal(saved[1].user, "user-a");
   assert.equal(saved[1].activity, "real-activity-id");
   assert.deepEqual(saved[1].data, fixture.intentions);
+});
+
+test("writing controls explain requirements and results have ordered accessible names", async () => {
+  const ui = screen(async () => fixture);
+  const input = ui.input();
+  assert.equal(input.props.accessibilityLabel, "Your writing");
+  assert.match(input.props.accessibilityHint, /3 and 2,000/);
+  assert.match(ui.text(), /check the privacy acknowledgement/);
+  const checkbox = ui.nodes().find(node => node.props.accessibilityRole === "checkbox");
+  assert.match(checkbox.props.accessibilityHint, /Required/);
+  assert.equal(checkbox.props["aria-checked"], false);
+  assert.equal(checkbox.props.style.minHeight, 48);
+  ui.acknowledge();
+  assert.equal(ui.nodes().find(node => node.props.accessibilityRole === "checkbox").props["aria-checked"], true);
+  assert.equal(ui.button("Submit").props.accessibilityLabel, "Submit writing");
+  ui.button("Submit").props.onPress();
+  await turn();
+  const cards = ui.nodes().filter(node => node.props.accessibilityLabel?.startsWith("Intention "));
+  assert.equal(cards.length, 3);
+  cards.forEach((node, index) => {
+    assert.equal(node.props.accessible, true);
+    assert.ok(node.props.accessibilityLabel.includes(`${index + 1} of 3`));
+    assert.ok(node.props.accessibilityLabel.includes(fixture.intentions[index].explanation));
+  });
+  assert.ok(ui.nodes().find(node => node.type === "Heading" && node.props.children === "Mock intentions"));
 });

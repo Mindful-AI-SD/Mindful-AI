@@ -23,7 +23,11 @@ type BreathingState =
 
 const SESSION_DURATION_MS = 10 * 60 * 1000;
 
-export default function BreathingPlayer() {
+export default function BreathingPlayer({ onContinue, onExit, isSaving = false }: {
+  onContinue?: () => void;
+  onExit?: () => void;
+  isSaving?: boolean;
+} = {}) {
   const { activityId } = useLocalSearchParams<{ activityId?: string }>();
   const userId = useSignedInUserId();
   const [state, setState] = useState<BreathingState>("idle");
@@ -96,7 +100,7 @@ export default function BreathingPlayer() {
 
         setElapsedTime(SESSION_DURATION_MS);
         changeState("completed");
-        void saveCompletedBreathingStep();
+        if (!onContinue) void saveCompletedBreathingStep();
         return;
       }
 
@@ -176,7 +180,8 @@ export default function BreathingPlayer() {
     activeStartTimeRef.current = null;
     setElapsedTime(0);
 
-    router.replace("/");
+    if (onExit) onExit();
+    else router.replace("/");
 
     setTimeout(() => {
       changeState("idle");
@@ -241,37 +246,54 @@ export default function BreathingPlayer() {
 
   return (
     <View style={[styles.container, { backgroundColor }]}>
-      <Text style={[styles.title, { color: textColor }]}>
+      <Text accessibilityRole="header" style={[styles.title, { color: textColor }]}>
         Breathing Player
       </Text>
 
-      <Text style={[styles.state, { color: textColor }]}>
+      <Text accessibilityLiveRegion="polite" style={[styles.state, { color: textColor }]}>
         Current State: {state}
       </Text>
 
-      <Text style={[styles.timer, { color: textColor }]}>
+      <Text accessibilityRole="timer" accessibilityLabel={`${minutes} minutes and ${seconds} seconds remaining`}
+        style={[styles.timer, { color: textColor }]}>
         {formattedTime}
       </Text>
 
-      <Pressable style={styles.button} onPress={handleStart}>
+      <Pressable style={styles.button} onPress={handleStart} accessibilityRole="button"
+        accessibilityLabel="Start breathing session" accessibilityHint="Starts the ten-minute timer."
+        disabled={state !== "idle"} accessibilityState={{ disabled: state !== "idle" }}>
         <Text style={styles.buttonText}>Start</Text>
       </Pressable>
 
-      <Pressable style={styles.button} onPress={handlePause}>
+      <Pressable style={styles.button} onPress={handlePause} accessibilityRole="button"
+        accessibilityLabel="Pause breathing session" accessibilityHint="Pauses the timer and keeps your elapsed time."
+        disabled={state !== "running"} accessibilityState={{ disabled: state !== "running" }}>
         <Text style={styles.buttonText}>Pause</Text>
       </Pressable>
 
-      <Pressable style={styles.button} onPress={handleResume}>
+      <Pressable style={styles.button} onPress={handleResume} accessibilityRole="button"
+        accessibilityLabel="Resume breathing session" accessibilityHint="Continues your paused timer."
+        disabled={state !== "paused"} accessibilityState={{ disabled: state !== "paused" }}>
         <Text style={styles.buttonText}>Resume</Text>
       </Pressable>
 
-      <Pressable style={styles.button} onPress={handleRestart}>
+      <Pressable style={styles.button} onPress={handleRestart} accessibilityRole="button"
+        accessibilityLabel="Restart breathing session" accessibilityHint="Starts again with a full ten-minute timer."
+        disabled={state === "idle" || state === "exited"}
+        accessibilityState={{ disabled: state === "idle" || state === "exited" }}>
         <Text style={styles.buttonText}>Restart</Text>
       </Pressable>
 
-      <Pressable style={styles.exitButton} onPress={handleExit}>
+      <Pressable style={styles.exitButton} onPress={handleExit} accessibilityRole="button"
+        accessibilityLabel="Exit breathing session" accessibilityHint="Returns to Week 1. You will be asked before discarding an active session.">
         <Text style={styles.buttonText}>Exit</Text>
       </Pressable>
+      {state === "completed" && onContinue && (
+        <Pressable style={styles.button} accessibilityRole="button" disabled={isSaving}
+          accessibilityState={{ disabled: isSaving, busy: isSaving }} onPress={onContinue}>
+          <Text style={styles.buttonText}>Continue to check-in</Text>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -280,6 +302,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 24,
+    paddingTop: Platform.OS === "web" ? 88 : 24,
     gap: 16,
   },
 
@@ -298,6 +321,8 @@ const styles = StyleSheet.create({
   },
 
   button: {
+    minHeight: 48,
+    minWidth: 48,
     backgroundColor: "#41644a",
     padding: 14,
     borderRadius: 10,
@@ -306,6 +331,8 @@ const styles = StyleSheet.create({
   },
 
   exitButton: {
+    minHeight: 48,
+    minWidth: 48,
     backgroundColor: "#41644a",
     padding: 14,
     borderRadius: 10,

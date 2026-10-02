@@ -136,6 +136,7 @@ function screen(service) {
     "react-native-safe-area-context": { SafeAreaView: "SafeAreaView" },
     "@/components/themed-text": { ThemedText: "Text" },
     "@/components/themed-view": { ThemedView: "ThemedView" },
+    "@/components/accessibility": { AccessibleHeading: "Heading", AccessibleStatus: "Status" },
     "@/hooks/use-theme": { useTheme: () => ({}) },
     "@/components/auth-gate": { useSignedInUserId: () => "a" },
     "../../lib/progress": service,
@@ -158,6 +159,7 @@ function screen(service) {
   render();
   return {
     text: () => text(render()),
+    nodes: () => nodes(render()),
     inputs: () => nodes(render()).filter(node => node.type === "TextInput"),
     button: label => nodes(render()).find(node => node.type === "Pressable" && text(node) === label),
     get opened() { return opened; }, get back() { return back; },
@@ -225,4 +227,25 @@ test("save failure keeps answers and blocks leaving until retry succeeds", async
   await turn();
   ui.button("Back to Week 1").props.onPress();
   assert.equal(ui.back, 1);
+});
+
+test("reflection reading order is intentions, named fields, then save", async () => {
+  const db = database();
+  await db.service.saveProgressIntentions("a", "activity", intentions);
+  const ui = screen(db.service);
+  await turn();
+  const nodes = ui.nodes();
+  const cards = nodes.filter(node => node.props.accessibilityLabel?.startsWith("Intention "));
+  assert.equal(cards.length, 3);
+  const fields = nodes.filter(node => node.type === "TextInput");
+  assert.ok(nodes.indexOf(cards[2]) < nodes.indexOf(fields[0]));
+  fields.forEach(node => {
+    assert.ok(node.props.accessibilityLabel);
+    assert.match(node.props.accessibilityHint, /Save reflection/);
+    assert.equal(node.props.accessibilityState.disabled, false);
+  });
+  const save = nodes.find(node => node.type === "Pressable" && node.props.accessibilityState?.busy === false);
+  assert.ok(nodes.indexOf(save) > nodes.indexOf(fields[2]));
+  assert.equal(save.props.accessibilityState.disabled, true);
+  assert.match(save.props.accessibilityHint, /Enabled when answers have changed/);
 });
