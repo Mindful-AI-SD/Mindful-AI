@@ -10,6 +10,75 @@ function hasAnswer(progress: WeekOneProgress, key: string): boolean {
   return Boolean(progress.reflection_answers?.[key]?.trim());
 }
 
+export type WeekOneCompletionIssue = {
+  missingStep: WeekOneStep;
+  message: string;
+};
+
+export type WeekOneCompletionResult =
+  | {
+      completed: true;
+      progress: WeekOneProgress;
+      completedAt: string;
+      alreadyCompleted: boolean;
+    }
+  | ({ completed: false } & WeekOneCompletionIssue);
+
+export function getWeekOneCompletionIssue(
+  progress: WeekOneProgress | null,
+): WeekOneCompletionIssue | null {
+  if (!progress) {
+    return { missingStep: "breathing", message: "Complete the breathing activity first." };
+  }
+  if (progress.status === "completed" && progress.completed_at) return null;
+
+  const savedStepIndex = WEEK_ONE_STEPS.indexOf(progress.current_step);
+  if (savedStepIndex <= WEEK_ONE_STEPS.indexOf("breathing")) {
+    return { missingStep: "breathing", message: "Complete the breathing activity first." };
+  }
+  if (!hasAnswer(progress, "post_breathing_urge")) {
+    return {
+      missingStep: "post_breathing_check_in",
+      message: "Complete the post-breathing check-in before finishing Week 1.",
+    };
+  }
+  if (!progress.writing?.trim()) {
+    return { missingStep: "writing", message: "Save your writing before finishing Week 1." };
+  }
+  if (progress.generated_intentions.length !== 3) {
+    return { missingStep: "writing", message: "Generate and save three intentions before finishing Week 1." };
+  }
+  if (savedStepIndex <= WEEK_ONE_STEPS.indexOf("intention_mirror")) {
+    return {
+      missingStep: "intention_mirror",
+      message: "View your intention mirror before finishing Week 1.",
+    };
+  }
+  if (!hasAnswer(progress, "data_self_portrait_visible") ||
+      !hasAnswer(progress, "data_self_portrait_missing")) {
+    return {
+      missingStep: "data_self_portrait",
+      message: "Complete both data self-portrait reflections before finishing Week 1.",
+    };
+  }
+  if (!hasAnswer(progress, "ai_gap_got_right") ||
+      !hasAnswer(progress, "ai_gap_missed") ||
+      !hasAnswer(progress, "ai_gap_reveals")) {
+    return {
+      missingStep: "ai_gap_reflection",
+      message: "Complete all AI gap reflections before finishing Week 1.",
+    };
+  }
+  if (savedStepIndex < WEEK_ONE_STEPS.indexOf("yellowdig_draft") ||
+      !hasAnswer(progress, "yellowdig_draft")) {
+    return {
+      missingStep: "yellowdig_draft",
+      message: "View and save your discussion draft before finishing Week 1.",
+    };
+  }
+  return null;
+}
+
 export function deriveNextAllowedStep(progress: WeekOneProgress | null): WeekOneStep {
   if (!progress || (!progress.started_at && progress.status === "not_started")) return "breathing";
 
@@ -94,6 +163,69 @@ const REQUIRED_ANSWERS: Partial<Record<WeekOneStep, string[]>> = {
   yellowdig_draft: ["yellowdig_draft"],
 };
 
+export async function completeWeekOne(
+  userId: string,
+  activityId: string,
+  answers: ReflectionAnswers = {},
+): Promise<WeekOneCompletionResult> {
+  const progress = await getWeekOneProgress(userId, activityId);
+  if (!progress) {
+    const issue = getWeekOneCompletionIssue(null)!;
+    return { completed: false, ...issue };
+  }
+  if (progress.status === "completed" && progress.completed_at) {
+    return {
+      completed: true,
+      progress,
+      completedAt: progress.completed_at,
+      alreadyCompleted: true,
+    };
+  }
+
+  const candidate: WeekOneProgress = {
+    ...progress,
+    reflection_answers: { ...progress.reflection_answers, ...answers },
+  };
+  const issue = getWeekOneCompletionIssue(candidate);
+  if (issue) return { completed: false, ...issue };
+
+  const completedAt = new Date().toISOString();
+  await requireOwner(userId);
+  const { data, error } = await supabase.from("progress").update({
+    status: "completed",
+    current_step: "completed",
+    started_at: progress.started_at ?? completedAt,
+    completed_at: completedAt,
+    reflection_answers: candidate.reflection_answers,
+  }).eq("user_id", userId).eq("activity_id", activityId)
+    .eq("current_step", progress.current_step).eq("updated_at", progress.updated_at)
+    .is("completed_at", null).select("*").maybeSingle();
+  if (error) throw new Error("Could not complete Week 1. Your progress is still saved. Please retry.");
+
+  if (data) {
+    await requireOwner(userId);
+    const completedProgress = data as WeekOneProgress;
+    return {
+      completed: true,
+      progress: completedProgress,
+      completedAt: completedProgress.completed_at ?? completedAt,
+      alreadyCompleted: false,
+    };
+  }
+
+  // Another request may have completed the same row after our initial read.
+  const latest = await getWeekOneProgress(userId, activityId);
+  if (latest?.status === "completed" && latest.completed_at) {
+    return {
+      completed: true,
+      progress: latest,
+      completedAt: latest.completed_at,
+      alreadyCompleted: true,
+    };
+  }
+  throw new Error("Your progress changed while completing Week 1. Reload progress before retrying.");
+}
+
 export async function saveWeekOneStep(
   userId: string, activityId: string, expectedStep: WeekOneStep,
   answers: ReflectionAnswers = {}, advance = true,
@@ -103,6 +235,11 @@ export async function saveWeekOneStep(
     throw new Error("Your saved step changed. Reload progress before continuing.");
   }
   if (expectedStep === "completed") return progress;
+  if (advance && expectedStep === "yellowdig_draft") {
+    const result = await completeWeekOne(userId, activityId, answers);
+    if (!result.completed) throw new Error(result.message);
+    return result.progress;
+  }
   const allAnswers = { ...progress.reflection_answers, ...answers };
   if (advance) {
     if ((REQUIRED_ANSWERS[expectedStep] ?? []).some(key => !allAnswers[key]?.trim())) {
