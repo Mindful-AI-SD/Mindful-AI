@@ -1,6 +1,7 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import {
+  Alert,
   ActivityIndicator,
   Pressable,
   ScrollView,
@@ -23,6 +24,7 @@ import {
   type ActivityProgress,
   getActivityProgress,
 } from "../../lib/progress";
+import { resetSignedInWeekOneProgressForDevelopment } from "../../lib/dev-progress-reset";
 
 type ActiveScreen = "curriculum" | "week-one";
 
@@ -43,6 +45,8 @@ export default function HomeScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [openingActivityId, setOpeningActivityId] = useState<string | null>(null);
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
 
   const loadWeek = useCallback(async () => {
     setIsLoading(true);
@@ -91,6 +95,44 @@ export default function HomeScreen() {
     setActiveActivityId(activityId);
     setActiveScreen("week-one");
     setOpeningActivityId(null);
+  }
+
+  async function resetDevelopmentProgress() {
+    if (!week || isResetting) return;
+    setIsResetting(true);
+    setResetMessage(null);
+    try {
+      const deleted = await resetSignedInWeekOneProgressForDevelopment(
+        week.activities.map((activity) => activity.id),
+      );
+      setProgressByActivityId({});
+      setResetMessage(
+        deleted === 0
+          ? "This account was already at Not started."
+          : "Your Week 1 progress was reset to Not started.",
+      );
+    } catch (error) {
+      setResetMessage(
+        error instanceof Error ? error.message : "Could not reset Week 1 progress.",
+      );
+    } finally {
+      setIsResetting(false);
+    }
+  }
+
+  function confirmDevelopmentReset() {
+    Alert.alert(
+      "Reset your Week 1 progress?",
+      "Development only: this permanently deletes this signed-in account's Week 1 progress. Other users and curriculum content are unchanged.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reset my progress",
+          style: "destructive",
+          onPress: () => void resetDevelopmentProgress(),
+        },
+      ],
+    );
   }
 
   if (activeScreen === "week-one" && activeActivity) {
@@ -218,6 +260,34 @@ export default function HomeScreen() {
             </>
           )}
 
+          {__DEV__ && week && (
+            <ThemedView style={styles.developmentCard}>
+              <ThemedText type="subtitle">Development tools</ThemedText>
+              <ThemedText>
+                Reset only this signed-in account&apos;s Week 1 progress for testing.
+              </ThemedText>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Development only: reset my Week 1 progress"
+                accessibilityHint="Deletes this signed-in test account's Week 1 progress after confirmation."
+                disabled={isResetting}
+                onPress={confirmDevelopmentReset}
+                style={({ pressed }) => [
+                  styles.resetButton,
+                  pressed && styles.buttonPressed,
+                  isResetting && styles.buttonDisabled,
+                ]}
+              >
+                <ThemedText style={styles.resetButtonText}>
+                  {isResetting ? "Resetting…" : "Reset my Week 1 progress"}
+                </ThemedText>
+              </Pressable>
+              {resetMessage && (
+                <ThemedText accessibilityLiveRegion="polite">{resetMessage}</ThemedText>
+              )}
+            </ThemedView>
+          )}
+
           <SignOutButton />
         </ScrollView>
       </SafeAreaView>
@@ -314,6 +384,28 @@ const styles = StyleSheet.create({
     color: "#41644a",
     fontSize: 15,
     fontWeight: "700",
+  },
+  developmentCard: {
+    gap: 12,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "#b7791f",
+    borderRadius: 16,
+  },
+  resetButton: {
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    backgroundColor: "#8f3f3f",
+  },
+  resetButtonText: {
+    color: "#ffffff",
+    fontWeight: "700",
+  },
+  buttonDisabled: {
+    opacity: 0.5,
   },
   retryButton: {
     minHeight: 48,
