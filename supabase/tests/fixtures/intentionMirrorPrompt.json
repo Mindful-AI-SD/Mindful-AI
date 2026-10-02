@@ -1,0 +1,150 @@
+{
+  "version": 1,
+  "systemPrompt": "You are a supportive, non-clinical mindfulness reflection assistant. Use only the user reflection and activity context provided. Return exactly three distinct intentions as JSON matching the supplied output schema, with no additional text or fields. Each intention must have a concise title of at most 60 characters and one supportive explanation of at most 160 characters and 24 words. Use gentle, non-judgmental language that offers choices rather than commands. Do not diagnose, prescribe treatment, or use clinical labels. Do not invent or infer personal facts, including names, relationships, events, history, location, or circumstances. If the reflection is sparse, keep the intentions general rather than filling in details.",
+  "outputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["intentions"],
+    "properties": {
+      "intentions": {
+        "type": "array",
+        "minItems": 3,
+        "maxItems": 3,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["title", "explanation"],
+          "properties": {
+            "title": { "type": "string", "maxLength": 60 },
+            "explanation": { "type": "string", "maxLength": 160 }
+          }
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "name": "grounded breathing reflection",
+      "userReflection": "I noticed my shoulders tense during a breathing exercise, and pausing helped me feel more present.",
+      "expectedValidation": "accept",
+      "expectedOutput": {
+        "intentions": [
+          {
+            "title": "Notice one moment of ease",
+            "explanation": "When you pause this week, gently notice one sensation without needing to change it."
+          },
+          {
+            "title": "Make space for a pause",
+            "explanation": "Choose one ordinary moment to pause and meet your experience with curiosity."
+          },
+          {
+            "title": "Carry awareness into a routine",
+            "explanation": "During a familiar daily activity, take one breath and notice what is present."
+          }
+        ]
+      }
+    },
+    {
+      "name": "rejects the wrong number of intentions",
+      "userReflection": "I noticed my breathing slow down.",
+      "expectedValidation": "reject",
+      "candidateOutput": {
+        "intentions": [
+          {
+            "title": "Notice one breath",
+            "explanation": "Pause and notice one breath at your own pace."
+          },
+          {
+            "title": "Carry awareness forward",
+            "explanation": "Choose one moment to notice what is present."
+          }
+        ]
+      }
+    },
+    {
+      "name": "rejects wordy explanations",
+      "userReflection": "I noticed my breathing slow down.",
+      "expectedValidation": "reject",
+      "candidateOutput": {
+        "intentions": [
+          {
+            "title": "Notice one breath",
+            "explanation": "Pause and notice one breath at your own pace."
+          },
+          {
+            "title": "Carry awareness forward",
+            "explanation": "Choose one moment to notice what is present."
+          },
+          {
+            "title": "Build a thoughtful daily practice for yourself",
+            "explanation": "This week, whenever you remember, take a few moments to pause, notice your breathing, observe your thoughts and feelings, consider how they may connect to everything happening in your life, and reflect carefully on what this might mean for you going forward."
+          }
+        ]
+      }
+    },
+    {
+      "name": "rejects clinical language",
+      "userReflection": "I felt tense during the breathing exercise.",
+      "expectedValidation": "reject",
+      "candidateOutput": {
+        "intentions": [
+          {
+            "title": "Treat your anxiety disorder",
+            "explanation": "A diagnosis and treatment plan can help you manage symptoms."
+          },
+          {
+            "title": "Notice a breath",
+            "explanation": "Try noticing one breath without judgment."
+          },
+          {
+            "title": "Pause when you can",
+            "explanation": "You can take a gentle pause at your own pace."
+          }
+        ]
+      }
+    },
+    {
+      "name": "rejects invented personal facts",
+      "userReflection": "I felt distracted during a breathing exercise.",
+      "unsupportedClaims": ["your sister Maya", "your upcoming job interview"],
+      "expectedValidation": "reject",
+      "candidateOutput": {
+        "intentions": [
+          {
+            "title": "Make room for a pause",
+            "explanation": "Before your upcoming job interview, consider talking with your sister Maya about how you feel."
+          },
+          {
+            "title": "Notice what is present",
+            "explanation": "Gently notice one thing you can sense right now."
+          },
+          {
+            "title": "Continue at your pace",
+            "explanation": "You can return to the exercise whenever it feels right."
+          }
+        ]
+      }
+    },
+    {
+      "name": "rejects judgmental language",
+      "userReflection": "I found it hard to focus.",
+      "expectedValidation": "reject",
+      "candidateOutput": {
+        "intentions": [
+          {
+            "title": "Try again",
+            "explanation": "You failed to focus, so stop wasting time and control yourself."
+          },
+          {
+            "title": "Notice a breath",
+            "explanation": "Try noticing one breath without judgment."
+          },
+          {
+            "title": "Pause when you can",
+            "explanation": "You can take a gentle pause at your own pace."
+          }
+        ]
+      }
+    }
+  ]
+}
