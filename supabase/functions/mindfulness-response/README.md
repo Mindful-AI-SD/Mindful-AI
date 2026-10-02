@@ -1,74 +1,93 @@
-# Mindfulness response — MIN-56
+# Mindfulness response — MIN-67
 
-`POST /functions/v1/mindfulness-response` requires a Supabase user access token
-in `Authorization: Bearer <access_token>`. The existing
-`withSupabase({ auth: "user" }, ...)` and `ctx.userClaims?.id` authenticate the
-caller. Gateway `verify_jwt = false` delegates verification to this helper.
+`POST /functions/v1/mindfulness-response` uses the existing
+`withSupabase({ auth: "user" }, ...)` authentication and user-scoped Supabase
+client. No service-role client is used.
 
-## Contract
-
-Request:
+## Request and result
 
 ```json
 {
-  "activityId": "week-1-intention",
+  "submissionId": "660e8400-e29b-41d4-a716-446655440000",
+  "activityId": "550e8400-e29b-41d4-a716-446655440000",
   "activityContext": "Intention Mirror",
   "userReflection": "I want to pause before reacting."
 }
 ```
 
-The shared `guidedReflectionSchema.safeParse` validates and trims the three
-fields before any provider call. Activity IDs are lowercase hyphenated slugs
-(maximum 100 characters), context is 1–4000 characters, and reflection is 3–2000
-characters. Additional fields, including client-generated `intentions` and
-`devMockScenario`, are rejected.
+The client generates one submission UUID per intentional submit action and keeps
+that ID and payload for transport retries. A new ID is a new generation request,
+even if its text is identical. Reusing an ID with changed normalized input
+returns 409. Never supply a user ID; ownership is derived from authentication in
+both the endpoint and database functions.
 
-Success is HTTP 200 with exactly these fields:
+This endpoint extends the shared request schema with `submissionId` and narrows
+`activityId` to a database UUID. There is no slug-to-UUID mapping in the
+repository. The activity must be a visible Week 1 activity. Context/reflection
+validation and the provider response schema remain shared and unchanged. Context
+and reflection are normalized by the shared schema before hashing and
+generation.
 
-```ts
-{
-  intentions: [
-    { title: string; explanation: string },
-    { title: string; explanation: string },
-    { title: string; explanation: string }
-  ];
-  provider: "mock";
-}
-```
+Success remains exactly
+`{ intentions: [{title, explanation}, ...], provider:
+"mock" }`, with three
+intentions. The response is returned only after the result and
+`progress.generated_intentions` have been committed atomically. Existing
+writing, answers, step/status, and completion timestamps remain untouched.
 
-The merged `generateMockGuidedReflection(context, reflection, scenario, timing)`
-adapter supplies the intentions. `guidedReflectionResponseSchema.safeParse`
-validates exactly three objects and normalizes whitespace before returning them.
-Malformed provider output becomes 502. No provider implementation is duplicated.
-No database writes, Expo changes, private logs, or external provider calls
-occur.
+## Durable idempotency and persistence
 
-Errors always contain only `{ error: string, message: string }`:
+The migration adds `intention_submissions`, keyed by authenticated user and
+submission UUID, with RLS and SECURITY INVOKER claim/finish functions. A unique
+insert claims the request before the unchanged mock-provider adapter is called.
+Only the successful claimant generates. The ledger stores a SHA-256 hash of the
+normalized request (not the raw context/reflection), a claim token, state, and
+completed response or safe failure status. Treat hashes as private user data.
 
-| HTTP | error            | message                                       |
-| ---- | ---------------- | --------------------------------------------- |
-| 400  | INVALID_INPUT    | The mindfulness request is invalid.           |
-| 401  | AUTH_REQUIRED    | Sign in to request intentions.                |
-| 408  | PROVIDER_TIMEOUT | The provider timed out. Please try again.     |
-| 502  | PROVIDER_ERROR   | Intentions are unavailable. Please try again. |
+Completion updates the existing progress table using its
+`(user_id, activity_id)` primary key and RLS. A database transaction saves both
+progress and the replay result, so they cannot partially commit. The finish
+function validates the stored mock result as defense in depth. Per-activity
+completion serialization prevents an earlier slow submission from replacing a
+later successful submission.
 
-Provider exceptions, stack traces, validation diagnostics, and authentication
-helper diagnostics are never returned. Middleware 401 responses are normalized
-while preserving CORS headers. Authenticated non-POST requests return 405 with
-`Allow: POST`; the helper handles unsigned OPTIONS preflight.
+MIN-64's helpers import the Expo client and cannot run inside an Edge Function.
+They remain unchanged and continue loading these rows; the integration test uses
+`loadWeekOneProgress` to verify reload. Atomic completion needs the specialized
+SQL transaction rather than two separate client upserts. No general progress
+helper or provider implementation is duplicated.
 
-## Timeout and mock selection
+Replay does not invoke the provider or rewrite progress. Provider failure or
+timeout records a failure without touching previous intentions. A failed ID
+replays the same safe error; use a new submission ID for an intentional retry.
 
-The endpoint enforces a five-second response deadline and maps the adapter's
-`ProviderTimeoutError` to 408. The adapter has no cancellation API: after the
-response deadline, an already-running adapter operation may finish in the
-background. The endpoint clears its own deadline timer on every outcome.
+A processing ID returns 409. It is deliberately not reclaimed automatically:
+provider calls have no cancellation/idempotency API, so automatic reclamation
+could generate twice. A crash or unresolved persistence error can leave a
+pending claim requiring operator investigation. This implements at-most-once
+provider invocation per ID, not guaranteed completion after arbitrary process
+failure. No ledger retention/deletion job is included. Different submissions
+updating the same activity retain the latest successfully completed submission
+by claim order.
 
-This ticket explicitly uses the mock adapter. It does not enable the future
-provider stub through `providerSelector`. Existing server-only
-`MOCK_PROVIDER_SCENARIO`, `MOCK_PROVIDER_DELAY_MS`, and
-`MOCK_PROVIDER_TIMEOUT_MS` settings support QA scenarios; request fields cannot
-select a scenario. Never put private provider settings in Expo.
+## Errors
+
+All listed errors contain only `{ error, message }`; internal exceptions, stack
+traces, provider messages, and authentication diagnostics are not returned.
+
+| HTTP | Error                   | Meaning                                              |
+| ---- | ----------------------- | ---------------------------------------------------- |
+| 400  | INVALID_INPUT           | Invalid request or unavailable Week 1 activity       |
+| 401  | AUTH_REQUIRED           | Missing/invalid user authentication                  |
+| 408  | PROVIDER_TIMEOUT        | Five-second generation deadline or adapter timeout   |
+| 409  | SUBMISSION_CONFLICT     | Pending submission or ID reused with different input |
+| 502  | PROVIDER_ERROR          | Provider failure or invalid provider response        |
+| 503  | PERSISTENCE_UNAVAILABLE | Storage failure; retry the same ID                   |
+
+The provider deadline does not cancel the adapter, and does not cover database
+round trips. Late provider results are not saved after a timeout. The separate
+`guided-reflection` endpoint remains unchanged (including its 504 timeout).
+OPTIONS/CORS remains handled by the auth helper; non-POST requests return 405.
 
 ## Verification
 
@@ -77,28 +96,32 @@ From the repository root:
 ```sh
 npx --yes --package=deno deno task tests
 npx --yes --package=deno deno check --config supabase/functions/mindfulness-response/deno.json supabase/functions/mindfulness-response/index.ts supabase/functions/mindfulness-response/index_test.ts
-npx --yes --package=deno deno lint supabase/functions/mindfulness-response
-npx --yes --package=deno deno fmt --check supabase/functions/mindfulness-response
+npx --yes --package=deno deno lint supabase/functions/mindfulness-response mobile/tests/integration/intention-persistence.test.cjs
+npx --yes --package=deno deno fmt --check supabase/functions/mindfulness-response mobile/tests/integration/intention-persistence.test.cjs
+node --test mobile/tests/*.test.cjs
 git diff --check
 ```
 
-Tests exercise the real authentication helper with temporary signed tokens and
-the actual mock adapter's success, delayed, timeout, and failure scenarios.
-Server-side injection additionally covers malformed provider output, unexpected
-exceptions, normalization, validation-before-invocation, and a never-settling
-provider. No real project credentials or database are needed for these tests.
+With Docker and mobile dependencies installed, apply the new migration only to
+local Supabase and serve the endpoint:
 
-For local HTTP checks, start Docker, run `npx supabase start`, then
-`npx supabase functions serve mindfulness-response`. POST the example request to
-`http://127.0.0.1:54321/functions/v1/mindfulness-response`: without a user token
-expect 401; with a local signed-in user's bearer token expect 200 and three
-intentions. With server scenario `timeout` expect 408; with `error` expect 502.
+```sh
+npx supabase start
+npx supabase migration up --local
+npx supabase functions serve mindfulness-response
+```
 
-## Differences from other contracts
+In another terminal:
 
-This replaces the old shell's `activityId/reply/status` placeholder with the
-shared schema and existing frontend's `intentions/provider` contract. The
-separate `guided-reflection` endpoint uses a UUID activity ID, writes session
-metadata, and returns 504 on timeout. It remains unchanged; MIN-56 uses the
-shared slug schema and explicitly requires 408. Earlier MIN-52 versions required
-intentions in the request; the current merged schema no longer does.
+```sh
+node --test mobile/tests/integration/*.test.cjs
+npx supabase db lint --local
+```
+
+The new Docker suite uses two temporary local users, HTTP requests, and MIN-64
+reloads. It tests replay, concurrency, payload conflict, ownership, stored
+failure replay preserving progress, atomic validation failure, and out-of-order
+success. Endpoint unit tests verify provider invocation counts and exception
+handling. Fixture users are deleted from local Docker afterward. No shared
+project is used. Run `npx tsc --noEmit` and `npm run check:client-security`
+inside `mobile`.
