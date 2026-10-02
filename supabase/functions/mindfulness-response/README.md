@@ -1,4 +1,4 @@
-# Mindfulness response — MIN-67
+# Mindfulness response — MIN-67 / MIN-74
 
 `POST /functions/v1/mindfulness-response` uses the existing
 `withSupabase({ auth: "user" }, ...)` authentication and user-scoped Supabase
@@ -89,6 +89,59 @@ round trips. Late provider results are not saved after a timeout. The separate
 `guided-reflection` endpoint remains unchanged (including its 504 timeout).
 OPTIONS/CORS remains handled by the auth helper; non-POST requests return 405.
 
+## HTTP endpoint integration coverage (MIN-74)
+
+With Docker running, mobile dependencies installed (`npm ci --prefix mobile`),
+and local Supabase started with the merged migrations applied
+(`npx supabase
+start` and `npx supabase migration up --local`), run this
+**single command from the repository root**:
+
+```sh
+npm --prefix mobile run test:endpoint-integration
+```
+
+Use WSL/Linux for this local Docker suite. Stop any other
+`supabase functions
+serve` process first, and do not run other HTTP suites
+concurrently: this command owns the local Edge runtime while it switches the
+existing server-side mock scenario settings. It starts/stops its own CLI process
+groups, creates a temporary local authenticated user, and removes that user and
+its rows afterward. Its temporary environment file lives in the Git metadata
+directory and is removed on completion. No remote project, service-role HTTP
+client, or production code is used. The command exits nonzero on assertion/setup
+failure; missing Docker, migrations, or dependencies are not skipped.
+
+All requests exercise the real `/functions/v1/mindfulness-response` route,
+Supabase user authentication, the merged mock adapter, and MIN-67's database
+claim/finish functions. The existing Node test runner and MIN-64 progress reload
+harness are reused.
+
+| HTTP scenario                                                                                                | Verified status/contract                                                                                       |
+| ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| Valid signed-in request; maximum allowed context/reflection lengths                                          | 200; exactly three `{title, explanation}` intentions and `provider: "mock"`; saved progress reloads            |
+| Missing or invalid authentication                                                                            | 401 `AUTH_REQUIRED`                                                                                            |
+| Empty/malformed JSON, missing/empty fields, whitespace-only reflection, client-supplied ownership/intentions | 400 `INVALID_INPUT`                                                                                            |
+| Context over 4000 or reflection over 2000 characters                                                         | 400 `INVALID_INPUT`                                                                                            |
+| Identical/normalized duplicate submission                                                                    | 200; same saved result, one ledger row, no progress rewrite; also replays while provider is configured to fail |
+| Same submission ID with changed input                                                                        | 409 `SUBMISSION_CONFLICT`                                                                                      |
+| Retry while original HTTP request is processing                                                              | 409 `SUBMISSION_CONFLICT`                                                                                      |
+| Real adapter timeout or five-second endpoint deadline                                                        | 408 `PROVIDER_TIMEOUT`; failed retry remains 408                                                               |
+| Real adapter error                                                                                           | 502 `PROVIDER_ERROR`; failed retry remains 502                                                                 |
+
+Every failure asserts the exact `{error, message}` JSON contract and JSON
+content type, rejects credentials/private configuration values and
+internal/stack markers, and never prints a failure body in assertion
+diagnostics. Provider failures preserve the previous progress, including after a
+delayed result arrives. The suite uses the existing `success`, `error`,
+`timeout`, and `delayed` server scenarios; it does not inject providers or
+manufacture failed ledger rows.
+
+A fresh submission UUID intentionally starts a new generation. Pending IDs are
+not automatically reclaimed, matching MIN-67. Restart ordinary local serving
+before using the older persistence suite below; this command stops its own
+serving process when finished.
+
 ## Verification
 
 From the repository root:
@@ -118,10 +171,10 @@ node --test mobile/tests/integration/*.test.cjs
 npx supabase db lint --local
 ```
 
-The new Docker suite uses two temporary local users, HTTP requests, and MIN-64
-reloads. It tests replay, concurrency, payload conflict, ownership, stored
-failure replay preserving progress, atomic validation failure, and out-of-order
-success. Endpoint unit tests verify provider invocation counts and exception
-handling. Fixture users are deleted from local Docker afterward. No shared
-project is used. Run `npx tsc --noEmit` and `npm run check:client-security`
-inside `mobile`.
+The MIN-67 Docker suite uses two temporary local users, HTTP requests, and
+MIN-64 reloads. It tests replay, concurrency, payload conflict, ownership,
+stored failure replay preserving progress, atomic validation failure, and
+out-of-order success. Endpoint unit tests verify provider invocation counts and
+exception handling. Fixture users are deleted from local Docker afterward. No
+shared project is used. Run `npx tsc --noEmit` and
+`npm run check:client-security` inside `mobile`.
