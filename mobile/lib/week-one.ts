@@ -57,7 +57,7 @@ async function updateStep(progress: WeekOneProgress, step: WeekOneStep, answers:
 }
 
 const REQUIRED_ANSWERS: Partial<Record<WeekOneStep, string[]>> = {
-  post_breathing_check_in: ["post_breathing_check_in"],
+  post_breathing_check_in: ["post_breathing_urge"],
   data_self_portrait: ["data_self_portrait_visible", "data_self_portrait_missing"],
   ai_gap_reflection: ["ai_gap_got_right", "ai_gap_missed", "ai_gap_reveals"],
   yellowdig_draft: ["yellowdig_draft"],

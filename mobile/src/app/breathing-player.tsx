@@ -12,6 +12,11 @@ import {
 } from "react-native";
 
 import { useSignedInUserId } from "@/components/auth-gate";
+import {
+  clearBreathingSession,
+  loadBreathingSession,
+  saveBreathingSession,
+} from "../../lib/breathing-session-storage";
 import { saveProgressStep } from "../../lib/progress";
 
 type BreathingState =
@@ -22,21 +27,36 @@ type BreathingState =
   | "exited";
 
 const SESSION_DURATION_MS = 10 * 60 * 1000;
+const PERSIST_INTERVAL_MS = 5 * 1000;
 
-export default function BreathingPlayer({ onContinue, onExit, isSaving = false }: {
-  onContinue?: () => void;
+export default function BreathingPlayer({
+  activityId: providedActivityId,
+  onContinue,
+  onExit,
+  isSaving = false,
+}: {
+  activityId?: string;
+  onContinue?: () => Promise<boolean> | boolean | void;
   onExit?: () => void;
   isSaving?: boolean;
 } = {}) {
-  const { activityId } = useLocalSearchParams<{ activityId?: string }>();
+  const { activityId: routeActivityId } = useLocalSearchParams<{ activityId?: string }>();
+  const activityId = providedActivityId ?? routeActivityId;
   const userId = useSignedInUserId();
   const [state, setState] = useState<BreathingState>("idle");
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [isRestoring, setIsRestoring] = useState(Boolean(activityId));
+  const [storageError, setStorageError] = useState<string | null>(null);
 
   const accumulatedTimeRef = useRef(0);
   const activeStartTimeRef = useRef<number | null>(null);
   const stateRef = useRef<BreathingState>("idle");
   const savedCompletionRef = useRef(false);
+  const sessionStartedAtRef = useRef(Date.now());
+  const persistedBucketRef = useRef(0);
+  const advancingRef = useRef(false);
+  const persistenceQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const mountedRef = useRef(true);
 
   const colorScheme = useColorScheme();
   const isDarkMode = colorScheme === "dark";
@@ -49,18 +69,54 @@ export default function BreathingPlayer({ onContinue, onExit, isSaving = false }
     setState(newState);
   }
 
+  function queueStorage(operation: () => Promise<void>): Promise<boolean> {
+    const pending = persistenceQueueRef.current.then(operation);
+    persistenceQueueRef.current = pending.catch(() => undefined);
+    return pending.then(() => true).catch(() => {
+      if (mountedRef.current) {
+        setStorageError("Could not save this breathing session on this device.");
+      }
+      return false;
+    });
+  }
+
+  function persistSession(
+    nextState: "running" | "paused",
+    completed = false,
+    accumulatedActiveMs = accumulatedTimeRef.current,
+  ) {
+    if (!activityId) return Promise.resolve(true);
+    return queueStorage(() => saveBreathingSession(userId, {
+      activityId,
+      startedAt: sessionStartedAtRef.current,
+      accumulatedActiveMs,
+      state: nextState,
+      completed,
+      savedAt: Date.now(),
+    }));
+  }
+
+  function clearPersistedSession() {
+    if (!activityId) return Promise.resolve(true);
+    return queueStorage(() => clearBreathingSession(userId, activityId));
+  }
+
   function saveCurrentActiveTime() {
     if (activeStartTimeRef.current === null) {
-      return;
+      return accumulatedTimeRef.current;
     }
 
     const currentActiveTime =
       Date.now() - activeStartTimeRef.current;
 
-    accumulatedTimeRef.current += currentActiveTime;
+    accumulatedTimeRef.current = Math.min(
+      SESSION_DURATION_MS,
+      accumulatedTimeRef.current + currentActiveTime,
+    );
     activeStartTimeRef.current = null;
 
     setElapsedTime(accumulatedTimeRef.current);
+    return accumulatedTimeRef.current;
   }
 
   async function saveCompletedBreathingStep() {
@@ -68,7 +124,8 @@ export default function BreathingPlayer({ onContinue, onExit, isSaving = false }
     savedCompletionRef.current = true;
 
     try {
-      await saveProgressStep(userId, activityId, "writing");
+      await saveProgressStep(userId, activityId, "post_breathing_check_in");
+      await clearPersistedSession();
     } catch (error) {
       savedCompletionRef.current = false;
       Alert.alert(
@@ -77,6 +134,47 @@ export default function BreathingPlayer({ onContinue, onExit, isSaving = false }
       );
     }
   }
+
+  useEffect(() => {
+    mountedRef.current = true;
+    let cancelled = false;
+
+    accumulatedTimeRef.current = 0;
+    activeStartTimeRef.current = null;
+    savedCompletionRef.current = false;
+    persistedBucketRef.current = 0;
+    setElapsedTime(0);
+    changeState("idle");
+    setStorageError(null);
+
+    if (!activityId) {
+      setIsRestoring(false);
+      return () => { mountedRef.current = false; };
+    }
+
+    setIsRestoring(true);
+    void loadBreathingSession(userId, activityId).then((session) => {
+      if (cancelled || !session) return;
+      const restoredElapsed = Math.min(
+        SESSION_DURATION_MS,
+        Math.max(0, session.accumulatedActiveMs),
+      );
+      sessionStartedAtRef.current = session.startedAt;
+      accumulatedTimeRef.current = restoredElapsed;
+      persistedBucketRef.current = Math.floor(restoredElapsed / PERSIST_INTERVAL_MS);
+      setElapsedTime(restoredElapsed);
+      changeState(session.completed ? "completed" : "paused");
+    }).catch(() => {
+      if (!cancelled) setStorageError("Could not restore this breathing session.");
+    }).finally(() => {
+      if (!cancelled) setIsRestoring(false);
+    });
+
+    return () => {
+      cancelled = true;
+      mountedRef.current = false;
+    };
+  }, [userId, activityId]);
 
   useEffect(() => {
     if (state !== "running") {
@@ -100,11 +198,17 @@ export default function BreathingPlayer({ onContinue, onExit, isSaving = false }
 
         setElapsedTime(SESSION_DURATION_MS);
         changeState("completed");
+        void persistSession("paused", true, SESSION_DURATION_MS);
         if (!onContinue) void saveCompletedBreathingStep();
         return;
       }
 
       setElapsedTime(totalElapsed);
+      const bucket = Math.floor(totalElapsed / PERSIST_INTERVAL_MS);
+      if (bucket > persistedBucketRef.current) {
+        persistedBucketRef.current = bucket;
+        void persistSession("running", false, totalElapsed);
+      }
     };
 
     updateTimer();
@@ -123,8 +227,9 @@ export default function BreathingPlayer({ onContinue, onExit, isSaving = false }
             nextAppState === "inactive") &&
           stateRef.current === "running"
         ) {
-          saveCurrentActiveTime();
+          const totalElapsed = saveCurrentActiveTime();
           changeState("paused");
+          void persistSession("paused", false, totalElapsed);
         }
       },
     );
@@ -135,19 +240,24 @@ export default function BreathingPlayer({ onContinue, onExit, isSaving = false }
   }, []);
 
   function handleStart() {
-    if (state === "idle") {
+    if (state === "idle" && !isRestoring) {
       accumulatedTimeRef.current = 0;
       activeStartTimeRef.current = Date.now();
+      sessionStartedAtRef.current = Date.now();
+      persistedBucketRef.current = 0;
 
       setElapsedTime(0);
+      setStorageError(null);
       changeState("running");
+      void persistSession("running");
     }
   }
 
   function handlePause() {
     if (state === "running") {
-      saveCurrentActiveTime();
+      const totalElapsed = saveCurrentActiveTime();
       changeState("paused");
+      void persistSession("paused", false, totalElapsed);
     }
   }
 
@@ -155,6 +265,7 @@ export default function BreathingPlayer({ onContinue, onExit, isSaving = false }
     if (state === "paused") {
       activeStartTimeRef.current = Date.now();
       changeState("running");
+      void persistSession("running");
     }
   }
 
@@ -166,19 +277,24 @@ export default function BreathingPlayer({ onContinue, onExit, isSaving = false }
     ) {
       accumulatedTimeRef.current = 0;
       activeStartTimeRef.current = Date.now();
+      sessionStartedAtRef.current = Date.now();
+      persistedBucketRef.current = 0;
       savedCompletionRef.current = false;
 
       setElapsedTime(0);
+      setStorageError(null);
       changeState("running");
+      void persistSession("running", false, 0);
     }
   }
 
-  function exitSession() {
+  async function exitSession() {
     changeState("exited");
 
     accumulatedTimeRef.current = 0;
     activeStartTimeRef.current = null;
     setElapsedTime(0);
+    await clearPersistedSession();
 
     if (onExit) onExit();
     else router.replace("/");
@@ -199,7 +315,7 @@ export default function BreathingPlayer({ onContinue, onExit, isSaving = false }
     }
 
     if (state === "idle" || state === "completed") {
-      exitSession();
+      void exitSession();
       return;
     }
 
@@ -209,7 +325,7 @@ export default function BreathingPlayer({ onContinue, onExit, isSaving = false }
       );
 
       if (confirmed) {
-        exitSession();
+        void exitSession();
       }
 
       return;
@@ -226,10 +342,21 @@ export default function BreathingPlayer({ onContinue, onExit, isSaving = false }
         {
           text: "Exit",
           style: "destructive",
-          onPress: exitSession,
+          onPress: () => void exitSession(),
         },
       ],
     );
+  }
+
+  async function handleContinue() {
+    if (!onContinue || advancingRef.current) return;
+    advancingRef.current = true;
+    try {
+      const advanced = await onContinue();
+      if (advanced !== false) await clearPersistedSession();
+    } finally {
+      advancingRef.current = false;
+    }
   }
 
   const remainingTime = Math.max(
@@ -254,6 +381,16 @@ export default function BreathingPlayer({ onContinue, onExit, isSaving = false }
         Current State: {state}
       </Text>
 
+      {isRestoring && (
+        <Text accessibilityLiveRegion="polite" style={[styles.state, { color: textColor }]}>
+          Restoring saved session…
+        </Text>
+      )}
+
+      {storageError && (
+        <Text accessibilityRole="alert" style={styles.errorText}>{storageError}</Text>
+      )}
+
       <Text accessibilityRole="timer" accessibilityLabel={`${minutes} minutes and ${seconds} seconds remaining`}
         style={[styles.timer, { color: textColor }]}>
         {formattedTime}
@@ -261,7 +398,8 @@ export default function BreathingPlayer({ onContinue, onExit, isSaving = false }
 
       <Pressable style={styles.button} onPress={handleStart} accessibilityRole="button"
         accessibilityLabel="Start breathing session" accessibilityHint="Starts the ten-minute timer."
-        disabled={state !== "idle"} accessibilityState={{ disabled: state !== "idle" }}>
+        disabled={state !== "idle" || isRestoring}
+        accessibilityState={{ disabled: state !== "idle" || isRestoring, busy: isRestoring }}>
         <Text style={styles.buttonText}>Start</Text>
       </Pressable>
 
@@ -290,7 +428,7 @@ export default function BreathingPlayer({ onContinue, onExit, isSaving = false }
       </Pressable>
       {state === "completed" && onContinue && (
         <Pressable style={styles.button} accessibilityRole="button" disabled={isSaving}
-          accessibilityState={{ disabled: isSaving, busy: isSaving }} onPress={onContinue}>
+          accessibilityState={{ disabled: isSaving, busy: isSaving }} onPress={() => void handleContinue()}>
           <Text style={styles.buttonText}>Continue to check-in</Text>
         </Pressable>
       )}
@@ -313,6 +451,11 @@ const styles = StyleSheet.create({
 
   state: {
     fontSize: 18,
+  },
+
+  errorText: {
+    color: "#b42318",
+    fontSize: 14,
   },
 
   timer: {
