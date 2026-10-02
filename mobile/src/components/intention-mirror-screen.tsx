@@ -40,6 +40,7 @@ type SubmissionState =
 export function IntentionMirrorScreen({
   activityId,
   onBack,
+  onIntentionsReady,
   onOpenGap,
   initialIntentions,
   onGenerated,
@@ -48,6 +49,7 @@ export function IntentionMirrorScreen({
 }: {
   activityId: string;
   onBack: () => void;
+  onIntentionsReady: () => Promise<void> | void;
   onOpenGap: () => void;
   initialIntentions?: IntentionResponse;
   onGenerated?: () => Promise<void>;
@@ -105,6 +107,7 @@ export function IntentionMirrorScreen({
         });
       } else {
         await saveProgressIntentions(userId, activityId, result.data.intentions);
+        await onIntentionsReady();
         if (activeRequest.current !== controller) return;
         await onGenerated?.();
         if (activeRequest.current !== controller) return;

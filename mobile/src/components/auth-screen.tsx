@@ -111,6 +111,7 @@ export function AuthScreen() {
           accessibilityLabel={isSignUp ? "Create account" : "Sign in"}
           accessibilityState={{ disabled: isSubmitting, busy: isSubmitting }}
           disabled={isSubmitting}
+          hitSlop={12}
           onPress={handleSubmit}
           style={({ pressed }) => [
             styles.primaryButton,
@@ -131,6 +132,7 @@ export function AuthScreen() {
           accessibilityRole="button"
           accessibilityState={{ disabled: isSubmitting }}
           disabled={isSubmitting}
+          hitSlop={12}
           onPress={() => setIsSignUp((current) => !current)}
           style={styles.secondaryButton}
         >
@@ -198,10 +200,11 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     minHeight: 48,
+    width: "100%",
     minWidth: 48,
-    justifyContent: "center",
     alignItems: "center",
-    padding: 8,
+    justifyContent: "center",
+    paddingHorizontal: 12,
   },
   secondaryButtonText: {
     color: "#41644a",

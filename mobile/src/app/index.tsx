@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -11,7 +12,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { SignOutButton } from "@/components/sign-out-button";
 import { WeekOneFlow } from "@/components/week-one-flow";
 import { useSignedInUserId } from "@/components/auth-gate";
-import { getWeekOneProgress } from "../../lib/week-one";
 import { AccessibleHeading } from "@/components/accessibility";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -19,13 +19,30 @@ import {
   type CurriculumWeek,
   getPublishedWeekOne,
 } from "../../lib/curriculum";
+import {
+  type ActivityProgress,
+  getActivityProgress,
+} from "../../lib/progress";
+
+type ActiveScreen = "curriculum" | "week-one";
+
+const STATUS_LABELS = {
+  not_started: "Not started",
+  in_progress: "In progress",
+  completed: "Completed",
+} as const;
 
 export default function HomeScreen() {
   const userId = useSignedInUserId();
-  const [activeScreen, setActiveScreen] = useState<"curriculum" | "week-one">("curriculum");
+  const [activeScreen, setActiveScreen] = useState<ActiveScreen>("curriculum");
+  const [activeActivityId, setActiveActivityId] = useState<string | null>(null);
   const [week, setWeek] = useState<CurriculumWeek | null>(null);
+  const [progressByActivityId, setProgressByActivityId] = useState<
+    Record<string, ActivityProgress>
+  >({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [openingActivityId, setOpeningActivityId] = useState<string | null>(null);
 
   const loadWeek = useCallback(async () => {
     setIsLoading(true);
@@ -33,10 +50,14 @@ export default function HomeScreen() {
 
     try {
       const weekOne = await getPublishedWeekOne();
-      const activity = weekOne.activities.find(value => value.activity_type === "reflection");
-      const progress = activity ? await getWeekOneProgress(userId, activity.id) : null;
+      const progress = await getActivityProgress(
+        userId,
+        weekOne.activities.map((activity) => activity.id),
+      );
       setWeek(weekOne);
-      if (progress) setActiveScreen("week-one");
+      setProgressByActivityId(
+        Object.fromEntries(progress.map((item) => [item.activity_id, item])),
+      );
     } catch (error) {
       setWeek(null);
       setErrorMessage(
@@ -49,20 +70,35 @@ export default function HomeScreen() {
     }
   }, [userId]);
 
-  useEffect(() => {
-    void loadWeek();
-  }, [loadWeek]);
-
-  const writingActivity = week?.activities.find(
-    (activity) => activity.activity_type === "reflection",
+  useFocusEffect(
+    useCallback(() => {
+      if (activeScreen === "curriculum") void loadWeek();
+    }, [activeScreen, loadWeek]),
   );
 
-  if (activeScreen === "week-one" && writingActivity) {
+  const activeActivity = week?.activities.find(
+    (activity) => activity.id === activeActivityId,
+  );
+
+  function returnToCurriculum() {
+    setActiveScreen("curriculum");
+    setActiveActivityId(null);
+  }
+
+  function openActivity(activityId: string) {
+    if (openingActivityId) return;
+    setOpeningActivityId(activityId);
+    setActiveActivityId(activityId);
+    setActiveScreen("week-one");
+    setOpeningActivityId(null);
+  }
+
+  if (activeScreen === "week-one" && activeActivity) {
     return (
       <WeekOneFlow
-        key={writingActivity.id}
-        activityId={writingActivity.id}
-        onExit={() => setActiveScreen("curriculum")}
+        key={activeActivity.id}
+        activityId={activeActivity.id}
+        onExit={returnToCurriculum}
       />
     );
   }
@@ -121,21 +157,6 @@ export default function HomeScreen() {
                     {week.description}
                   </ThemedText>
                 )}
-                {writingActivity && (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityHint="Starts Week 1 or restores your saved step."
-                    onPress={() => setActiveScreen("week-one")}
-                    style={({ pressed }) => [
-                      styles.retryButton,
-                      pressed && styles.buttonPressed,
-                    ]}
-                  >
-                    <ThemedText style={styles.retryButtonText}>
-                      Start or continue Week 1
-                    </ThemedText>
-                  </Pressable>
-                )}
               </ThemedView>
 
               <View style={styles.section}>
@@ -146,8 +167,23 @@ export default function HomeScreen() {
                     No published activities are available yet.
                   </ThemedText>
                 ) : (
-                  week.activities.map((activity) => (
-                    <ThemedView key={activity.id} style={styles.activityCard}>
+                  week.activities.map((activity) => {
+                    const progress = progressByActivityId[activity.id];
+                    const status = progress?.status ?? "not_started";
+                    const isOpening = openingActivityId === activity.id;
+
+                    return (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`${activity.title}. ${STATUS_LABELS[status]}`}
+                      disabled={openingActivityId !== null}
+                      key={activity.id}
+                      onPress={() => openActivity(activity.id)}
+                      style={({ pressed }) => [
+                        styles.activityCard,
+                        pressed && styles.buttonPressed,
+                      ]}
+                    >
                       <View style={styles.activityMetadata}>
                         <ThemedText style={styles.activityType}>
                           {activity.activity_type
@@ -166,13 +202,17 @@ export default function HomeScreen() {
                         {activity.title}
                       </ThemedText>
 
+                      <ThemedText style={styles.status}>
+                        {isOpening ? "Opening…" : STATUS_LABELS[status]}
+                      </ThemedText>
+
                       {activity.content && (
                         <ThemedText style={styles.description}>
                           {activity.content}
                         </ThemedText>
                       )}
-                    </ThemedView>
-                  ))
+                    </Pressable>
+                  );})
                 )}
               </View>
             </>
@@ -252,6 +292,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#d4ddd3",
     borderRadius: 16,
+    backgroundColor: "transparent",
   },
   activityMetadata: {
     flexDirection: "row",
@@ -268,6 +309,11 @@ const styles = StyleSheet.create({
   duration: {
     fontSize: 14,
     opacity: 0.7,
+  },
+  status: {
+    color: "#41644a",
+    fontSize: 15,
+    fontWeight: "700",
   },
   retryButton: {
     minHeight: 48,

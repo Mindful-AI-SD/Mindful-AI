@@ -149,7 +149,10 @@ export function WeekOneFlow({ activityId, onExit }: { activityId: string; onExit
         <BreathingPlayer onContinue={() => void save()} onExit={onExit} isSaving={busy} />
       )}
       {progress && (progress.current_step === "writing" || progress.current_step === "intention_mirror") && (
-        <IntentionMirrorScreen activityId={activityId} onBack={onExit}
+        <IntentionMirrorScreen
+  activityId={activityId}
+  onBack={onExit}
+  onIntentionsReady={() => undefined}
           initialIntentions={progress.current_step === "intention_mirror" && progress.generated_intentions.length === 3
             ? { intentions: progress.generated_intentions as IntentionResponse["intentions"], provider: "mock" } : undefined}
           onGenerated={async () => {
