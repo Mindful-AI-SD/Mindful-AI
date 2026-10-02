@@ -1,8 +1,13 @@
 import { strict as assert } from "node:assert";
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
-import endpoint from "./index.ts";
+import endpoint, { createMindfulnessEndpoint } from "./index.ts";
+import {
+  ProviderError,
+  ProviderTimeoutError,
+} from "../_shared/providers/types.ts";
+import { guidedReflectionResponseSchema } from "../../schema/guidedReflectionSchema.ts";
 
-Deno.test("endpoint shell with real Supabase authentication middleware", async (t) => {
+Deno.test("mindfulness endpoint with real Supabase authentication middleware", async (t) => {
   const { publicKey, privateKey } = await generateKeyPair("ES256");
   const jwk = {
     ...await exportJWK(publicKey),
@@ -11,6 +16,9 @@ Deno.test("endpoint shell with real Supabase authentication middleware", async (
   };
   const env = {
     SUPABASE_URL: "http://127.0.0.1:54321",
+    MOCK_PROVIDER_SCENARIO: "success",
+    MOCK_PROVIDER_TIMEOUT_MS: "1",
+    MOCK_PROVIDER_DELAY_MS: "1",
     SUPABASE_PUBLISHABLE_KEYS: JSON.stringify({
       default: "sb_publishable_test",
     }),
@@ -33,8 +41,13 @@ Deno.test("endpoint shell with real Supabase authentication middleware", async (
     activityContext: "Intention Mirror",
     userReflection: "Private reflection text",
   };
-  async function request(body: string, bearer?: string, method = "POST") {
-    return await endpoint.fetch(
+  async function request(
+    body: string,
+    bearer?: string,
+    method = "POST",
+    handler = endpoint,
+  ) {
+    return await handler.fetch(
       new Request("http://localhost/mindfulness-response", {
         method,
         headers: {
@@ -47,7 +60,7 @@ Deno.test("endpoint shell with real Supabase authentication middleware", async (
   }
   try {
     await t.step(
-      "signed user receives the typed placeholder without private input",
+      "signed user receives exactly three mock intentions without private input",
       async () => {
         const response = await request(JSON.stringify(payload), validToken);
         assert.equal(response.status, 200);
@@ -55,12 +68,11 @@ Deno.test("endpoint shell with real Supabase authentication middleware", async (
           response.headers.get("content-type")!,
           /application\/json/,
         );
-        assert.deepEqual(await response.json(), {
-          activityId: payload.activityId,
-          reply:
-            "Your reflection has been received. Mindfulness responses are coming soon.",
-          status: "placeholder",
-        });
+        const output = await response.json();
+        assert.ok(guidedReflectionResponseSchema.safeParse(output).success);
+        assert.equal(output.intentions.length, 3);
+        assert.equal(output.provider, "mock");
+        assert.ok(!JSON.stringify(output).includes(payload.userReflection));
       },
     );
     const wrongKey = (await generateKeyPair("ES256")).privateKey;
@@ -77,7 +89,11 @@ Deno.test("endpoint shell with real Supabase authentication middleware", async (
         async () => {
           const response = await request("not json", bearer);
           assert.equal(response.status, 401);
-          assert.equal(typeof await response.json(), "object");
+          assert.deepEqual(await response.json(), {
+            error: "AUTH_REQUIRED",
+            message: "Sign in to request intentions.",
+          });
+          assert.ok(response.headers.get("access-control-allow-origin"));
         },
       );
     }
@@ -92,6 +108,187 @@ Deno.test("endpoint shell with real Supabase authentication middleware", async (
     ) {
       await t.step(`invalid body ${body} returns 400`, async () => {
         assert.equal((await request(body, validToken)).status, 400);
+      });
+    }
+    await t.step(
+      "validation runs before the provider and rejects generated intentions",
+      async () => {
+        let calls = 0;
+        const handler = createMindfulnessEndpoint(() => {
+          calls++;
+          throw new Error("must not run");
+        });
+        for (
+          const bad of [
+            null,
+            {},
+            { ...payload, intentions: [] },
+            { ...payload, activityId: "Bad ID" },
+            { ...payload, activityContext: " " },
+            { ...payload, userReflection: "ab" },
+            { ...payload, userReflection: "x".repeat(2001) },
+          ]
+        ) {
+          const response = await request(
+            JSON.stringify(bad),
+            validToken,
+            "POST",
+            handler,
+          );
+          assert.equal(response.status, 400);
+          assert.deepEqual(await response.json(), {
+            error: "INVALID_INPUT",
+            message: "The mindfulness request is invalid.",
+          });
+        }
+        assert.equal(calls, 0);
+        const unsigned = await request(
+          JSON.stringify(payload),
+          undefined,
+          "POST",
+          handler,
+        );
+        assert.equal(unsigned.status, 401);
+        assert.deepEqual(await unsigned.json(), {
+          error: "AUTH_REQUIRED",
+          message: "Sign in to request intentions.",
+        });
+        assert.equal(calls, 0);
+      },
+    );
+    const intentions = Array.from(
+      { length: 3 },
+      () => ({ title: " Notice ", explanation: " Breathe slowly. " }),
+    );
+    await t.step("normalizes validated input and output", async () => {
+      const handler = createMindfulnessEndpoint((context, reflection) => {
+        assert.equal(context, payload.activityContext);
+        assert.equal(reflection, payload.userReflection);
+        return Promise.resolve({ intentions, provider: "mock" });
+      });
+      const response = await request(
+        JSON.stringify({
+          ...payload,
+          activityContext: ` ${payload.activityContext} `,
+          userReflection: ` ${payload.userReflection} `,
+        }),
+        validToken,
+        "POST",
+        handler,
+      );
+      assert.equal(response.status, 200);
+      assert.deepEqual(await response.json(), {
+        intentions: intentions.map(() => ({
+          title: "Notice",
+          explanation: "Breathe slowly.",
+        })),
+        provider: "mock",
+      });
+    });
+    for (
+      const bad of [
+        null,
+        { intentions: intentions.slice(0, 2), provider: "mock" },
+        { intentions: [...intentions, intentions[0]], provider: "mock" },
+        { intentions: ["one", "two", "three"], provider: "mock" },
+        { intentions, provider: "other" },
+        { intentions, provider: "mock", stack: "private-diagnostic" },
+      ]
+    ) {
+      await t.step("invalid provider output returns safe 502", async () => {
+        const response = await request(
+          JSON.stringify(payload),
+          validToken,
+          "POST",
+          createMindfulnessEndpoint(() => Promise.resolve(bad)),
+        );
+        assert.equal(response.status, 502);
+        assert.deepEqual(await response.json(), {
+          error: "PROVIDER_ERROR",
+          message: "Intentions are unavailable. Please try again.",
+        });
+      });
+    }
+    for (
+      const error of [
+        new ProviderTimeoutError("private-diagnostic"),
+        new ProviderError("private-diagnostic"),
+        new Error("private-diagnostic"),
+        "private-diagnostic",
+      ]
+    ) {
+      await t.step("provider exceptions never leak diagnostics", async () => {
+        const response = await request(
+          JSON.stringify(payload),
+          validToken,
+          "POST",
+          createMindfulnessEndpoint(() => {
+            throw error;
+          }),
+        );
+        const timeout = error instanceof ProviderTimeoutError;
+        assert.equal(response.status, timeout ? 408 : 502);
+        assert.deepEqual(
+          await response.json(),
+          timeout
+            ? {
+              error: "PROVIDER_TIMEOUT",
+              message: "The provider timed out. Please try again.",
+            }
+            : {
+              error: "PROVIDER_ERROR",
+              message: "Intentions are unavailable. Please try again.",
+            },
+        );
+      });
+    }
+    await t.step(
+      "unsettled provider is bounded by the endpoint deadline",
+      async () => {
+        const handler = createMindfulnessEndpoint(
+          () => new Promise(() => {}),
+          5,
+        );
+        const response = await request(
+          JSON.stringify(payload),
+          validToken,
+          "POST",
+          handler,
+        );
+        assert.equal(response.status, 408);
+        assert.deepEqual(await response.json(), {
+          error: "PROVIDER_TIMEOUT",
+          message: "The provider timed out. Please try again.",
+        });
+      },
+    );
+    for (const scenario of ["delayed", "timeout", "error"]) {
+      await t.step(`real adapter ${scenario} scenario`, async () => {
+        Deno.env.set("MOCK_PROVIDER_SCENARIO", scenario);
+        try {
+          const response = await request(JSON.stringify(payload), validToken);
+          assert.equal(
+            response.status,
+            scenario === "delayed" ? 200 : scenario === "timeout" ? 408 : 502,
+          );
+          const output = await response.json();
+          if (scenario === "delayed") {
+            assert.ok(guidedReflectionResponseSchema.safeParse(output).success);
+          } else {assert.deepEqual(
+              output,
+              scenario === "timeout"
+                ? {
+                  error: "PROVIDER_TIMEOUT",
+                  message: "The provider timed out. Please try again.",
+                }
+                : {
+                  error: "PROVIDER_ERROR",
+                  message: "Intentions are unavailable. Please try again.",
+                },
+            );}
+        } finally {
+          Deno.env.set("MOCK_PROVIDER_SCENARIO", "success");
+        }
       });
     }
     await t.step("authenticated GET returns 405 with Allow", async () => {

@@ -14,7 +14,6 @@ import {
 
 import { completeBreathingStep } from "../../lib/progress";
 import { supabase } from "../../lib/supabase";
-
 import {
   clearBreathingSession,
   loadBreathingSession,
@@ -28,9 +27,19 @@ type BreathingState =
   | "completed"
   | "exited";
 
+type BreathingPlayerProps = {
+  onContinue?: () => void;
+  onExit?: () => void;
+  isSaving?: boolean;
+};
+
 const SESSION_DURATION_MS = 10 * 60 * 1000;
 
-export default function BreathingPlayer() {
+export default function BreathingPlayer({
+  onContinue,
+  onExit,
+  isSaving = false,
+}: BreathingPlayerProps = {}) {
   const params = useLocalSearchParams<{
     activityId?: string;
   }>();
@@ -55,8 +64,7 @@ export default function BreathingPlayer() {
   const [errorMessage, setErrorMessage] =
     useState<string | null>(null);
 
-  const accumulatedTimeRef =
-    useRef(0);
+  const accumulatedTimeRef = useRef(0);
 
   const activeStartTimeRef =
     useRef<number | null>(null);
@@ -73,8 +81,7 @@ export default function BreathingPlayer() {
   const restorationHandledRef =
     useRef(false);
 
-  const colorScheme =
-    useColorScheme();
+  const colorScheme = useColorScheme();
 
   const isDarkMode =
     colorScheme === "dark";
@@ -92,20 +99,15 @@ export default function BreathingPlayer() {
   function changeState(
     newState: BreathingState,
   ) {
-    stateRef.current =
-      newState;
-
-    setState(
-      newState,
-    );
+    stateRef.current = newState;
+    setState(newState);
   }
 
   async function getCurrentUserId() {
     const {
       data: { session },
       error,
-    } =
-      await supabase.auth.getSession();
+    } = await supabase.auth.getSession();
 
     if (
       error ||
@@ -145,7 +147,6 @@ export default function BreathingPlayer() {
         userId,
         {
           activityId,
-
           startedAt:
             sessionStartedAtRef.current,
 
@@ -158,8 +159,7 @@ export default function BreathingPlayer() {
           state:
             persistedState,
 
-          completed:
-            false,
+          completed: false,
 
           savedAt:
             Date.now(),
@@ -174,9 +174,7 @@ export default function BreathingPlayer() {
   }
 
   async function clearSavedSession() {
-    if (
-      !activityId
-    ) {
+    if (!activityId) {
       return;
     }
 
@@ -207,13 +205,8 @@ export default function BreathingPlayer() {
       true;
 
     async function restoreSession() {
-      if (
-        !activityId
-      ) {
-        setIsRestoring(
-          false,
-        );
-
+      if (!activityId) {
+        setIsRestoring(false);
         return;
       }
 
@@ -227,16 +220,16 @@ export default function BreathingPlayer() {
             activityId,
           );
 
-        if (
-          !savedSession
-        ) {
-          setIsRestoring(
-            false,
-          );
-
+        if (!savedSession) {
+          setIsRestoring(false);
           return;
         }
 
+        /*
+         * Only restore explicitly saved active
+         * breathing time. Time while the app
+         * was closed never counts.
+         */
         const safeAccumulatedTime =
           Math.max(
             0,
@@ -264,13 +257,13 @@ export default function BreathingPlayer() {
           safeAccumulatedTime,
         );
 
-        setErrorMessage(
-          null,
-        );
+        setErrorMessage(null);
 
-        changeState(
-          "paused",
-        );
+        /*
+         * A saved running session always
+         * restores as paused.
+         */
+        changeState("paused");
 
         await saveBreathingSession(
           userId,
@@ -305,9 +298,7 @@ export default function BreathingPlayer() {
             : "Could not restore your previous breathing session.",
         );
       } finally {
-        setIsRestoring(
-          false,
-        );
+        setIsRestoring(false);
       }
     }
 
@@ -367,18 +358,11 @@ export default function BreathingPlayer() {
     completionHandledRef.current =
       true;
 
-    setIsCompleting(
-      true,
-    );
-
-    setErrorMessage(
-      null,
-    );
+    setIsCompleting(true);
+    setErrorMessage(null);
 
     try {
-      if (
-        !activityId
-      ) {
+      if (!activityId) {
         throw new Error(
           "This breathing activity could not be identified.",
         );
@@ -397,14 +381,23 @@ export default function BreathingPlayer() {
         activityId,
       );
 
-      router.replace({
-        pathname:
-          "/post-breathing-check-in",
+      /*
+       * WeekOneFlow can supply its own
+       * continuation callback. The standalone
+       * route still navigates normally.
+       */
+      if (onContinue) {
+        onContinue();
+      } else {
+        router.replace({
+          pathname:
+            "/post-breathing-check-in",
 
-        params: {
-          activityId,
-        },
-      });
+          params: {
+            activityId,
+          },
+        });
+      }
     } catch (error) {
       completionHandledRef.current =
         false;
@@ -415,9 +408,7 @@ export default function BreathingPlayer() {
           : "Could not save your breathing progress.",
       );
     } finally {
-      setIsCompleting(
-        false,
-      );
+      setIsCompleting(false);
     }
   }
 
@@ -429,43 +420,42 @@ export default function BreathingPlayer() {
       return;
     }
 
-    const updateTimer =
-      () => {
-        if (
-          activeStartTimeRef.current ===
-          null
-        ) {
-          return;
-        }
+    const updateTimer = () => {
+      if (
+        activeStartTimeRef.current ===
+        null
+      ) {
+        return;
+      }
 
-        const totalElapsed =
-          getCurrentActiveTime();
+      const totalElapsed =
+        getCurrentActiveTime();
 
-        if (
-          totalElapsed >=
-          SESSION_DURATION_MS
-        ) {
-          accumulatedTimeRef.current =
-            SESSION_DURATION_MS;
+      if (
+        totalElapsed >=
+        SESSION_DURATION_MS
+      ) {
+        accumulatedTimeRef.current =
+          SESSION_DURATION_MS;
 
-          activeStartTimeRef.current =
-            null;
-
-          setElapsedTime(
-            SESSION_DURATION_MS,
-          );
-
-          changeState(
-            "completed",
-          );
-
-          return;
-        }
+        activeStartTimeRef.current =
+          null;
 
         setElapsedTime(
-          totalElapsed,
+          SESSION_DURATION_MS,
         );
-      };
+
+        changeState(
+          "completed",
+        );
+
+        return;
+      }
+
+      setElapsedTime(
+        totalElapsed,
+      );
+    };
 
     updateTimer();
 
@@ -486,8 +476,7 @@ export default function BreathingPlayer() {
 
   useEffect(() => {
     if (
-      state ===
-      "completed"
+      state === "completed"
     ) {
       void finishBreathingSession();
     }
@@ -583,13 +572,8 @@ export default function BreathingPlayer() {
     sessionStartedAtRef.current =
       now;
 
-    setElapsedTime(
-      0,
-    );
-
-    setErrorMessage(
-      null,
-    );
+    setElapsedTime(0);
+    setErrorMessage(null);
 
     changeState(
       "running",
@@ -603,8 +587,7 @@ export default function BreathingPlayer() {
 
   function handlePause() {
     if (
-      state ===
-      "running"
+      state === "running"
     ) {
       const savedTime =
         saveCurrentActiveTime();
@@ -622,15 +605,12 @@ export default function BreathingPlayer() {
 
   function handleResume() {
     if (
-      state ===
-      "paused"
+      state === "paused"
     ) {
       activeStartTimeRef.current =
         Date.now();
 
-      setErrorMessage(
-        null,
-      );
+      setErrorMessage(null);
 
       changeState(
         "running",
@@ -645,12 +625,9 @@ export default function BreathingPlayer() {
 
   function handleRestart() {
     if (
-      state ===
-        "running" ||
-      state ===
-        "paused" ||
-      state ===
-        "completed"
+      state === "running" ||
+      state === "paused" ||
+      state === "completed"
     ) {
       const now =
         Date.now();
@@ -667,13 +644,8 @@ export default function BreathingPlayer() {
       sessionStartedAtRef.current =
         now;
 
-      setElapsedTime(
-        0,
-      );
-
-      setErrorMessage(
-        null,
-      );
+      setElapsedTime(0);
+      setErrorMessage(null);
 
       changeState(
         "running",
@@ -705,26 +677,20 @@ export default function BreathingPlayer() {
     sessionStartedAtRef.current =
       null;
 
-    setElapsedTime(
-      0,
-    );
+    setElapsedTime(0);
+    setErrorMessage(null);
 
-    setErrorMessage(
-      null,
-    );
+    if (onExit) {
+      onExit();
+    } else {
+      router.replace("/");
+    }
 
-    router.replace(
-      "/",
-    );
-
-    setTimeout(
-      () => {
-        changeState(
-          "idle",
-        );
-      },
-      0,
-    );
+    setTimeout(() => {
+      changeState(
+        "idle",
+      );
+    }, 0);
   }
 
   function handleExit() {
@@ -742,22 +708,18 @@ export default function BreathingPlayer() {
       state === "completed"
     ) {
       void exitSession();
-
       return;
     }
 
     if (
-      Platform.OS ===
-      "web"
+      Platform.OS === "web"
     ) {
       const confirmed =
         window.confirm(
           "Exit breathing session? Your current progress will be discarded.",
         );
 
-      if (
-        confirmed
-      ) {
+      if (confirmed) {
         void exitSession();
       }
 
@@ -822,9 +784,11 @@ export default function BreathingPlayer() {
         "0",
       )}`;
 
-  if (
-    isRestoring
-  ) {
+  const controlsBusy =
+    isCompleting ||
+    isSaving;
+
+  if (isRestoring) {
     return (
       <View
         style={[
@@ -835,6 +799,7 @@ export default function BreathingPlayer() {
         ]}
       >
         <Text
+          accessibilityRole="header"
           style={[
             styles.title,
             {
@@ -878,6 +843,7 @@ export default function BreathingPlayer() {
       ]}
     >
       <Text
+        accessibilityRole="header"
         style={[
           styles.title,
           {
@@ -890,6 +856,7 @@ export default function BreathingPlayer() {
       </Text>
 
       <Text
+        accessibilityLiveRegion="polite"
         style={[
           styles.state,
           {
@@ -902,6 +869,8 @@ export default function BreathingPlayer() {
       </Text>
 
       <Text
+        accessibilityRole="timer"
+        accessibilityLabel={`${minutes} minutes and ${seconds} seconds remaining`}
         style={[
           styles.timer,
           {
@@ -936,6 +905,7 @@ export default function BreathingPlayer() {
 
       {errorMessage && (
         <Text
+          accessibilityRole="alert"
           style={
             styles.errorText
           }
@@ -951,9 +921,18 @@ export default function BreathingPlayer() {
         onPress={
           handleStart
         }
+        accessibilityRole="button"
+        accessibilityLabel="Start breathing session"
+        accessibilityHint="Starts the ten-minute timer."
         disabled={
-          isCompleting
+          state !== "idle" ||
+          controlsBusy
         }
+        accessibilityState={{
+          disabled:
+            state !== "idle" ||
+            controlsBusy,
+        }}
       >
         <Text
           style={
@@ -971,9 +950,18 @@ export default function BreathingPlayer() {
         onPress={
           handlePause
         }
+        accessibilityRole="button"
+        accessibilityLabel="Pause breathing session"
+        accessibilityHint="Pauses the timer and keeps your elapsed time."
         disabled={
-          isCompleting
+          state !== "running" ||
+          controlsBusy
         }
+        accessibilityState={{
+          disabled:
+            state !== "running" ||
+            controlsBusy,
+        }}
       >
         <Text
           style={
@@ -991,9 +979,18 @@ export default function BreathingPlayer() {
         onPress={
           handleResume
         }
+        accessibilityRole="button"
+        accessibilityLabel="Resume breathing session"
+        accessibilityHint="Continues your paused timer."
         disabled={
-          isCompleting
+          state !== "paused" ||
+          controlsBusy
         }
+        accessibilityState={{
+          disabled:
+            state !== "paused" ||
+            controlsBusy,
+        }}
       >
         <Text
           style={
@@ -1011,9 +1008,20 @@ export default function BreathingPlayer() {
         onPress={
           handleRestart
         }
+        accessibilityRole="button"
+        accessibilityLabel="Restart breathing session"
+        accessibilityHint="Starts again with a full ten-minute timer."
         disabled={
-          isCompleting
+          state === "idle" ||
+          state === "exited" ||
+          controlsBusy
         }
+        accessibilityState={{
+          disabled:
+            state === "idle" ||
+            state === "exited" ||
+            controlsBusy,
+        }}
       >
         <Text
           style={
@@ -1031,9 +1039,16 @@ export default function BreathingPlayer() {
         onPress={
           handleExit
         }
+        accessibilityRole="button"
+        accessibilityLabel="Exit breathing session"
+        accessibilityHint="Returns to Week 1. You will be asked before discarding an active session."
         disabled={
-          isCompleting
+          controlsBusy
         }
+        accessibilityState={{
+          disabled:
+            controlsBusy,
+        }}
       >
         <Text
           style={
@@ -1043,6 +1058,37 @@ export default function BreathingPlayer() {
           Exit
         </Text>
       </Pressable>
+
+      {state ===
+        "completed" &&
+        onContinue && (
+          <Pressable
+            style={
+              styles.button
+            }
+            accessibilityRole="button"
+            disabled={
+              isSaving
+            }
+            accessibilityState={{
+              disabled:
+                isSaving,
+              busy:
+                isSaving,
+            }}
+            onPress={
+              onContinue
+            }
+          >
+            <Text
+              style={
+                styles.buttonText
+              }
+            >
+              Continue to check-in
+            </Text>
+          </Pressable>
+        )}
     </View>
   );
 }
@@ -1052,6 +1098,10 @@ const styles =
     container: {
       flex: 1,
       padding: 24,
+      paddingTop:
+        Platform.OS === "web"
+          ? 88
+          : 24,
       gap: 16,
     },
 
@@ -1087,6 +1137,8 @@ const styles =
     },
 
     button: {
+      minHeight: 48,
+      minWidth: 48,
       backgroundColor:
         "#41644a",
       padding: 14,
@@ -1097,6 +1149,8 @@ const styles =
     },
 
     exitButton: {
+      minHeight: 48,
+      minWidth: 48,
       backgroundColor:
         "#41644a",
       padding: 14,

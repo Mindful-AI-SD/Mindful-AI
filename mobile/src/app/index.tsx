@@ -1,11 +1,4 @@
-import { router } from "expo-router";
-
-import {
-  useCallback,
-  useEffect,
-  useState,
-} from "react";
-
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -13,594 +6,177 @@ import {
   StyleSheet,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import {
-  SafeAreaView,
-} from "react-native-safe-area-context";
-
-import {
-  SignOutButton,
-} from "@/components/sign-out-button";
-
-import {
-  IntentionMirrorScreen,
-} from "@/components/intention-mirror-screen";
-
-import {
-  AiGapReflectionScreen,
-} from "@/components/ai-gap-reflection-screen";
-
-import {
-  ThemedText,
-} from "@/components/themed-text";
-
-import {
-  ThemedView,
-} from "@/components/themed-view";
-
-import {
-  DataSelfPortraitScreen,
-} from "./data-self-portrait";
-
-import {
-  YellowDigDraftScreen,
-} from "./yellowdig-draft";
-
+import { SignOutButton } from "@/components/sign-out-button";
+import { WeekOneFlow } from "@/components/week-one-flow";
+import { useSignedInUserId } from "@/components/auth-gate";
+import { getWeekOneProgress } from "../../lib/week-one";
+import { AccessibleHeading } from "@/components/accessibility";
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
 import {
   type CurriculumWeek,
   getPublishedWeekOne,
 } from "../../lib/curriculum";
 
-type ActiveScreen =
-  | "curriculum"
-  | "intention"
-  | "data-self-portrait"
-  | "gap"
-  | "yellowdig";
-
 export default function HomeScreen() {
-  const [
-    activeScreen,
-    setActiveScreen,
-  ] =
-    useState<ActiveScreen>(
-      "curriculum",
-    );
+  const userId = useSignedInUserId();
+  const [activeScreen, setActiveScreen] = useState<"curriculum" | "week-one">("curriculum");
+  const [week, setWeek] = useState<CurriculumWeek | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const [week, setWeek] =
-    useState<CurriculumWeek | null>(
-      null,
-    );
+  const loadWeek = useCallback(async () => {
+    setIsLoading(true);
+    setErrorMessage(null);
 
-  const [
-    errorMessage,
-    setErrorMessage,
-  ] =
-    useState<string | null>(
-      null,
-    );
-
-  const [isLoading, setIsLoading] =
-    useState(true);
-
-  const loadWeek =
-    useCallback(async () => {
-      setIsLoading(true);
-      setErrorMessage(null);
-
-      try {
-        const weekOne =
-          await getPublishedWeekOne();
-
-        setWeek(weekOne);
-      } catch (error) {
-        setWeek(null);
-
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : "An unknown error occurred while loading Week 1.",
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    }, []);
+    try {
+      const weekOne = await getPublishedWeekOne();
+      const activity = weekOne.activities.find(value => value.activity_type === "reflection");
+      const progress = activity ? await getWeekOneProgress(userId, activity.id) : null;
+      setWeek(weekOne);
+      if (progress) setActiveScreen("week-one");
+    } catch (error) {
+      setWeek(null);
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "An unknown error occurred while loading Week 1.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [userId]);
 
   useEffect(() => {
     void loadWeek();
   }, [loadWeek]);
 
-  const writingActivity =
-    week?.activities.find(
-      (activity) =>
-        activity.activity_type ===
-        "reflection",
-    );
+  const writingActivity = week?.activities.find(
+    (activity) => activity.activity_type === "reflection",
+  );
 
-  const breathingActivity =
-    week?.activities.find(
-      (activity) =>
-        activity.sequence_number === 1,
-    );
-
-  function openBreathingActivity(
-    activityId: string,
-  ) {
-    router.push({
-      pathname:
-        "/breathing-player",
-
-      params: {
-        activityId,
-      },
-    });
-  }
-
-  if (
-    activeScreen ===
-      "yellowdig" &&
-    writingActivity
-  ) {
+  if (activeScreen === "week-one" && writingActivity) {
     return (
-      <YellowDigDraftScreen
+      <WeekOneFlow
         key={writingActivity.id}
-        activityId={
-          writingActivity.id
-        }
-        onBack={() =>
-          setActiveScreen(
-            "curriculum",
-          )
-        }
-      />
-    );
-  }
-
-  if (
-    activeScreen ===
-      "data-self-portrait" &&
-    writingActivity
-  ) {
-    return (
-      <DataSelfPortraitScreen
-        key={writingActivity.id}
-        activityId={
-          writingActivity.id
-        }
-        onBack={() =>
-          setActiveScreen(
-            "curriculum",
-          )
-        }
-      />
-    );
-  }
-
-  if (
-    activeScreen === "gap" &&
-    writingActivity
-  ) {
-    return (
-      <AiGapReflectionScreen
-        key={writingActivity.id}
-        activityId={
-          writingActivity.id
-        }
-        onBack={() =>
-          setActiveScreen(
-            "curriculum",
-          )
-        }
-        onOpenIntention={() =>
-          setActiveScreen(
-            "intention",
-          )
-        }
-      />
-    );
-  }
-
-  if (
-    activeScreen ===
-      "intention" &&
-    writingActivity
-  ) {
-    return (
-      <IntentionMirrorScreen
-        key={writingActivity.id}
-        activityId={
-          writingActivity.id
-        }
-        onBack={() =>
-          setActiveScreen(
-            "curriculum",
-          )
-        }
-        onOpenGap={() =>
-          setActiveScreen(
-            "gap",
-          )
-        }
+        activityId={writingActivity.id}
+        onExit={() => setActiveScreen("curriculum")}
       />
     );
   }
 
   return (
-    <ThemedView
-      style={styles.container}
-    >
-      <SafeAreaView
-        style={styles.safeArea}
-      >
-        <ScrollView
-          contentContainerStyle={
-            styles.content
-          }
-        >
-          <View
-            style={styles.header}
-          >
-            <ThemedText
-              style={
-                styles.eyebrow
-              }
-            >
-              MINDFUL AI
-            </ThemedText>
-
-            <ThemedText
-              type="title"
-            >
-              Your curriculum
-            </ThemedText>
+    <ThemedView style={styles.container}>
+      <SafeAreaView style={styles.safeArea}>
+        <ScrollView contentContainerStyle={styles.content}>
+          <View style={styles.header}>
+            <ThemedText style={styles.eyebrow}>MINDFUL AI</ThemedText>
+            <AccessibleHeading focusKey={activeScreen}>Your curriculum</AccessibleHeading>
           </View>
 
           {isLoading && (
-            <View
-              style={
-                styles.centered
-              }
-            >
-              <ActivityIndicator
-                color="#41644a"
-                size="large"
-              />
-
-              <ThemedText>
-                Loading Week 1...
-              </ThemedText>
+            <View style={styles.centered}>
+              <ActivityIndicator color="#41644a" size="large" />
+              <ThemedText>Loading Week 1...</ThemedText>
             </View>
           )}
 
-          {!isLoading &&
-            errorMessage && (
-              <ThemedView
-                style={
-                  styles.messageCard
-                }
+          {!isLoading && errorMessage && (
+            <ThemedView style={styles.messageCard}>
+              <ThemedText type="subtitle">Unable to load Week 1</ThemedText>
+              <ThemedText accessibilityRole="alert">{errorMessage}</ThemedText>
+
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Retry loading Week 1"
+                accessibilityHint="Loads the curriculum and activities again."
+                onPress={() => void loadWeek()}
+                style={({ pressed }) => [
+                  styles.retryButton,
+                  pressed && styles.buttonPressed,
+                ]}
               >
-                <ThemedText
-                  type="subtitle"
-                >
-                  Unable to load
-                  Week 1
+                <ThemedText style={styles.retryButtonText}>
+                  Try again
+                </ThemedText>
+              </Pressable>
+            </ThemedView>
+          )}
+
+          {!isLoading && week && (
+            <>
+              <ThemedView style={styles.weekCard}>
+                <ThemedText style={styles.weekNumber}>
+                  WEEK {week.week_number}
                 </ThemedText>
 
-                <ThemedText>
-                  {errorMessage}
-                </ThemedText>
+                <ThemedText type="title">{week.title}</ThemedText>
 
-                <Pressable
-                  onPress={() =>
-                    void loadWeek()
-                  }
-                  style={({
-                    pressed,
-                  }) => [
-                    styles.retryButton,
+                <ThemedText style={styles.theme}>{week.theme}</ThemedText>
 
-                    pressed &&
-                      styles.buttonPressed,
-                  ]}
-                >
-                  <ThemedText
-                    style={
-                      styles.retryButtonText
-                    }
-                  >
-                    Try again
+                {week.description && (
+                  <ThemedText style={styles.description}>
+                    {week.description}
                   </ThemedText>
-                </Pressable>
+                )}
+                {writingActivity && (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityHint="Starts Week 1 or restores your saved step."
+                    onPress={() => setActiveScreen("week-one")}
+                    style={({ pressed }) => [
+                      styles.retryButton,
+                      pressed && styles.buttonPressed,
+                    ]}
+                  >
+                    <ThemedText style={styles.retryButtonText}>
+                      Start or continue Week 1
+                    </ThemedText>
+                  </Pressable>
+                )}
               </ThemedView>
-            )}
 
-          {!isLoading &&
-            week && (
-              <>
-                <ThemedView
-                  style={
-                    styles.weekCard
-                  }
-                >
-                  <ThemedText
-                    style={
-                      styles.weekNumber
-                    }
-                  >
-                    WEEK{" "}
-                    {
-                      week.week_number
-                    }
+              <View style={styles.section}>
+                <ThemedText type="subtitle">Activities</ThemedText>
+
+                {week.activities.length === 0 ? (
+                  <ThemedText>
+                    No published activities are available yet.
                   </ThemedText>
+                ) : (
+                  week.activities.map((activity) => (
+                    <ThemedView key={activity.id} style={styles.activityCard}>
+                      <View style={styles.activityMetadata}>
+                        <ThemedText style={styles.activityType}>
+                          {activity.activity_type
+                            .replace("_", " ")
+                            .toUpperCase()}
+                        </ThemedText>
 
-                  <ThemedText
-                    type="title"
-                  >
-                    {week.title}
-                  </ThemedText>
+                        {activity.duration_minutes !== null && (
+                          <ThemedText style={styles.duration}>
+                            {activity.duration_minutes} min
+                          </ThemedText>
+                        )}
+                      </View>
 
-                  <ThemedText
-                    style={
-                      styles.theme
-                    }
-                  >
-                    {week.theme}
-                  </ThemedText>
-
-                  {week.description && (
-                    <ThemedText
-                      style={
-                        styles.description
-                      }
-                    >
-                      {
-                        week.description
-                      }
-                    </ThemedText>
-                  )}
-
-                  {writingActivity && (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Open Intention Mirror"
-                      onPress={() =>
-                        setActiveScreen(
-                          "intention",
-                        )
-                      }
-                      style={({
-                        pressed,
-                      }) => [
-                        styles.retryButton,
-
-                        pressed &&
-                          styles.buttonPressed,
-                      ]}
-                    >
-                      <ThemedText
-                        style={
-                          styles.retryButtonText
-                        }
-                      >
-                        Open Intention
-                        Mirror
+                      <ThemedText type="subtitle">
+                        {activity.title}
                       </ThemedText>
-                    </Pressable>
-                  )}
 
-                  {writingActivity && (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Open Data as Self Portrait"
-                      onPress={() =>
-                        setActiveScreen(
-                          "data-self-portrait",
-                        )
-                      }
-                      style={({
-                        pressed,
-                      }) => [
-                        styles.retryButton,
-
-                        pressed &&
-                          styles.buttonPressed,
-                      ]}
-                    >
-                      <ThemedText
-                        style={
-                          styles.retryButtonText
-                        }
-                      >
-                        Open Data as Self
-                        Portrait
-                      </ThemedText>
-                    </Pressable>
-                  )}
-
-                  {writingActivity && (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Open AI gap reflection"
-                      onPress={() =>
-                        setActiveScreen(
-                          "gap",
-                        )
-                      }
-                      style={({
-                        pressed,
-                      }) => [
-                        styles.retryButton,
-
-                        pressed &&
-                          styles.buttonPressed,
-                      ]}
-                    >
-                      <ThemedText
-                        style={
-                          styles.retryButtonText
-                        }
-                      >
-                        Open AI gap
-                        reflection
-                      </ThemedText>
-                    </Pressable>
-                  )}
-
-                  {writingActivity && (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Open YellowDig draft"
-                      onPress={() =>
-                        setActiveScreen(
-                          "yellowdig",
-                        )
-                      }
-                      style={({
-                        pressed,
-                      }) => [
-                        styles.retryButton,
-
-                        pressed &&
-                          styles.buttonPressed,
-                      ]}
-                    >
-                      <ThemedText
-                        style={
-                          styles.retryButtonText
-                        }
-                      >
-                        Open YellowDig
-                        Draft
-                      </ThemedText>
-                    </Pressable>
-                  )}
-                </ThemedView>
-
-                <View
-                  style={
-                    styles.section
-                  }
-                >
-                  <ThemedText
-                    type="subtitle"
-                  >
-                    Activities
-                  </ThemedText>
-
-                  {week.activities
-                    .length ===
-                  0 ? (
-                    <ThemedText>
-                      No published
-                      activities are
-                      available yet.
-                    </ThemedText>
-                  ) : (
-                    week.activities.map(
-                      (activity) => {
-                        const isBreathingActivity =
-                          breathingActivity?.id ===
-                          activity.id;
-
-                        return (
-                          <ThemedView
-                            key={
-                              activity.id
-                            }
-                            style={
-                              styles.activityCard
-                            }
-                          >
-                            <View
-                              style={
-                                styles.activityMetadata
-                              }
-                            >
-                              <ThemedText
-                                style={
-                                  styles.activityType
-                                }
-                              >
-                                {activity.activity_type
-                                  .replace(
-                                    "_",
-                                    " ",
-                                  )
-                                  .toUpperCase()}
-                              </ThemedText>
-
-                              {activity.duration_minutes !==
-                                null && (
-                                <ThemedText
-                                  style={
-                                    styles.duration
-                                  }
-                                >
-                                  {
-                                    activity.duration_minutes
-                                  }{" "}
-                                  min
-                                </ThemedText>
-                              )}
-                            </View>
-
-                            <ThemedText
-                              type="subtitle"
-                            >
-                              {
-                                activity.title
-                              }
-                            </ThemedText>
-
-                            {activity.content && (
-                              <ThemedText
-                                style={
-                                  styles.description
-                                }
-                              >
-                                {
-                                  activity.content
-                                }
-                              </ThemedText>
-                            )}
-
-                            {isBreathingActivity && (
-                              <Pressable
-                                accessibilityRole="button"
-                                accessibilityLabel="Open breathing activity"
-                                onPress={() =>
-                                  openBreathingActivity(
-                                    activity.id,
-                                  )
-                                }
-                                style={({
-                                  pressed,
-                                }) => [
-                                  styles.openActivityButton,
-
-                                  pressed &&
-                                    styles.buttonPressed,
-                                ]}
-                              >
-                                <ThemedText
-                                  style={
-                                    styles.openActivityButtonText
-                                  }
-                                >
-                                  Open
-                                  breathing
-                                  activity
-                                </ThemedText>
-                              </Pressable>
-                            )}
-                          </ThemedView>
-                        );
-                      },
-                    )
-                  )}
-                </View>
-              </>
-            )}
+                      {activity.content && (
+                        <ThemedText style={styles.description}>
+                          {activity.content}
+                        </ThemedText>
+                      )}
+                    </ThemedView>
+                  ))
+                )}
+              </View>
+            </>
+          )}
 
           <SignOutButton />
         </ScrollView>
@@ -609,139 +185,103 @@ export default function HomeScreen() {
   );
 }
 
-const styles =
-  StyleSheet.create({
-    container: {
-      flex: 1,
-    },
-
-    safeArea: {
-      flex: 1,
-    },
-
-    content: {
-      width: "100%",
-      maxWidth: 720,
-      alignSelf: "center",
-      gap: 24,
-      padding: 24,
-      paddingBottom: 48,
-    },
-
-    header: {
-      gap: 8,
-    },
-
-    eyebrow: {
-      color: "#41644a",
-      fontSize: 12,
-      fontWeight: "700",
-      letterSpacing: 2,
-    },
-
-    centered: {
-      alignItems: "center",
-      gap: 16,
-      paddingVertical: 48,
-    },
-
-    messageCard: {
-      gap: 16,
-      padding: 20,
-      borderWidth: 1,
-      borderColor: "#d5a3a3",
-      borderRadius: 16,
-    },
-
-    weekCard: {
-      gap: 12,
-      padding: 24,
-      borderWidth: 1,
-      borderColor: "#b9cbbd",
-      borderRadius: 20,
-    },
-
-    weekNumber: {
-      color: "#41644a",
-      fontSize: 13,
-      fontWeight: "700",
-      letterSpacing: 1.5,
-    },
-
-    theme: {
-      color: "#41644a",
-      fontSize: 17,
-      fontWeight: "600",
-    },
-
-    description: {
-      fontSize: 16,
-      lineHeight: 24,
-    },
-
-    section: {
-      gap: 16,
-    },
-
-    activityCard: {
-      gap: 12,
-      padding: 20,
-      borderWidth: 1,
-      borderColor: "#d4ddd3",
-      borderRadius: 16,
-    },
-
-    activityMetadata: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent:
-        "space-between",
-      gap: 12,
-    },
-
-    activityType: {
-      color: "#41644a",
-      fontSize: 12,
-      fontWeight: "700",
-      letterSpacing: 1,
-    },
-
-    duration: {
-      fontSize: 14,
-      opacity: 0.7,
-    },
-
-    retryButton: {
-      minHeight: 48,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: 20,
-      borderRadius: 12,
-      backgroundColor:
-        "#41644a",
-    },
-
-    retryButtonText: {
-      color: "#ffffff",
-      fontWeight: "700",
-    },
-
-    openActivityButton: {
-      minHeight: 48,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: 20,
-      borderRadius: 12,
-      backgroundColor:
-        "#41644a",
-    },
-
-    openActivityButtonText: {
-      color: "#ffffff",
-      fontWeight: "700",
-    },
-
-    buttonPressed: {
-      opacity: 0.8,
-    },
-  });
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  safeArea: {
+    flex: 1,
+  },
+  content: {
+    width: "100%",
+    maxWidth: 720,
+    alignSelf: "center",
+    gap: 24,
+    padding: 24,
+    paddingBottom: 48,
+  },
+  header: {
+    gap: 8,
+  },
+  eyebrow: {
+    color: "#41644a",
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 2,
+  },
+  centered: {
+    alignItems: "center",
+    gap: 16,
+    paddingVertical: 48,
+  },
+  messageCard: {
+    gap: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "#d5a3a3",
+    borderRadius: 16,
+  },
+  weekCard: {
+    gap: 12,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: "#b9cbbd",
+    borderRadius: 20,
+  },
+  weekNumber: {
+    color: "#41644a",
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 1.5,
+  },
+  theme: {
+    color: "#41644a",
+    fontSize: 17,
+    fontWeight: "600",
+  },
+  description: {
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  section: {
+    gap: 16,
+  },
+  activityCard: {
+    gap: 12,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "#d4ddd3",
+    borderRadius: 16,
+  },
+  activityMetadata: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  activityType: {
+    color: "#41644a",
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
+  duration: {
+    fontSize: 14,
+    opacity: 0.7,
+  },
+  retryButton: {
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    backgroundColor: "#41644a",
+  },
+  retryButtonText: {
+    color: "#ffffff",
+    fontWeight: "700",
+  },
+  buttonPressed: {
+    opacity: 0.8,
+  },
+});

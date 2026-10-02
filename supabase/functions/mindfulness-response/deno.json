@@ -1,6 +1,7 @@
 {
   "imports": {
     "@supabase/server": "npm:@supabase/server@^1",
-    "jose": "npm:jose@^6"
+    "jose": "npm:jose@^6",
+    "zod": "npm:zod@^4.0.0"
   }
 }

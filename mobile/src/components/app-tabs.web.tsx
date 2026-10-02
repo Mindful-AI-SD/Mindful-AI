@@ -173,6 +173,8 @@ const styles = StyleSheet.create({
   },
 
   tabButtonView: {
+    minHeight: 48,
+    minWidth: 48,
     paddingVertical: Spacing.one,
     paddingHorizontal: Spacing.three,
     borderRadius: Spacing.three,
