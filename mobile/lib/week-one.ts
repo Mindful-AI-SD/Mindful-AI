@@ -6,6 +6,36 @@ async function requireOwner(userId: string) {
   if (error || data.session?.user.id !== userId) throw new Error("Sign in again to restore your progress.");
 }
 
+function hasAnswer(progress: WeekOneProgress, key: string): boolean {
+  return Boolean(progress.reflection_answers?.[key]?.trim());
+}
+
+export function deriveNextAllowedStep(progress: WeekOneProgress | null): WeekOneStep {
+  if (!progress || (!progress.started_at && progress.status === "not_started")) return "breathing";
+
+  const savedStepIndex = WEEK_ONE_STEPS.indexOf(progress.current_step);
+  if (savedStepIndex < 0) return "breathing";
+  if (progress.status === "completed" && progress.completed_at) return "completed";
+
+  // Advancing beyond breathing is the persisted proof that the timer completed.
+  if (savedStepIndex <= WEEK_ONE_STEPS.indexOf("breathing")) return "breathing";
+  if (!hasAnswer(progress, "post_breathing_urge")) return "post_breathing_check_in";
+
+  if (!progress.writing?.trim() || progress.generated_intentions.length !== 3) return "writing";
+  // Intention Mirror is a view/acknowledgement step, so its saved step is its completion evidence.
+  if (savedStepIndex <= WEEK_ONE_STEPS.indexOf("intention_mirror")) return "intention_mirror";
+
+  if (!hasAnswer(progress, "data_self_portrait_visible") ||
+      !hasAnswer(progress, "data_self_portrait_missing")) return "data_self_portrait";
+
+  if (!hasAnswer(progress, "ai_gap_got_right") ||
+      !hasAnswer(progress, "ai_gap_missed") ||
+      !hasAnswer(progress, "ai_gap_reveals")) return "ai_gap_reflection";
+
+  if (!hasAnswer(progress, "yellowdig_draft")) return "yellowdig_draft";
+  return savedStepIndex >= WEEK_ONE_STEPS.indexOf("completed") ? "completed" : "yellowdig_draft";
+}
+
 export async function getWeekOneProgress(userId: string, activityId: string): Promise<WeekOneProgress | null> {
   await requireOwner(userId);
   const { data, error } = await supabase.from("progress").select("*")
@@ -26,7 +56,8 @@ export async function startWeekOne(userId: string, activityId: string): Promise<
       const step = existing.generated_intentions.length === 3 ? "intention_mirror" : "writing";
       return updateStep(existing, step, {});
     }
-    return existing;
+    const allowedStep = deriveNextAllowedStep(existing);
+    return allowedStep === existing.current_step ? existing : updateStep(existing, allowedStep, {});
   }
   await requireOwner(userId);
   const { error } = await supabase.from("progress").upsert({
@@ -83,6 +114,14 @@ export async function saveWeekOneStep(
     }
   }
   const next = advance ? WEEK_ONE_STEPS[WEEK_ONE_STEPS.indexOf(expectedStep) + 1] : expectedStep;
+  const candidate: WeekOneProgress = {
+    ...progress,
+    current_step: next,
+    reflection_answers: allAnswers,
+  };
+  if (deriveNextAllowedStep(candidate) !== next) {
+    throw new Error("Complete the required steps before continuing.");
+  }
   return updateStep(progress, next, answers);
 }
 
