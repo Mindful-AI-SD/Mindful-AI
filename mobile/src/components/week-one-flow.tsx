@@ -14,11 +14,6 @@ import type { ReflectionAnswers, WeekOneProgress } from "../../lib/progress";
 import type { IntentionResponse } from "../../lib/intention";
 
 const FORMS = {
-  post_breathing_check_in: {
-    title: "After breathing",
-    instructions: "Notice your thoughts, feelings, and body after the breathing practice.",
-    fields: [{ key: "post_breathing_check_in", label: "What do you notice now?" }],
-  },
   data_self_portrait: {
     title: "Data self-portrait",
     instructions: "Think about what a picture of you made only from data could show and leave out.",
@@ -33,6 +28,75 @@ const FORMS = {
     fields: [{ key: "yellowdig_draft", label: "Your discussion draft" }],
   },
 };
+
+function PostBreathingCheckIn({ progress, busy, onSave, onExit }: {
+  progress: WeekOneProgress; busy: boolean;
+  onSave: (answers: ReflectionAnswers, advance: boolean) => Promise<boolean>;
+  onExit: () => void;
+}) {
+  const theme = useTheme();
+  const [answers, setAnswers] = useState<ReflectionAnswers>(progress.reflection_answers);
+  const urge = answers.post_breathing_urge ?? "";
+  const valid = urge === "yes" || urge === "no";
+
+  function chooseUrge(value: "yes" | "no") {
+    setAnswers(current => ({ ...current, post_breathing_urge: value }));
+  }
+
+  return (
+    <ThemedView style={styles.flex}>
+      <SafeAreaView style={styles.flex}>
+        <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+            <Pressable accessibilityRole="button" style={styles.action} disabled={busy}
+              accessibilityHint="Saves your check-in before returning to the curriculum."
+              onPress={() => void onSave(answers, false).then(saved => { if (saved) onExit(); })}>
+              <ThemedText>Save and return to Week 1</ThemedText>
+            </Pressable>
+
+            <AccessibleHeading>After breathing</AccessibleHeading>
+            <ThemedText>Notice your thoughts, feelings, and body after the breathing practice.</ThemedText>
+
+            <View style={styles.section}>
+              <ThemedText accessibilityRole="header" type="smallBold">
+                Did you notice an urge to check your phone?
+              </ThemedText>
+              <View style={styles.choiceRow}>
+                <Pressable accessibilityRole="radio" accessibilityState={{ checked: urge === "yes", disabled: busy }}
+                  disabled={busy} onPress={() => chooseUrge("yes")}
+                  style={[styles.choice, urge === "yes" && styles.choiceSelected]}>
+                  <ThemedText>Yes</ThemedText>
+                </Pressable>
+                <Pressable accessibilityRole="radio" accessibilityState={{ checked: urge === "no", disabled: busy }}
+                  disabled={busy} onPress={() => chooseUrge("no")}
+                  style={[styles.choice, urge === "no" && styles.choiceSelected]}>
+                  <ThemedText>No</ThemedText>
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={styles.section}>
+              <ThemedText>What did you notice? (optional)</ThemedText>
+              <TextInput accessibilityLabel="What did you notice?"
+                accessibilityHint="Optional note about your experience after breathing."
+                multiline textAlignVertical="top" editable={!busy}
+                value={answers.post_breathing_note ?? ""}
+                onChangeText={text => setAnswers(current => ({ ...current, post_breathing_note: text }))}
+                style={[styles.editor, { color: theme.text, backgroundColor: theme.backgroundElement }]} />
+            </View>
+
+            {!valid && <ThemedText>Choose Yes or No to continue.</ThemedText>}
+            <Pressable accessibilityRole="button" disabled={!valid || busy}
+              accessibilityState={{ disabled: !valid || busy, busy }} style={styles.button}
+              onPress={() => void onSave(answers, true)}>
+              <ThemedText style={styles.buttonText}>Save and continue</ThemedText>
+            </Pressable>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </ThemedView>
+  );
+}
 
 function Questions({ progress, busy, onSave, onExit }: {
   progress: WeekOneProgress; busy: boolean;
@@ -146,13 +210,17 @@ export function WeekOneFlow({ activityId, onExit }: { activityId: string; onExit
         </View>
       )}
       {progress?.current_step === "breathing" && (
-        <BreathingPlayer onContinue={() => void save()} onExit={onExit} isSaving={busy} />
+        <BreathingPlayer activityId={activityId} onContinue={() => save()} onExit={onExit} isSaving={busy} />
+      )}
+      {progress?.current_step === "post_breathing_check_in" && (
+        <PostBreathingCheckIn key={`post-breathing:${attempt}`} progress={progress}
+          busy={busy} onSave={save} onExit={onExit} />
       )}
       {progress && (progress.current_step === "writing" || progress.current_step === "intention_mirror") && (
         <IntentionMirrorScreen
-  activityId={activityId}
-  onBack={onExit}
-  onIntentionsReady={() => undefined}
+          activityId={activityId}
+          onBack={onExit}
+          onIntentionsReady={() => undefined}
           initialIntentions={progress.current_step === "intention_mirror" && progress.generated_intentions.length === 3
             ? { intentions: progress.generated_intentions as IntentionResponse["intentions"], provider: "mock" } : undefined}
           onGenerated={async () => {
@@ -187,6 +255,9 @@ export function WeekOneFlow({ activityId, onExit }: { activityId: string; onExit
 
 const styles = StyleSheet.create({
   flex: { flex: 1 }, section: { gap: 12 },
+  choiceRow: { flexDirection: "row", gap: 12 },
+  choice: { minHeight: 48, minWidth: 96, padding: 12, borderWidth: 1, borderColor: "#b9cbbd", borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  choiceSelected: { borderWidth: 2, borderColor: "#41644a", backgroundColor: "rgba(65, 100, 74, 0.15)" },
   content: { width: "100%", maxWidth: 720, alignSelf: "center", padding: 24, paddingTop: Platform.OS === "web" ? 88 : 24, gap: 24 },
   error: { padding: 24, paddingTop: Platform.OS === "web" ? 80 : 24, gap: 12 },
   editor: { minHeight: 160, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "#b9cbbd", fontSize: 16, lineHeight: 24 },
