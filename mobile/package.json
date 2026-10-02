@@ -32,7 +32,10 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
+    "@testing-library/react-native": "^14.0.1",
     "@types/react": "~19.2.2",
+    "jest": "~29.7.0",
+    "jest-expo": "~57.0.5",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -50,7 +53,9 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "test": "jest --runInBand",
+    "test:watch": "jest --watch"
   },
   "private": true
 }
