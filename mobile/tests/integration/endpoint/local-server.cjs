@@ -5,7 +5,13 @@ const { setTimeout: delay } = require("node:timers/promises");
 
 // Use the real Edge runtime and existing server-only mock knobs. Never replace
 // the endpoint, provider, auth middleware, or database with test doubles.
-module.exports = async function serve(root, directory, scenario, apiUrl) {
+module.exports = async function serve(
+  root,
+  directory,
+  scenario,
+  apiUrl,
+  functionName = "mindfulness-response",
+) {
   const envFile = join(directory, "scenario.env");
   writeFileSync(
     envFile,
@@ -24,7 +30,7 @@ module.exports = async function serve(root, directory, scenario, apiUrl) {
     "supabase",
     "functions",
     "serve",
-    "mindfulness-response",
+    functionName,
     "--env-file",
     envFile,
   ], { cwd: root, detached: true, stdio: ["ignore", "pipe", "pipe"] });
@@ -64,7 +70,7 @@ module.exports = async function serve(root, directory, scenario, apiUrl) {
       if (ready) {
         try {
           const response = await fetch(
-            `${apiUrl}/functions/v1/mindfulness-response`,
+            `${apiUrl}/functions/v1/${functionName}`,
             { method: "OPTIONS", signal: AbortSignal.timeout(1000) },
           );
           await response.body?.cancel();
