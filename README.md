@@ -174,7 +174,7 @@ The guided-reflection request is validated with the shared Zod schema at:
 supabase/schema/guidedReflectionSchema.ts
 ```
 
-The schema requires `activityId`, `activityContext`, and `userReflection` for requests, and exactly three `intentions` for responses. Unexpected fields are rejected. The fixture tests cover individual validation rules and run each reflection through the deterministic local mock policy, asserting its category and exact result. Empty, too-short, and oversized reflections return a controlled validation error; ordinary inputs receive the generic mock reply; and clearly concerning text receives a fixed, supportive non-clinical reply. The policy makes no external provider calls and does not diagnose or assess crisis risk.
+The schema requires `activityId`, `activityContext`, and `userReflection` for requests, and exactly three `intentions` for responses. Unexpected fields are rejected. The endpoint fixture suite sends each case through the authenticated local `guided-reflection` route and compares its HTTP status and complete JSON body. Run it with `npm --prefix mobile run test:endpoint-integration` after starting local Supabase. Empty, too-short, and oversized reflections return a controlled validation error; ordinary inputs receive generic intentions; and clearly concerning text receives supportive, non-clinical intentions. The mock makes no external provider calls and does not diagnose or assess crisis risk.
 
 From the repository root, run all tests with:
 

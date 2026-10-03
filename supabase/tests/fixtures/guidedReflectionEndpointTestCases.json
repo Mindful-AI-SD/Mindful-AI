@@ -1,0 +1,109 @@
+{
+  "ordinaryReflection": {
+    "name": "ordinary reflection",
+    "request": {
+      "activityId": "$publishedActivityId",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": "I noticed my breathing slow down."
+    },
+    "expected": { "status": 200, "profile": "ordinary" }
+  },
+  "vagueReflection": {
+    "name": "vague reflection",
+    "request": {
+      "activityId": "$publishedActivityId",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": "It was okay, I guess."
+    },
+    "expected": { "status": 200, "profile": "ordinary" }
+  },
+  "irrelevantReflection": {
+    "name": "irrelevant reflection",
+    "request": {
+      "activityId": "$publishedActivityId",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": "I like pizza."
+    },
+    "expected": { "status": 200, "profile": "ordinary" }
+  },
+  "highlyPersonalReflection": {
+    "name": "synthetic highly personal reflection",
+    "request": {
+      "activityId": "$publishedActivityId",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": "I felt anxious after a private disagreement with a family member."
+    },
+    "expected": { "status": 200, "profile": "ordinary" }
+  },
+  "concerningReflection": {
+    "name": "concerning reflection",
+    "request": {
+      "activityId": "$publishedActivityId",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": "I am worried that I might hurt myself tonight."
+    },
+    "expected": { "status": 200, "profile": "concerning" }
+  },
+  "emptyReflection": {
+    "name": "empty reflection",
+    "request": {
+      "activityId": "$publishedActivityId",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": ""
+    },
+    "expected": { "status": 400 }
+  },
+  "whitespaceReflection": {
+    "name": "whitespace-only reflection",
+    "request": {
+      "activityId": "$publishedActivityId",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": "   "
+    },
+    "expected": { "status": 400 }
+  },
+  "oversizedReflection": {
+    "name": "oversized reflection",
+    "request": {
+      "activityId": "$publishedActivityId",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": { "$repeat": "x", "count": 2001 }
+    },
+    "expected": { "status": 400 }
+  },
+  "missingActivityContext": {
+    "name": "reflection missing activity context",
+    "request": {
+      "activityId": "$publishedActivityId",
+      "userReflection": "I noticed my breathing slow down."
+    },
+    "expected": { "status": 400 }
+  },
+  "minimumLengthReflection": {
+    "name": "minimum-length reflection",
+    "request": {
+      "activityId": "$publishedActivityId",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": "Cal"
+    },
+    "expected": { "status": 200, "profile": "ordinary" }
+  },
+  "tooShortReflection": {
+    "name": "too-short reflection",
+    "request": {
+      "activityId": "$publishedActivityId",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": "No"
+    },
+    "expected": { "status": 400 }
+  },
+  "maximumLengthReflection": {
+    "name": "maximum-length reflection",
+    "request": {
+      "activityId": "$publishedActivityId",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": { "$repeat": "x", "count": 2000 }
+    },
+    "expected": { "status": 200, "profile": "ordinary" }
+  }
+}
