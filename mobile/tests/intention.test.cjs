@@ -154,7 +154,7 @@ function screen(provider, saveIntentions = async () => {}) {
   const cleanups = [];
   function render() {
     cursor = 0;
-    const tree = component.IntentionMirrorScreen({ activityId: "real-activity-id", onBack() {} });
+    const tree = component.IntentionMirrorScreen({ activityId: "real-activity-id", onBack() {}, onIntentionsReady() {}, onOpenGap() {} });
     while (effects.length) cleanups.push(effects.shift()());
     return tree;
   }

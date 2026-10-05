@@ -15,6 +15,7 @@ function setup() {
       let update;
       const query = {
         select() { return query; }, eq(key, value) { filters[key] = value; return query; },
+        is(key, value) { filters[key] = value; return query; },
         update(value) { update = value; return query; },
         async upsert(value) {
           if (!record) record = { writing: null, generated_intentions: [], reflection_answers: {}, completed_at: null, updated_at: String(++revision), ...value };
@@ -46,12 +47,18 @@ test("normal path persists each step, answers, and completion together", async (
   const db = setup();
   await db.api.startWeekOne("a", "activity");
   const answers = {
-    post_breathing_check_in: "Calmer", data_self_portrait_visible: "Habits", data_self_portrait_missing: "Context",
+    post_breathing_urge: "no", post_breathing_note: "Calmer", data_self_portrait_visible: "Habits", data_self_portrait_missing: "Context",
     ai_gap_got_right: "Attention", ai_gap_missed: "Context", ai_gap_reveals: "Limits", yellowdig_draft: "My discussion post",
   };
   for (let i = 0; i < steps.length - 1; i++) {
     if (steps[i] === "writing") { db.record.writing = "My exact writing"; db.record.generated_intentions = [{}, {}, {}]; }
-    await db.api.saveWeekOneStep("a", "activity", steps[i], answers);
+    const keys = {
+      post_breathing_check_in: ["post_breathing_urge", "post_breathing_note"],
+      data_self_portrait: ["data_self_portrait_visible", "data_self_portrait_missing"],
+      ai_gap_reflection: ["ai_gap_got_right", "ai_gap_missed", "ai_gap_reveals"],
+      yellowdig_draft: ["yellowdig_draft"],
+    }[steps[i]] ?? [];
+    await db.api.saveWeekOneStep("a", "activity", steps[i], Object.fromEntries(keys.map(key => [key, answers[key]])));
     assert.equal((await db.api.getWeekOneProgress("a", "activity")).current_step, steps[i + 1]);
   }
   assert.equal(db.record.status, "completed");
@@ -65,12 +72,17 @@ test("reopening preserves writing and intention steps without resetting data", a
   await db.api.startWeekOne("a", "activity");
   for (const step of ["writing", "intention_mirror", "completed"]) {
     db.record.current_step = step;
+    db.record.reflection_answers = { post_breathing_urge: "no" };
+    if (step === "completed") {
+      db.record.status = "completed";
+      db.record.completed_at = "2026-10-05T00:00:00.000Z";
+    }
     db.record.writing = "  saved writing  ";
-    db.record.generated_intentions = [{ title: "one" }, { title: "two" }, { title: "three" }];
+    db.record.generated_intentions = step === "writing" ? [] : [{ title: "one" }, { title: "two" }, { title: "three" }];
     const restored = await db.api.startWeekOne("a", "activity");
     assert.equal(restored.current_step, step);
     assert.equal(restored.writing, "  saved writing  ");
-    assert.equal(restored.generated_intentions.length, 3);
+    assert.equal(restored.generated_intentions.length, step === "writing" ? 0 : 3);
   }
 });
 

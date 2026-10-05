@@ -51,3 +51,16 @@ Verification on October 1, 2026:
   HTTP responses. No live-backend or physical-device verification is claimed.
 - `node --test tests/*.test.cjs`: 45 focused tests passed, including checkbox
   checked-state assertions. `npx tsc --noEmit`: passed.
+
+## Repair 4: current submission and progress test fixtures
+
+On October 5, 2026, the focused tests still omitted the required
+`onIntentionsReady` callback and used the old free-text check-in field. This
+made successful submissions look like failures and gave the progress service
+inconsistent saved records. Updated the screen props, the Yes/No check-in
+fixtures, per-step answer submissions, and the completion query mock.
+
+Verification: `node --test tests/*.test.cjs` passes all 52 tests, including
+successful submission, timeout/provider recovery, duplicate submission
+prevention, exact draft preservation, saved-step restoration, and completion.
+These tests use isolated service and persistence mocks.
