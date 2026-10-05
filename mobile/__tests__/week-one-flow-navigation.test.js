@@ -206,6 +206,9 @@ describe("WeekOneFlow breathing navigation", () => {
     }).props.accessibilityState.disabled).toBe(true);
 
     await fireEvent.press(screen.getByText("Yes"));
+    expect(screen.getByRole("radio", { name: "Yes" }).props.accessibilityState.checked).toBe(true);
+    expect(screen.getByRole("radio", { name: "No" }).props.accessibilityState.checked).toBe(false);
+    expect(screen.getByText("Your choice: Yes")).toBeTruthy();
     await fireEvent.changeText(
       screen.getByLabelText("What did you notice?"),
       "I reached for my phone.",

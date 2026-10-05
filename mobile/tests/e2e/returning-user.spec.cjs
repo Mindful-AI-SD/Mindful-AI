@@ -53,19 +53,22 @@ for (const restart of [false, true]) {
     await page.getByRole("textbox", { name: "Email address" }).fill("returning-user@example.test");
     await page.getByRole("textbox", { name: "Password", exact: true }).fill("test-password-only");
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await page.getByRole("button", { name: "Start or continue Week 1" }).click();
+    await page.getByRole("button", { name: "Notice and Reflect. Not started", exact: true }).click();
     await page.getByRole("button", { name: "Start breathing session", exact: true }).waitFor();
     await page.clock.install();
     await page.getByRole("button", { name: "Start breathing session", exact: true }).click();
     await page.clock.fastForward(600_000);
     await page.getByRole("button", { name: "Continue to check-in" }).click();
-    await page.getByRole("textbox", { name: "What do you notice now?" }).fill("My breathing feels slower.");
+    await page.getByRole("radio", { name: "No", exact: true }).click();
+    await expect(page.getByRole("radio", { name: "No", exact: true })).toBeChecked();
+    await page.getByRole("textbox", { name: "What did you notice?", exact: true }).fill("My breathing feels slower.");
     await page.getByRole("button", { name: "Save and continue", exact: true }).click();
     await page.getByRole("textbox", { name: "Your writing", exact: true }).fill(writing);
     await expect.poll(() => db.progress.writing).toBe(writing);
     expect(db.progress.current_step).toBe("writing");
     if (restart) {
       await page.reload();
+      await page.getByRole("button", { name: "Notice and Reflect. In progress", exact: true }).click();
       await expect(page.getByRole("textbox", { name: "Your writing", exact: true })).toHaveValue(writing);
       expect(db.progress.current_step).toBe("writing");
     }
@@ -75,11 +78,20 @@ for (const restart of [false, true]) {
     expect(db.progress.current_step).toBe("intention_mirror");
     const savedIntentions = structuredClone(db.progress.generated_intentions);
     expect(savedIntentions).toHaveLength(3);
+    for (const intention of savedIntentions) {
+      await expect(page.getByText(intention.title, { exact: true })).toBeVisible();
+      await expect(page.getByText(intention.explanation, { exact: true })).toBeVisible();
+    }
     if (restart) {
       await page.reload();
+      await page.getByRole("button", { name: "Notice and Reflect. In progress", exact: true }).click();
       await expect(page.getByRole("heading", { name: "Mock intentions", exact: true })).toBeVisible();
       expect(db.progress.generated_intentions).toEqual(savedIntentions);
       expect(db.progress.writing).toBe(writing);
+      for (const intention of savedIntentions) {
+        await expect(page.getByText(intention.title, { exact: true })).toBeVisible();
+        await expect(page.getByText(intention.explanation, { exact: true })).toBeVisible();
+      }
     }
     await page.getByRole("button", { name: "Continue to data self-portrait" }).click();
     await page.getByRole("textbox", { name: "What could data about you show?" }).fill("My daily habits.");
@@ -97,8 +109,15 @@ for (const restart of [false, true]) {
     expect(db.progress.completed_at).toBeTruthy();
     expect(db.progress.writing).toBe(writing);
     expect(db.progress.generated_intentions).toEqual(savedIntentions);
-    expect(Object.keys(db.progress.reflection_answers)).toHaveLength(7);
+    expect(db.progress.reflection_answers).toEqual({
+      post_breathing_urge: "no", post_breathing_note: "My breathing feels slower.",
+      data_self_portrait_visible: "My daily habits.", data_self_portrait_missing: "Why I make choices.",
+      ai_gap_got_right: "They noticed attention.", ai_gap_missed: "My personal context.",
+      ai_gap_reveals: "AI cannot know my full experience.",
+      yellowdig_draft: "I noticed that data captures patterns but misses context. What do others notice?",
+    });
     await page.reload();
+    await page.getByRole("button", { name: "Notice and Reflect. Completed", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Week 1 complete", exact: true })).toBeVisible();
     expect(db.errors).toEqual([]);
     expect(pageErrors).toEqual([]);

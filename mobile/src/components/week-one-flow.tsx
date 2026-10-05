@@ -61,18 +61,22 @@ function PostBreathingCheckIn({ progress, busy, onSave, onExit }: {
               <ThemedText accessibilityRole="header" type="smallBold">
                 Did you notice an urge to check your phone?
               </ThemedText>
-              <View style={styles.choiceRow}>
+              <View accessibilityRole="radiogroup" accessibilityLabel="Did you notice an urge to check your phone?"
+                style={styles.choiceRow}>
                 <Pressable accessibilityRole="radio" accessibilityState={{ checked: urge === "yes", disabled: busy }}
+                  aria-checked={urge === "yes"} aria-disabled={busy}
                   disabled={busy} onPress={() => chooseUrge("yes")}
                   style={[styles.choice, urge === "yes" && styles.choiceSelected]}>
                   <ThemedText>Yes</ThemedText>
                 </Pressable>
                 <Pressable accessibilityRole="radio" accessibilityState={{ checked: urge === "no", disabled: busy }}
+                  aria-checked={urge === "no"} aria-disabled={busy}
                   disabled={busy} onPress={() => chooseUrge("no")}
                   style={[styles.choice, urge === "no" && styles.choiceSelected]}>
                   <ThemedText>No</ThemedText>
                 </Pressable>
               </View>
+              {valid && <AccessibleStatus>{`Your choice: ${urge === "yes" ? "Yes" : "No"}`}</AccessibleStatus>}
             </View>
 
             <View style={styles.section}>

@@ -64,3 +64,35 @@ Verification: `node --test tests/*.test.cjs` passes all 52 tests, including
 successful submission, timeout/provider recovery, duplicate submission
 prevention, exact draft preservation, saved-step restoration, and completion.
 These tests use isolated service and persistence mocks.
+
+## Repair 5: accessible check-in selection and complete returning-user runs
+
+The browser reproduced a check-in accessibility defect: selecting No changed
+the button styling, but the radio had no `aria-checked` value. Added explicit
+checked/disabled values, a named radio group, and readable selected-answer text.
+Native accessibility state remains covered by the screen test.
+
+Updated the browser path for the current curriculum activity button and
+Yes/No check-in. After a restart, the test opens the saved activity from the
+curriculum and verifies the restored screen. It checks all three intention
+titles and explanations and compares every saved answer with the entered text.
+
+Verification on October 5, 2026:
+
+- Before the repair, both browser paths failed the checked-radio assertion.
+- `npm run export -- --platform web`: passed, including the bundle security check.
+- `npm run test:returning-user -- --timeout=30000`: both Edge browser paths
+  passed. The normal run completed every Week 1 step. The restart run reloaded
+  after saved writing and after mock generation, restored the writing and
+  intention steps respectively, and then reached completion.
+- Both runs preserved the exact writing, three intentions, and all eight
+  reflection fields (including the Yes/No check-in and optional note). Both
+  restored completed status and the completion screen after a final reload,
+  with no page errors or unexpected requests.
+- `npm test -- --watch=false`: 24 tests passed across five suites.
+- `node --test tests/*.test.cjs`: 52 tests passed.
+- `npx tsc --noEmit`: passed.
+
+The browser operates the exported frontend with synthetic authentication and
+simulated Supabase HTTP responses. A full page reload restarts frontend state.
+These runs do not claim live Supabase or physical-device verification.
