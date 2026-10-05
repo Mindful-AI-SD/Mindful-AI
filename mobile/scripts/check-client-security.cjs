@@ -3,6 +3,7 @@ const path = require("node:path");
 const { parseEnv } = require("node:util");
 const vm = require("node:vm");
 const ts = require("typescript");
+const { execFileSync } = require("node:child_process");
 
 const root = path.resolve(__dirname, "..");
 const allowed = new Set(["EXPO_PUBLIC_SUPABASE_URL", "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY"]);
@@ -61,7 +62,7 @@ function walk(directory) {
   });
 }
 
-function check(bundleDirectory) {
+function check(bundleDirectory, { tracked = false, expoConfig = false } = {}) {
   const findings = [];
   const report = (file, issues) => issues.forEach(issue => findings.push(`${file}: ${issue}`));
   const files = [
@@ -78,6 +79,30 @@ function check(bundleDirectory) {
   report("build environment", checkEnvironment(Object.fromEntries(
     Object.entries(process.env).filter(([name]) => name.startsWith("EXPO_PUBLIC_")),
   )));
+  if (tracked) {
+    const repository = path.resolve(root, "..");
+    const names = execFileSync("git", ["ls-files", "-z"], { cwd: repository, encoding: "utf8" }).split("\0").filter(Boolean);
+    for (const name of names) {
+      const file = path.join(repository, name);
+      if (fs.existsSync(file) && fs.statSync(file).isFile()) {
+        report(name, scanText(fs.readFileSync(file, "utf8")));
+      }
+    }
+  }
+  if (expoConfig) {
+    try {
+      const resolved = execFileSync(process.execPath, [require.resolve("expo/bin/cli"), "config", "--type", "public", "--json"], {
+        cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
+      });
+      const text = JSON.stringify(JSON.parse(resolved));
+      report("resolved Expo public configuration", scanText(text));
+      if (/service[_-]?role|(?:openai|anthropic|provider)[_-]?(?:api[_-]?)?key/i.test(text)) {
+        report("resolved Expo public configuration", ["Server-only configuration detected"]);
+      }
+    } catch {
+      report("resolved Expo public configuration", ["Could not inspect resolved public configuration"]);
+    }
+  }
   if (bundleDirectory) {
     for (const file of walk(path.resolve(root, bundleDirectory))) {
       if (/\.(?:js|json|html|map|hbc)$/.test(file)) {
@@ -97,5 +122,7 @@ function check(bundleDirectory) {
 module.exports = { scanText, checkEnvironment, check };
 if (require.main === module) {
   const bundleIndex = process.argv.indexOf("--bundle");
-  if (!check(bundleIndex >= 0 ? process.argv[bundleIndex + 1] : undefined)) process.exitCode = 1;
+  if (!check(bundleIndex >= 0 ? process.argv[bundleIndex + 1] : undefined, {
+    tracked: process.argv.includes("--tracked"), expoConfig: process.argv.includes("--expo-config"),
+  })) process.exitCode = 1;
 }

@@ -1,6 +1,8 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const { scanText, checkEnvironment } = require("../scripts/check-client-security.cjs");
+const { spawnSync } = require("node:child_process");
+const path = require("node:path");
 
 test("allows only public client configuration", () => {
   assert.deepEqual(checkEnvironment({
@@ -16,7 +18,7 @@ test("allows only public client configuration", () => {
 
 test("finds secret keys and service-role JWTs without echoing values", () => {
   const jwt = `${Buffer.from('{"alg":"HS256"}').toString("base64url")}.${Buffer.from('{"role":"service_role"}').toString("base64url")}.signature`;
-  for (const secret of [jwt, "sb_secret_" + "x".repeat(30), "sk-proj-" + "x".repeat(30), "sk-ant-" + "x".repeat(30), "-----BEGIN PRIVATE KEY-----"]) {
+  for (const secret of [jwt, "sb_secret_" + "x".repeat(30), "sk-proj-" + "x".repeat(30), "sk-ant-" + "x".repeat(30), "-----BEGIN " + "PRIVATE KEY-----"]) {
     const issues = scanText(`const value = '${secret}';`);
     assert.ok(issues.length);
     assert.ok(!issues.join(" ").includes(secret));
@@ -35,4 +37,16 @@ test("blocks server environment references, dynamic reads, and backend imports",
     "import backend from '../../supabase/functions/example';",
   ]) assert.ok(scanText(code, true).length, code);
   assert.deepEqual(scanText("process.env.EXPO_PUBLIC_SUPABASE_URL; process.env.EXPO_OS", true), []);
+});
+
+test("patched router decoder preserves query parameters and handles malformed input without hanging", () => {
+  const query = require("query-string");
+  assert.deepEqual({ ...query.parse("name=Ren%C3%A9e&note=hello+world&activityId=abc") }, {
+    name: "Renée", note: "hello world", activityId: "abc",
+  });
+  const result = spawnSync(process.execPath, ["-e", "const query = require('query-string'); query.parse('note=' + '%C2'.repeat(12000));"], {
+    cwd: path.join(__dirname, ".."), timeout: 3000, encoding: "utf8",
+  });
+  assert.equal(result.error, undefined, "Malformed query decoding must finish within the timeout");
+  assert.equal(result.status, 0, result.stderr);
 });
