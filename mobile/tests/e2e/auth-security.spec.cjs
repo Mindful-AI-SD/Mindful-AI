@@ -23,6 +23,7 @@ test("signed-out deep links and history cannot open protected screens or request
   await signIn(page, accounts.a);
   expect(new URL(page.url()).origin).toBe("http://127.0.0.1:4173");
   await page.getByRole("button", { name: "Notice and Reflect. In progress", exact: true }).click();
+  await page.getByRole("button", { name: /^Resume:/ }).click();
   await expect(page.getByRole("textbox", { name: "Your writing", exact: true })).toHaveValue(writingA);
   await page.getByRole("button", { name: "Back to Week 1", exact: true }).click();
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
@@ -41,6 +42,7 @@ for (const step of ["writing", "intention_mirror", "ai_gap_reflection"]) {
     await page.goto("/");
     await signIn(page, accounts.a);
     await page.getByRole("button", { name: "Notice and Reflect. In progress", exact: true }).click();
+    await page.getByRole("button", { name: /^Resume:/ }).click();
     if (step === "writing") {
       await expect(page.getByRole("textbox", { name: "Your writing", exact: true })).toHaveValue(writingA);
     } else {
@@ -62,6 +64,7 @@ for (const step of ["writing", "intention_mirror", "ai_gap_reflection"]) {
     await signIn(otherTab, accounts.b);
     await expect(page.getByRole("heading", { name: "Your curriculum", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Notice and Reflect. In progress", exact: true }).click();
+    await page.getByRole("button", { name: /^Resume:/ }).click();
     await expect(page.getByRole("textbox", { name: "Your writing", exact: true })).toHaveValue(writingB);
     for (const intention of intentionsA) await expect(page.getByText(intention.title, { exact: true })).toHaveCount(0);
     expect(db.records.get(accounts.a.id).writing).toBe(writingA);
@@ -76,6 +79,7 @@ for (const step of ["writing", "intention_mirror", "ai_gap_reflection"]) {
     await signIn(otherTab, accounts.a);
     await expect(page.getByRole("heading", { name: "Your curriculum", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Notice and Reflect. In progress", exact: true }).click();
+    await page.getByRole("button", { name: /^Resume:/ }).click();
     if (step === "writing") await expect(page.getByRole("textbox", { name: "Your writing", exact: true })).toHaveValue(writingA);
     else for (const intention of intentionsA) await expect(page.getByText(intention.title, { exact: true })).toBeVisible();
     expect(db.errors).toEqual([]);

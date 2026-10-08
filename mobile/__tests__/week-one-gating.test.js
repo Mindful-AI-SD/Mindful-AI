@@ -10,7 +10,7 @@ function progress(overrides = {}) {
     current_step: "breathing",
     writing: null,
     generated_intentions: [],
-    reflection_answers: {},
+    reflection_answers: { arrive_mood: "3", arrive_energy: "4",},
     started_at: "2026-10-02T12:00:00.000Z",
     completed_at: null,
     updated_at: "2026-10-02T12:00:00.000Z",
@@ -32,7 +32,7 @@ describe("deriveNextAllowedStep", () => {
     expect(deriveNextAllowedStep(progress({
       current_step: "data_self_portrait",
       reflection_answers: { post_breathing_urge: "Yes" },
-      writing: "My reflection",
+      writing: "notice ".repeat(150).trim(),
       generated_intentions: [{ title: "One", explanation: "First" }],
     }))).toBe("writing");
   });
@@ -45,7 +45,7 @@ describe("deriveNextAllowedStep", () => {
         data_self_portrait_visible: "Visible answer",
         data_self_portrait_missing: "Missing answer",
       },
-      writing: "My reflection",
+      writing: "notice ".repeat(150).trim(),
       generated_intentions: [
         { title: "One", explanation: "First" },
         { title: "Two", explanation: "Second" },

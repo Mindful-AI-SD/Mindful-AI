@@ -38,7 +38,13 @@ function setup() {
   const code = ts.transpileModule(fs.readFileSync(path.join(__dirname, "../lib/week-one.ts"), "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
-  vm.runInNewContext(code, { exports, require: name => name === "./supabase" ? { supabase } : { WEEK_ONE_STEPS: steps } });
+  function loadHelper(name) {
+    const helperExports = {};
+    const helperCode = ts.transpileModule(fs.readFileSync(path.join(__dirname, "../lib", name + ".ts"), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+    vm.runInNewContext(helperCode, { exports: helperExports });
+    return helperExports;
+  }
+  vm.runInNewContext(code, { exports, require: name => name === "./supabase" ? { supabase } : name === "./progress" ? { WEEK_ONE_STEPS: steps } : loadHelper(name) });
   return { api: exports, get record() { return record; }, set record(value) { record = value; },
     setUser(value) { user = value; }, fail(value) { fail = value; }, conflict(value) { conflict = value; } };
 }
@@ -46,12 +52,13 @@ function setup() {
 test("normal path persists each step, answers, and completion together", async () => {
   const db = setup();
   await db.api.startWeekOne("a", "activity");
+  await db.api.saveWeekOneArrival("a", "activity", { arrive_mood: "3", arrive_energy: "4" });
   const answers = {
     post_breathing_urge: "no", post_breathing_note: "Calmer", data_self_portrait_visible: "Habits", data_self_portrait_missing: "Context",
     ai_gap_got_right: "Attention", ai_gap_missed: "Context", ai_gap_reveals: "Limits", yellowdig_draft: "My discussion post",
   };
   for (let i = 0; i < steps.length - 1; i++) {
-    if (steps[i] === "writing") { db.record.writing = "My exact writing"; db.record.generated_intentions = [{}, {}, {}]; }
+    if (steps[i] === "writing") { db.record.writing = "notice ".repeat(150).trim(); db.record.generated_intentions = [{}, {}, {}]; }
     const keys = {
       post_breathing_check_in: ["post_breathing_urge", "post_breathing_note"],
       data_self_portrait: ["data_self_portrait_visible", "data_self_portrait_missing"],
@@ -63,13 +70,14 @@ test("normal path persists each step, answers, and completion together", async (
   }
   assert.equal(db.record.status, "completed");
   assert.ok(db.record.completed_at);
-  assert.equal(db.record.writing, "My exact writing");
+  assert.equal(db.record.writing, "notice ".repeat(150).trim());
   assert.equal(db.record.reflection_answers.yellowdig_draft, answers.yellowdig_draft);
 });
 
 test("reopening preserves writing and intention steps without resetting data", async () => {
   const db = setup();
   await db.api.startWeekOne("a", "activity");
+  await db.api.saveWeekOneArrival("a", "activity", { arrive_mood: "3", arrive_energy: "4" });
   for (const step of ["writing", "intention_mirror", "completed"]) {
     db.record.current_step = step;
     db.record.reflection_answers = { post_breathing_urge: "no" };
@@ -77,11 +85,11 @@ test("reopening preserves writing and intention steps without resetting data", a
       db.record.status = "completed";
       db.record.completed_at = "2026-10-05T00:00:00.000Z";
     }
-    db.record.writing = "  saved writing  ";
+    db.record.writing = "  " + "notice ".repeat(150) + "  ";
     db.record.generated_intentions = step === "writing" ? [] : [{ title: "one" }, { title: "two" }, { title: "three" }];
     const restored = await db.api.startWeekOne("a", "activity");
     assert.equal(restored.current_step, step);
-    assert.equal(restored.writing, "  saved writing  ");
+    assert.equal(restored.writing, "  " + "notice ".repeat(150) + "  ");
     assert.equal(restored.generated_intentions.length, step === "writing" ? 0 : 3);
   }
 });
@@ -89,6 +97,7 @@ test("reopening preserves writing and intention steps without resetting data", a
 test("failed, conflicting, and invalid transitions do not advance or lose data", async () => {
   const db = setup();
   await db.api.startWeekOne("a", "activity");
+  await db.api.saveWeekOneArrival("a", "activity", { arrive_mood: "3", arrive_energy: "4" });
   db.fail(true);
   await assert.rejects(db.api.saveWeekOneStep("a", "activity", "breathing"), /Could not load/);
   db.fail(false); db.conflict(true);
@@ -105,8 +114,51 @@ test("failed, conflicting, and invalid transitions do not advance or lose data",
 test("legacy saved drafts restore to writing or results rather than breathing", async () => {
   const db = setup();
   await db.api.startWeekOne("a", "activity");
+  await db.api.saveWeekOneArrival("a", "activity", { arrive_mood: "3", arrive_energy: "4" });
   db.record.status = "not_started"; db.record.writing = "existing";
   assert.equal((await db.api.startWeekOne("a", "activity")).current_step, "writing");
   db.record.status = "not_started"; db.record.generated_intentions = [{}, {}, {}];
+  assert.equal((await db.api.startWeekOne("a", "activity")).current_step, "writing");
+  db.record.status = "not_started"; db.record.writing = "notice ".repeat(150).trim();
   assert.equal((await db.api.startWeekOne("a", "activity")).current_step, "intention_mirror");
+});
+
+
+test("Arrive saves and restores partial ratings, preserves other answers, and gates Practice", async () => {
+  const db = setup();
+  await db.api.startWeekOne("a", "activity");
+  db.record.reflection_answers = { earlier_answer: "Keep this" };
+  await assert.rejects(db.api.saveWeekOneStep("a", "activity", "breathing"), /mood and energy/);
+  await db.api.saveWeekOneArrival("a", "activity", { arrive_mood: "2", earlier_answer: "Replace this" });
+  const restored = await db.api.startWeekOne("a", "activity");
+  assert.equal(restored.current_step, "breathing");
+  assert.equal(restored.reflection_answers.arrive_mood, "2");
+  assert.equal(restored.reflection_answers.earlier_answer, "Keep this");
+  await assert.rejects(db.api.saveWeekOneArrival("a", "activity", { arrive_energy: "6" }), /1 to 5/);
+  db.fail(true);
+  await assert.rejects(db.api.saveWeekOneArrival("a", "activity", { arrive_energy: "4" }), /Could not load/);
+  db.fail(false);
+  assert.equal(db.record.reflection_answers.arrive_mood, "2");
+  await db.api.saveWeekOneArrival("a", "activity", { arrive_energy: "4" });
+  await db.api.saveWeekOneStep("a", "activity", "breathing");
+  assert.equal(db.record.current_step, "post_breathing_check_in");
+  db.setUser("b");
+  await assert.rejects(db.api.saveWeekOneArrival("a", "activity", { arrive_mood: "5" }), /Sign in again/);
+});
+
+test("Explore cannot advance with fewer than 150 words or fewer than three intentions", async () => {
+  const db = setup();
+  await db.api.startWeekOne("a", "activity");
+  db.record.current_step = "writing";
+  db.record.reflection_answers = { arrive_mood: "3", arrive_energy: "4", post_breathing_urge: "no" };
+  db.record.writing = "notice ".repeat(149).trim();
+  db.record.generated_intentions = [{}, {}, {}];
+  await assert.rejects(db.api.saveWeekOneStep("a", "activity", "writing"), /150 words/);
+  assert.equal(db.record.current_step, "writing");
+  db.record.writing = "notice ".repeat(150).trim();
+  db.record.generated_intentions = [{}, {}];
+  await assert.rejects(db.api.saveWeekOneStep("a", "activity", "writing"), /three intentions/);
+  db.record.generated_intentions = [{}, {}, {}];
+  await db.api.saveWeekOneStep("a", "activity", "writing");
+  assert.equal(db.record.current_step, "intention_mirror");
 });

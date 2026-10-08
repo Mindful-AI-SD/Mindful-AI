@@ -9,9 +9,14 @@ import { IntentionMirrorScreen } from "./intention-mirror-screen";
 import { AiGapReflectionScreen } from "./ai-gap-reflection-screen";
 import BreathingPlayer from "../app/breathing-player";
 import { useTheme } from "@/hooks/use-theme";
-import { returnToWriting, saveWeekOneStep, startWeekOne } from "../../lib/week-one";
+import { returnToWriting, saveWeekOneArrival, saveWeekOneStep, startWeekOne } from "../../lib/week-one";
 import type { ReflectionAnswers, WeekOneProgress } from "../../lib/progress";
 import type { IntentionResponse } from "../../lib/intention";
+import { FourBeatModuleShell } from "./four-beat-module-shell";
+import { WEEK_ONE_BEATS, weekOneBeatId, weekOneStepLabel } from "../../lib/week-one-module";
+
+import { WeekOneArrive } from "./week-one-arrive";
+import { hasArrivalRatings } from "../../lib/week-one-arrival";
 
 const FORMS = {
   data_self_portrait: {
@@ -153,12 +158,15 @@ function Questions({ progress, busy, onSave, onExit }: {
   );
 }
 
-export function WeekOneFlow({ activityId, onExit }: { activityId: string; onExit: () => void }) {
+export function WeekOneFlow({ activityId, onExit, showModuleEntry = false }: {
+  activityId: string; onExit: () => void; showModuleEntry?: boolean;
+}) {
   const userId = useSignedInUserId();
   const [progress, setProgress] = useState<WeekOneProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [entryOpen, setEntryOpen] = useState(showModuleEntry);
   const active = useRef(false);
   const alive = useRef(true);
 
@@ -199,6 +207,15 @@ export function WeekOneFlow({ activityId, onExit }: { activityId: string; onExit
     return change(() => saveWeekOneStep(userId, activityId, progress.current_step, answers, advance));
   }
 
+  if (entryOpen && progress && !busy && !error) {
+    return <FourBeatModuleShell title="Week 1" beats={WEEK_ONE_BEATS}
+      savedBeatId={weekOneBeatId(progress.current_step, progress.reflection_answers)}
+      savedStepLabel={weekOneStepLabel(progress.current_step, progress.reflection_answers)}
+      onResume={() => setEntryOpen(false)} onExit={onExit} />;
+  }
+
+  const needsArrival = progress && progress.current_step !== "completed" && !hasArrivalRatings(progress.reflection_answers);
+
   return (
     <ThemedView style={styles.flex}>
       {busy && <AccessibleStatus>Loading or saving Week 1 progress…</AccessibleStatus>}
@@ -213,14 +230,16 @@ export function WeekOneFlow({ activityId, onExit }: { activityId: string; onExit
           </Pressable>
         </View>
       )}
-      {progress?.current_step === "breathing" && (
+      {needsArrival && progress && <WeekOneArrive key={`arrive:${attempt}`} savedAnswers={progress.reflection_answers}
+        busy={busy} onSave={answers => change(() => saveWeekOneArrival(userId, activityId, answers))} onExit={onExit} />}
+      {!needsArrival && progress?.current_step === "breathing" && (
         <BreathingPlayer activityId={activityId} onContinue={() => save()} onExit={onExit} isSaving={busy} />
       )}
-      {progress?.current_step === "post_breathing_check_in" && (
+      {!needsArrival && progress?.current_step === "post_breathing_check_in" && (
         <PostBreathingCheckIn key={`post-breathing:${attempt}`} progress={progress}
           busy={busy} onSave={save} onExit={onExit} />
       )}
-      {progress && (progress.current_step === "writing" || progress.current_step === "intention_mirror") && (
+      {!needsArrival && progress && (progress.current_step === "writing" || progress.current_step === "intention_mirror") && (
         <IntentionMirrorScreen
           activityId={activityId}
           onBack={onExit}
@@ -234,10 +253,10 @@ export function WeekOneFlow({ activityId, onExit }: { activityId: string; onExit
           continueLabel="Continue to data self-portrait"
           onOpenGap={() => void save()} />
       )}
-      {progress && progress.current_step in FORMS && (
+      {!needsArrival && progress && progress.current_step in FORMS && (
         <Questions key={`${progress.current_step}:${attempt}`} progress={progress} busy={busy} onSave={save} onExit={onExit} />
       )}
-      {progress?.current_step === "ai_gap_reflection" && (
+      {!needsArrival && progress?.current_step === "ai_gap_reflection" && (
         <AiGapReflectionScreen activityId={activityId} onBack={onExit}
           onOpenIntention={() => void change(() => returnToWriting(userId, activityId))}
           onContinue={() => save()} />

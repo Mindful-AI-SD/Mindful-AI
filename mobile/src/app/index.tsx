@@ -141,6 +141,7 @@ export default function HomeScreen() {
         key={activeActivity.id}
         activityId={activeActivity.id}
         onExit={returnToCurriculum}
+        showModuleEntry
       />
     );
   }

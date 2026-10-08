@@ -374,7 +374,7 @@ export default function BreathingPlayer({
   return (
     <View style={[styles.container, { backgroundColor }]}>
       <Text accessibilityRole="header" style={[styles.title, { color: textColor }]}>
-        Breathing Player
+        {onContinue ? "Practice · Mindful breathing" : "Breathing Player"}
       </Text>
 
       <Text accessibilityLiveRegion="polite" style={[styles.state, { color: textColor }]}>

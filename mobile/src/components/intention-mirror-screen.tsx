@@ -20,9 +20,8 @@ import { useWritingDraft } from "@/hooks/use-writing-draft";
 import { getIntentions, type IntentionResponse } from "../../lib/intention";
 import { saveProgressIntentions } from "../../lib/progress";
 
-// Match the existing reflection request schema's trimmed character limits.
-const MIN_CHARACTERS = 3;
-const MAX_CHARACTERS = 2000;
+import { countWritingWords, MIN_WRITING_WORDS, MAX_WRITING_CHARACTERS, validWeekOneWriting } from "../../lib/week-one-writing";
+const MAX_CHARACTERS = MAX_WRITING_CHARACTERS;
 const INSTRUCTIONS =
   "Pause for a moment and notice what currently has your attention. " +
   "Describe what you noticed and how it affected your thoughts or feelings. " +
@@ -75,10 +74,8 @@ export function IntentionMirrorScreen({
   }, []);
 
   const reflection = writing.trim();
-  const wordCount = reflection ? reflection.split(/\s+/u).length : 0;
-  const validLength =
-    reflection.length >= MIN_CHARACTERS &&
-    reflection.length <= MAX_CHARACTERS;
+  const wordCount = countWritingWords(writing);
+  const validLength = validWeekOneWriting(writing);
   const canSubmit = draftReady && acknowledged && validLength && !isSubmitting;
 
   async function handleSubmit() {
@@ -154,7 +151,7 @@ export function IntentionMirrorScreen({
             </Pressable>
 
             <View style={styles.section}>
-              <ThemedText type="smallBold">WEEK 1 · MINDFUL ATTENTION</ThemedText>
+              <ThemedText type="smallBold">WEEK 1 · EXPLORE</ThemedText>
               <AccessibleHeading focus={submission.status === "writing"} focusKey={submission.status}>Intention Mirror</AccessibleHeading>
               {submission.status === "writing" && <ThemedText>{INSTRUCTIONS}</ThemedText>}
             </View>
@@ -185,12 +182,12 @@ export function IntentionMirrorScreen({
                 <View style={styles.section}>
                   <ThemedText type="smallBold">Your writing</ThemedText>
                   <ThemedText>
-                    Write {MIN_CHARACTERS}–2,000 characters. Only share what you feel
+                    Write at least {MIN_WRITING_WORDS} words, up to 2,000 characters. Only share what you feel
                     comfortable sending for AI processing.
                   </ThemedText>
                   <TextInput
                     accessibilityLabel="Your writing"
-                    accessibilityHint="Multiline field. Write between 3 and 2,000 characters. Your writing saves automatically."
+                    accessibilityHint="Multiline field. Write at least 150 words, up to 2,000 characters. Your writing saves automatically."
                     accessibilityState={{ disabled: !draftReady || isSubmitting }}
                     multiline
                     textAlignVertical="top"
@@ -215,8 +212,8 @@ export function IntentionMirrorScreen({
                   </ThemedText>
                   {writing.length > 0 && !validLength && (
                     <AccessibleStatus error>
-                      {reflection.length < MIN_CHARACTERS
-                        ? "Enter at least 3 characters, excluding surrounding spaces."
+                      {wordCount < MIN_WRITING_WORDS
+                        ? "Write at least 150 words before submitting."
                         : "Shorten your writing to 2,000 characters or fewer."}
                     </AccessibleStatus>
                   )}
@@ -242,7 +239,7 @@ export function IntentionMirrorScreen({
                 </Pressable>
 
                 {!canSubmit && (
-                  <ThemedText>To submit, enter 3–2,000 characters and check the privacy acknowledgement.</ThemedText>
+                  <ThemedText>To submit, write at least 150 words, up to 2,000 characters and check the privacy acknowledgement.</ThemedText>
                 )}
 
                 <Pressable

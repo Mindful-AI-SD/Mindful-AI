@@ -21,9 +21,9 @@ function progress(overrides = {}) {
     activity_id: "activity-1",
     status: "in_progress",
     current_step: "yellowdig_draft",
-    writing: "My reflection",
+    writing: "notice ".repeat(150).trim(),
     generated_intentions: intentions,
-    reflection_answers: {
+    reflection_answers: { arrive_mood: "3", arrive_energy: "4",
       post_breathing_urge: "Less urgent",
       data_self_portrait_visible: "What is visible",
       data_self_portrait_missing: "What is missing",
@@ -44,7 +44,7 @@ describe("getWeekOneCompletionIssue", () => {
     const issue = getWeekOneCompletionIssue(progress({ writing: "" }));
     expect(issue).toEqual({
       missingStep: "writing",
-      message: "Save your writing before finishing Week 1.",
+      message: "Save at least 150 words (up to 2,000 characters) before finishing Week 1.",
     });
   });
 

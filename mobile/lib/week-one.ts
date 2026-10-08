@@ -1,3 +1,5 @@
+import { hasArrivalRatings } from "./week-one-arrival";
+import { validWeekOneWriting } from "./week-one-writing";
 import { supabase } from "./supabase";
 import { WEEK_ONE_STEPS, type ReflectionAnswers, type WeekOneProgress, type WeekOneStep } from "./progress";
 
@@ -31,6 +33,7 @@ export function getWeekOneCompletionIssue(
     return { missingStep: "breathing", message: "Complete the breathing activity first." };
   }
   if (progress.status === "completed" && progress.completed_at) return null;
+  if (!hasArrivalRatings(progress.reflection_answers)) return { missingStep: "breathing", message: "Choose your mood and energy ratings in Arrive first." };
 
   const savedStepIndex = WEEK_ONE_STEPS.indexOf(progress.current_step);
   if (savedStepIndex <= WEEK_ONE_STEPS.indexOf("breathing")) {
@@ -42,8 +45,8 @@ export function getWeekOneCompletionIssue(
       message: "Complete the post-breathing check-in before finishing Week 1.",
     };
   }
-  if (!progress.writing?.trim()) {
-    return { missingStep: "writing", message: "Save your writing before finishing Week 1." };
+  if (!validWeekOneWriting(progress.writing ?? "")) {
+    return { missingStep: "writing", message: "Save at least 150 words (up to 2,000 characters) before finishing Week 1." };
   }
   if (progress.generated_intentions.length !== 3) {
     return { missingStep: "writing", message: "Generate and save three intentions before finishing Week 1." };
@@ -90,7 +93,7 @@ export function deriveNextAllowedStep(progress: WeekOneProgress | null): WeekOne
   if (savedStepIndex <= WEEK_ONE_STEPS.indexOf("breathing")) return "breathing";
   if (!hasAnswer(progress, "post_breathing_urge")) return "post_breathing_check_in";
 
-  if (!progress.writing?.trim() || progress.generated_intentions.length !== 3) return "writing";
+  if (!validWeekOneWriting(progress.writing ?? "") || progress.generated_intentions.length !== 3) return "writing";
   // Intention Mirror is a view/acknowledgement step, so its saved step is its completion evidence.
   if (savedStepIndex <= WEEK_ONE_STEPS.indexOf("intention_mirror")) return "intention_mirror";
 
@@ -122,7 +125,7 @@ export async function startWeekOne(userId: string, activityId: string): Promise<
   if (existing) {
     // Earlier frontend versions saved data without updating the default step.
     if (existing.status === "not_started" && existing.writing?.trim()) {
-      const step = existing.generated_intentions.length === 3 ? "intention_mirror" : "writing";
+      const step = validWeekOneWriting(existing.writing) && existing.generated_intentions.length === 3 ? "intention_mirror" : "writing";
       return updateStep(existing, step, {});
     }
     const allowedStep = deriveNextAllowedStep(existing);
@@ -242,12 +245,13 @@ export async function saveWeekOneStep(
   }
   const allAnswers = { ...progress.reflection_answers, ...answers };
   if (advance) {
+    if (!hasArrivalRatings(allAnswers)) throw new Error("Choose your mood and energy ratings in Arrive before continuing.");
     if ((REQUIRED_ANSWERS[expectedStep] ?? []).some(key => !allAnswers[key]?.trim())) {
       throw new Error("Answer each question before continuing.");
     }
     if (expectedStep === "writing" &&
-      (!progress.writing?.trim() || progress.generated_intentions.length !== 3)) {
-      throw new Error("Save your writing and generate three intentions before continuing.");
+      (!validWeekOneWriting(progress.writing ?? "") || progress.generated_intentions.length !== 3)) {
+      throw new Error("Save at least 150 words (up to 2,000 characters) and generate three intentions before continuing.");
     }
   }
   const next = advance ? WEEK_ONE_STEPS[WEEK_ONE_STEPS.indexOf(expectedStep) + 1] : expectedStep;
@@ -266,4 +270,18 @@ export async function returnToWriting(userId: string, activityId: string): Promi
   const progress = await getWeekOneProgress(userId, activityId);
   if (!progress) throw new Error("Could not find your saved writing. Please reload progress.");
   return updateStep(progress, "writing", {});
+}
+
+/** Arrive is saved within the existing breathing entry step, avoiding a schema change. */
+export async function saveWeekOneArrival(userId: string, activityId: string, answers: ReflectionAnswers): Promise<WeekOneProgress> {
+  const progress = await getWeekOneProgress(userId, activityId);
+  if (!progress) throw new Error("Could not restore Week 1. Please reload progress.");
+  const ratings: ReflectionAnswers = {};
+  for (const key of ["arrive_mood", "arrive_energy"]) {
+    if (answers[key] !== undefined) {
+      if (answers[key] !== "" && !/^[1-5]$/.test(answers[key])) throw new Error("Choose a rating from 1 to 5.");
+      ratings[key] = answers[key];
+    }
+  }
+  return updateStep(progress, progress.current_step, ratings);
 }

@@ -8,10 +8,10 @@ const accounts = {
   a: { id: "11111111-1111-4111-8111-111111111111", email: "account-a@example.test" },
   b: { id: "33333333-3333-4333-8333-333333333333", email: "account-b@example.test" },
 };
-const writingA = "Private writing belonging only to account A.";
+const writingA = "Private writing belonging only to account A. " + "notice ".repeat(143).trim();
 const writingB = "Separate writing belonging only to account B.";
 const intentionsA = [1, 2, 3].map(i => ({ title: `Account A intention ${i}`, explanation: `Private explanation for account A number ${i}.` }));
-const answersA = { post_breathing_urge: "no", data_self_portrait_visible: "Account A habits", data_self_portrait_missing: "Account A context", ai_gap_got_right: "Private account A right", ai_gap_missed: "Private account A missed", ai_gap_reveals: "" };
+const answersA = { arrive_mood: "3", arrive_energy: "4", post_breathing_urge: "no", data_self_portrait_visible: "Account A habits", data_self_portrait_missing: "Account A context", ai_gap_got_right: "Private account A right", ai_gap_missed: "Private account A missed", ai_gap_reveals: "" };
 
 async function simulateAuthBackend(context, step = "writing") {
   let revision = 0;
@@ -21,7 +21,7 @@ async function simulateAuthBackend(context, step = "writing") {
       user_id: account.id, activity_id: activityId, status: "in_progress",
       current_step: name === "a" ? step : "writing", writing: name === "a" ? writingA : writingB,
       generated_intentions: name === "a" && step !== "writing" ? intentionsA : [],
-      reflection_answers: name === "a" ? answersA : { post_breathing_urge: "yes" },
+      reflection_answers: name === "a" ? answersA : { arrive_mood: "2", arrive_energy: "3", post_breathing_urge: "yes" },
       started_at: "2026-10-05T00:00:00.000Z", completed_at: null, updated_at: "2026-10-05T00:00:00.000Z",
     });
   }
