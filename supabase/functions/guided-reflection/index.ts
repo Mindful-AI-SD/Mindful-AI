@@ -53,7 +53,12 @@ export default {
       ? undefined
       : getReflectionOutcome(rawReflection);
 
-    if (reflectionOutcome?.validation === "reject") {
+    // "reject" is a 400; "support" is the fixed crisis response. Both end the
+    // request here, before the provider and before any session is recorded.
+    if (
+      reflectionOutcome?.validation === "reject" ||
+      reflectionOutcome?.validation === "support"
+    ) {
       return Response.json(reflectionOutcome.result.body, {
         status: reflectionOutcome.result.status,
       });

@@ -9,6 +9,7 @@ const { setTimeout: delay } = require("node:timers/promises");
 const { createClient } = require("@supabase/supabase-js");
 const loadProgress = require("../../helpers/load-progress-helpers.cjs");
 const serve = require("./local-server.cjs");
+const { status } = require("./local-supabase.cjs");
 
 const errors = {
   400: {
@@ -36,18 +37,7 @@ test(
   { timeout: 240000 },
   async (t) => {
     const root = resolve(__dirname, "../../../..");
-    const config = JSON.parse(
-      execFileSync("npx", ["--yes", "supabase", "status", "-o", "json"], {
-        cwd: root,
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "pipe"],
-      }),
-    );
-    assert.equal(
-      new URL(config.API_URL).hostname,
-      "127.0.0.1",
-      "Only local Supabase is supported",
-    );
+    const config = status(root);
     const key = config.PUBLISHABLE_KEY || config.ANON_KEY;
     const gitDirectory = execFileSync("git", [
       "rev-parse",
@@ -241,6 +231,35 @@ test(
         ) {
           assert.equal((await post({ ...body, ...extra })).status, 400);
         }
+      });
+      await t.test("crisis language returns the fixed support response and saves no submission or intentions", async () => {
+        const before = await progress.loadWeekOneProgress(activityId);
+        const request = {
+          ...body,
+          submissionId: randomUUID(),
+          userReflection: "I am worried that I might hurt myself tonight.",
+        };
+        const result = await post(request);
+        assert.equal(result.status, 200);
+        assert.deepEqual(Object.keys(result.body).sort(), [
+          "message",
+          "outcome",
+          "resources",
+        ]);
+        assert.equal(result.body.outcome, "support");
+        const names = result.body.resources.map((resource) => resource.name)
+          .join("\n");
+        assert.match(names, /988/);
+        assert.match(names, /UCF Counseling and Psychological Services/);
+        const ledger = await client.from("intention_submissions").select(
+          "status",
+        ).eq("submission_id", request.submissionId);
+        assert.equal(ledger.error, null);
+        assert.deepEqual(ledger.data, []);
+        assert.deepEqual(
+          await progress.loadWeekOneProgress(activityId),
+          before,
+        );
       });
       await t.test("same submission and normalized retry replay 200 without rewriting progress", async () => {
         const before = await progress.loadWeekOneProgress(activityId);

@@ -441,3 +441,10 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/mindfulness-response/deno.json"
 entrypoint = "./functions/mindfulness-response/index.ts"
+
+[functions.ai-activity]
+enabled = true
+# withSupabase verifies the user JWT and handles unsigned requests and CORS.
+verify_jwt = false
+import_map = "./functions/ai-activity/deno.json"
+entrypoint = "./functions/ai-activity/index.ts"

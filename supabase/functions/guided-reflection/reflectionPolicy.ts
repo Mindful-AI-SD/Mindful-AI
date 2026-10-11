@@ -1,3 +1,9 @@
+import {
+  containsCrisisLanguage,
+  CRISIS_SUPPORT_RESPONSE,
+  type CrisisSupportResponse,
+} from "../_shared/crisisSupport.ts";
+
 export type ReflectionCategory =
   | "empty"
   | "too_short"
@@ -18,10 +24,22 @@ type RejectedOutcome = {
   };
 };
 
+// Crisis language ends the request with the fixed support response. No
+// provider is called and the normal flow does not continue.
+type SupportOutcome = {
+  category: "concerning";
+  validation: "support";
+  mockBehavior: "not_called";
+  result: {
+    status: 200;
+    body: CrisisSupportResponse;
+  };
+};
+
 type MockOutcome = {
-  category: "concerning" | "ordinary";
+  category: "ordinary";
   validation: "accept";
-  mockBehavior: "supportive_non_clinical_message" | "generic_reflection_prompt";
+  mockBehavior: "generic_reflection_prompt";
   result: {
     status: 200;
     body: {
@@ -32,7 +50,7 @@ type MockOutcome = {
   };
 };
 
-export type ReflectionOutcome = RejectedOutcome | MockOutcome;
+export type ReflectionOutcome = RejectedOutcome | SupportOutcome | MockOutcome;
 
 const invalidRequest = {
   status: 400 as const,
@@ -54,6 +72,17 @@ export function getReflectionOutcome(reflection: string): ReflectionOutcome {
     };
   }
 
+  // Checked before the length limits: a student in crisis gets the support
+  // response even when the text would otherwise be rejected as too long.
+  if (containsCrisisLanguage([trimmedReflection])) {
+    return {
+      category: "concerning",
+      validation: "support",
+      mockBehavior: "not_called",
+      result: { status: 200, body: CRISIS_SUPPORT_RESPONSE },
+    };
+  }
+
   if (trimmedReflection.length < 3) {
     return {
       category: "too_short",
@@ -69,26 +98,6 @@ export function getReflectionOutcome(reflection: string): ReflectionOutcome {
       validation: "reject",
       mockBehavior: "not_called",
       result: invalidRequest,
-    };
-  }
-
-  if (
-    /\b(?:might|may|want to|plan to|going to)\s+(?:hurt|harm)\s+myself\b/i
-      .test(trimmedReflection)
-  ) {
-    return {
-      category: "concerning",
-      validation: "accept",
-      mockBehavior: "supportive_non_clinical_message",
-      result: {
-        status: 200,
-        body: {
-          reply:
-            "That sounds difficult. You deserve support, and it may help to talk with someone you trust.",
-          provider: "mock",
-          model: "mindful-reflection-v0",
-        },
-      },
     };
   }
 

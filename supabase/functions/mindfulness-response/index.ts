@@ -13,6 +13,10 @@ import {
   resolveMockTimingConfig,
 } from "../_shared/providers/mockProviderAdapter.ts";
 import { ProviderTimeoutError } from "../_shared/providers/types.ts";
+import {
+  containsCrisisLanguage,
+  CRISIS_SUPPORT_RESPONSE,
+} from "../_shared/crisisSupport.ts";
 
 const requestSchema = guidedReflectionSchema.extend({
   activityId: z.uuid(),
@@ -83,6 +87,15 @@ export function createMindfulnessEndpoint(
       body = await req.json();
     } catch {
       return failure(400);
+    }
+    // Crisis language gets the fixed support response before validation, the
+    // submission claim, and the provider, so nothing is generated or saved.
+    const reflection = (body as { userReflection?: unknown } | null)
+      ?.userReflection;
+    if (
+      typeof reflection === "string" && containsCrisisLanguage([reflection])
+    ) {
+      return Response.json(CRISIS_SUPPORT_RESPONSE);
     }
     const input = requestSchema.safeParse(body);
     if (!input.success) return failure(400);

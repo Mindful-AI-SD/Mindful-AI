@@ -1,4 +1,7 @@
-import { generateFutureGuidedReflection } from "../../functions/_shared/providers/futureProviderAdapter.ts";
+import {
+  generateFutureGuidedReflection,
+  generateFutureSensationLexicon,
+} from "../../functions/_shared/providers/futureProviderAdapter.ts";
 import { ProviderNotConfiguredError } from "../../functions/_shared/providers/types.ts";
 
 function assert(condition: boolean, message: string): void {
@@ -62,6 +65,36 @@ Deno.test("future provider fails the same way regardless of input", async () => 
     assert(
       thrown instanceof ProviderNotConfiguredError,
       "must always reject with ProviderNotConfiguredError",
+    );
+  }
+});
+
+Deno.test("future sensation-lexicon provider rejects with ProviderNotConfiguredError regardless of input", async () => {
+  const inputs: Array<[string, [string, string, string]]> = [
+    ["", ["", "", ""]],
+    ["context", ["tight shoulders", "weird", "warm hands"]],
+    ["a".repeat(4000), ["b".repeat(80), "c".repeat(80), "d".repeat(80)]],
+  ];
+
+  for (const [activityContext, sensations] of inputs) {
+    let thrown: unknown;
+    let resolved = false;
+
+    try {
+      await generateFutureSensationLexicon(activityContext, sensations);
+      resolved = true;
+    } catch (error) {
+      thrown = error;
+    }
+
+    assert(!resolved, "the future provider must reject, not resolve");
+    assert(
+      thrown instanceof ProviderNotConfiguredError,
+      "must always reject with ProviderNotConfiguredError",
+    );
+    assert(
+      (thrown as ProviderNotConfiguredError).code === "PROVIDER_NOT_CONFIGURED",
+      "error code must be the stable string PROVIDER_NOT_CONFIGURED",
     );
   }
 });

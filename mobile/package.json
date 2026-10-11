@@ -47,7 +47,7 @@
   "scripts": {
     "postinstall": "patch-package --error-on-fail",
     "test:returning-user": "playwright test",
-    "test:endpoint-integration": "node --test tests/integration/endpoint/endpoint-http.test.cjs && node --test tests/integration/endpoint/guided-reflection-fixtures.test.cjs",
+    "test:endpoint-integration": "node --test tests/integration/endpoint/endpoint-http.test.cjs && node --test tests/integration/endpoint/guided-reflection-fixtures.test.cjs && node --test tests/integration/endpoint/ai-activity-http.test.cjs",
     "check:client-security": "node scripts/check-client-security.cjs",
     "prestart": "npm run check:client-security",
     "preandroid": "npm run check:client-security",

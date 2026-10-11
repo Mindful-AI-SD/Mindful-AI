@@ -16,6 +16,7 @@ import {
   ProviderTimeoutError,
 } from "../_shared/providers/types.ts";
 import { guidedReflectionResponseSchema } from "../../schema/guidedReflectionSchema.ts";
+import { CRISIS_SUPPORT_RESPONSE } from "../_shared/crisisSupport.ts";
 
 Deno.test("mindfulness endpoint with real Supabase authentication middleware", async (t) => {
   const { publicKey, privateKey } = await generateKeyPair("ES256");
@@ -466,6 +467,171 @@ Deno.test("mindfulness endpoint with real Supabase authentication middleware", a
             400,
           );
         }
+      },
+    );
+    await t.step(
+      "crisis language returns the fixed support response without the store or provider",
+      async () => {
+        let calls = 0;
+        const handler = createActualEndpoint(
+          () => {
+            calls++;
+            return Promise.resolve({ intentions, provider: "mock" });
+          },
+          5000,
+          {
+            claim: () => {
+              calls++;
+              return Promise.resolve({ status: "claimed" });
+            },
+            finish: () => {
+              calls++;
+              return Promise.resolve();
+            },
+          },
+        );
+        for (
+          const userReflection of [
+            "I am worried that I might hurt myself tonight.",
+            "Lately I keep thinking everyone would be better off without me.",
+            `I want to die. ${"x".repeat(2001)}`,
+          ]
+        ) {
+          const response = await request(
+            JSON.stringify({ ...payload, userReflection }),
+            validToken,
+            "POST",
+            handler,
+          );
+          assert.equal(response.status, 200);
+          const output = await response.json();
+          assert.deepEqual(
+            output,
+            JSON.parse(JSON.stringify(CRISIS_SUPPORT_RESPONSE)),
+          );
+          assert.ok(!("intentions" in output));
+          assert.ok(!JSON.stringify(output).includes(userReflection));
+        }
+        assert.equal(calls, 0);
+        const unsigned = await request(
+          JSON.stringify({ ...payload, userReflection: "I want to die" }),
+          undefined,
+          "POST",
+          handler,
+        );
+        assert.equal(unsigned.status, 401);
+      },
+    );
+    await t.step(
+      "failed and timed-out submissions never overwrite earlier saved intentions, and a new submission retries safely",
+      async () => {
+        // Models what the database functions guarantee: only a successful
+        // finish saves intentions; a failure records its status and nothing else.
+        const ledger = new Map<
+          string,
+          { hash: string; response?: unknown; failureStatus?: 408 | 502 }
+        >();
+        let saved: unknown = null;
+        let saves = 0;
+        const store: SubmissionStore = {
+          claim(id, _activity, hash) {
+            const row = ledger.get(id);
+            if (!row) {
+              ledger.set(id, { hash });
+              return Promise.resolve({ status: "claimed" });
+            }
+            return Promise.resolve({
+              status: row.hash !== hash
+                ? "conflict"
+                : row.response
+                ? "completed"
+                : row.failureStatus
+                ? "failed"
+                : "processing",
+              response: row.response,
+              failureStatus: row.failureStatus,
+            });
+          },
+          finish(id, _token, response, failureStatus) {
+            const row = ledger.get(id)!;
+            if (failureStatus) {
+              assert.equal(response, null);
+              row.failureStatus = failureStatus;
+            } else {
+              row.response = response;
+              saved = response;
+              saves++;
+            }
+            return Promise.resolve();
+          },
+        };
+        const first = { intentions, provider: "mock" };
+        const second = {
+          intentions: intentions.map(() => ({
+            title: "Later",
+            explanation: "A later result.",
+          })),
+          provider: "mock",
+        };
+        let calls = 0;
+        let release: (value: unknown) => void = () => {};
+        const steps: Array<() => Promise<unknown>> = [
+          () => Promise.resolve(first),
+          () => Promise.reject(new ProviderError("private-diagnostic")),
+          () => Promise.resolve({ intentions: intentions.slice(0, 2) }),
+          () =>
+            new Promise((resolve) => {
+              release = resolve;
+            }),
+          () => Promise.resolve(second),
+        ];
+        const handler = createActualEndpoint(() => steps[calls++](), 5, store);
+        const submit = (submissionId: string, userReflection: string) =>
+          request(
+            JSON.stringify({ ...payload, submissionId, userReflection }),
+            validToken,
+            "POST",
+            handler,
+          );
+        const ids = Array.from({ length: 5 }, () => crypto.randomUUID());
+        const normalized = (value: unknown) =>
+          guidedReflectionResponseSchema.parse(value);
+
+        assert.equal((await submit(ids[0], "first reflection")).status, 200);
+        assert.deepEqual(saved, normalized(first));
+
+        // Provider error, malformed output, and a timeout each leave it alone.
+        assert.equal((await submit(ids[1], "second reflection")).status, 502);
+        assert.equal((await submit(ids[2], "third reflection")).status, 502);
+        assert.equal((await submit(ids[3], "fourth reflection")).status, 408);
+        assert.deepEqual(saved, normalized(first));
+        assert.equal(saves, 1);
+
+        // The timed-out provider answers late: its result is never saved.
+        release(second);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        assert.deepEqual(saved, normalized(first));
+        assert.equal(saves, 1);
+
+        // Retrying a failed ID replays its failure without generating again.
+        assert.equal((await submit(ids[1], "second reflection")).status, 502);
+        assert.equal((await submit(ids[3], "fourth reflection")).status, 408);
+        assert.equal(calls, 4);
+        assert.deepEqual(saved, normalized(first));
+
+        // Replaying the original ID returns the saved result, unchanged.
+        const replay = await submit(ids[0], "first reflection");
+        assert.equal(replay.status, 200);
+        assert.deepEqual(await replay.json(), normalized(first));
+        assert.equal(calls, 4);
+
+        // A new submission ID is an intentional retry and may replace it.
+        const retried = await submit(ids[4], "fourth reflection");
+        assert.equal(retried.status, 200);
+        assert.deepEqual(await retried.json(), normalized(second));
+        assert.deepEqual(saved, normalized(second));
+        assert.equal(saves, 2);
+        assert.equal(calls, 5);
       },
     );
     await t.step("authenticated GET returns 405 with Allow", async () => {
