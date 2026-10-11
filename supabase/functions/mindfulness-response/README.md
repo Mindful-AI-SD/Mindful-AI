@@ -35,6 +35,14 @@ intentions. The response is returned only after the result and
 `progress.generated_intentions` have been committed atomically. Existing
 writing, answers, step/status, and completion timestamps remain untouched.
 
+## Crisis language
+
+If `userReflection` contains crisis language, the endpoint returns HTTP 200 with
+the fixed support response from `../_shared/crisisSupport.ts`
+(`{ outcome: "support", message, resources }`) instead of intentions. This
+happens before validation, the submission claim, and the provider: no ledger row
+is written and `progress` is not touched.
+
 ## Durable idempotency and persistence
 
 The migration adds `intention_submissions`, keyed by authenticated user and
@@ -101,7 +109,7 @@ start` and `npx supabase migration up --local`), run this
 npm --prefix mobile run test:endpoint-integration
 ```
 
-Use WSL/Linux for this local Docker suite. Stop any other
+This local Docker suite runs on Linux, WSL, and Windows. Stop any other
 `supabase functions
 serve` process first, and do not run other HTTP suites
 concurrently: this command owns the local Edge runtime while it switches the

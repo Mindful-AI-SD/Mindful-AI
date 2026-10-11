@@ -8,6 +8,7 @@ const { resolve } = require("node:path");
 const { setTimeout: delay } = require("node:timers/promises");
 const { createClient } = require("@supabase/supabase-js");
 const serve = require("./local-server.cjs");
+const { status } = require("./local-supabase.cjs");
 
 const root = resolve(__dirname, "../../../..");
 const fixturePath = resolve(
@@ -37,24 +38,36 @@ const expectedIntentions = {
         "Choose one small way to bring this awareness into the next hour of your day.",
     },
   ],
-  concerning: [
-    {
-      title: "[Demo: Normal Success] Reach out to someone you trust",
-      explanation:
-        "Consider sharing how you're feeling with a friend, family member, or counselor today.",
-    },
-    {
-      title: "[Demo: Normal Success] Find a grounding action",
-      explanation:
-        "Try a simple grounding technique, like naming five things you can see, to steady the moment.",
-    },
-    {
-      title: "[Demo: Normal Success] Know support is available",
-      explanation:
-        "If the feeling grows stronger, a crisis line or trusted professional can help right away.",
-    },
-  ],
 };
+
+// Crisis language gets the fixed support response from
+// supabase/functions/_shared/crisisSupport.ts: no intentions and no session.
+// The wording is still a placeholder, so assert its shape and its resources
+// rather than the exact sentences.
+function assertSupportResponse(body, fixtureKey) {
+  assert.deepEqual(
+    Object.keys(body).sort(),
+    ["message", "outcome", "resources"],
+    `${fixtureKey}: support response must contain only its documented fields`,
+  );
+  assert.equal(body.outcome, "support", `${fixtureKey}: outcome`);
+  assert.ok(
+    typeof body.message === "string" && body.message.trim().length > 0,
+    `${fixtureKey}: support message must be present`,
+  );
+  assert.ok(Array.isArray(body.resources), `${fixtureKey}: resources`);
+  const names = body.resources.map((resource) => resource.name).join("\n");
+  assert.match(names, /988/, `${fixtureKey}: must name the 988 lifeline`);
+  assert.match(
+    names,
+    /UCF Counseling and Psychological Services/,
+    `${fixtureKey}: must name UCF CAPS`,
+  );
+  for (const resource of body.resources) {
+    assert.deepEqual(Object.keys(resource).sort(), ["contact", "name"]);
+    assert.ok(resource.contact.trim().length > 0);
+  }
+}
 
 function materializeRequest(fixture, activityId) {
   const reflection = fixture.request.userReflection;
@@ -85,18 +98,7 @@ test(
   "guided-reflection fixtures pass through the authenticated HTTP endpoint",
   { timeout: 240000 },
   async (t) => {
-    const config = JSON.parse(
-      execFileSync("npx", ["--yes", "supabase", "status", "-o", "json"], {
-        cwd: root,
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "pipe"],
-      }),
-    );
-    assert.equal(
-      new URL(config.API_URL).hostname,
-      "127.0.0.1",
-      "Only local Supabase is supported",
-    );
+    const config = status(root);
     const key = config.PUBLISHABLE_KEY || config.ANON_KEY;
     const gitDirectory = execFileSync("git", [
       "rev-parse",
@@ -170,7 +172,9 @@ test(
           const expected = expectedResult(fixture);
           assert.equal(result.status, expected.status, `${fixtureKey}: HTTP status`);
 
-          if (expected.status === 200) {
+          if (fixture.expected.profile === "support") {
+            assertSupportResponse(result.body, fixtureKey);
+          } else if (expected.status === 200) {
             assert.match(
               result.body.sessionId,
               /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,

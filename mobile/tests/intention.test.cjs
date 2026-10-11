@@ -391,6 +391,77 @@ test("intentions must be saved before opening gap reflection; failed saves can r
   assert.deepEqual(saved[1].data, fixture.intentions);
 });
 
+for (const scenario of ["timeout", "provider failure", "invalid response"]) {
+  test(`${scenario} on a later submission never overwrites the intentions already saved`, async () => {
+    const second = deferred();
+    const later = { provider: "mock", intentions: [1, 2, 3].map(n => ({ title: `Later title ${n}`, explanation: `Later explanation ${n}` })) };
+    const saved = [];
+    let providerCalls = 0;
+    const ui = screen(() => {
+      providerCalls++;
+      if (providerCalls === 1) return Promise.resolve(fixture);
+      if (providerCalls === 2) return second.promise;
+      return Promise.resolve(later);
+    }, async (user, activity, data) => { saved.push(JSON.parse(JSON.stringify(data))); });
+
+    ui.acknowledge();
+    ui.button("Submit").props.onPress();
+    await turn();
+    assertThreeReturnedIntentions(ui, fixture);
+    assert.deepEqual(saved, [fixture.intentions]);
+
+    ui.button("Back to writing").props.onPress();
+    const updated = originalDraft + "\nA new thought.";
+    ui.input().props.onChangeText(updated);
+    ui.button("Submit").props.onPress();
+    await turn();
+    assert.equal(providerCalls, 2);
+
+    if (scenario === "timeout") {
+      await ui.advance(15_000);
+      assert.match(ui.text(), /Request timed out/);
+    } else {
+      if (scenario === "provider failure") second.reject(Error("Provider unavailable"));
+      else second.resolve({ intentions: [] });
+      await turn();
+      assert.match(ui.text(), /Unable to load intentions/);
+    }
+    assert.deepEqual(saved, [fixture.intentions], "A failed request must not save anything");
+    assert.equal(ui.draft, updated);
+
+    // A late answer to the failed request must not be saved either.
+    if (scenario === "timeout") {
+      second.resolve(later);
+      await turn();
+      assert.deepEqual(saved, [fixture.intentions]);
+    }
+    await ui.advance(30_000);
+    assert.equal(providerCalls, 2, "Failure must not launch an automatic retry");
+
+    ui.button("Retry").props.onPress();
+    await turn();
+    assert.equal(providerCalls, 3);
+    assertThreeReturnedIntentions(ui, later);
+    assert.deepEqual(saved, [fixture.intentions, later.intentions]);
+    assert.equal(ui.draft, updated);
+    assert.deepEqual(ui.writingChanges, [updated], "Recovery must never change the draft");
+  });
+}
+
+test("the Explore request carries only the activity, its context, and the writing: no breathing player state", async () => {
+  const ui = screen(async () => fixture);
+  ui.acknowledge();
+  ui.button("Submit").props.onPress();
+  await turn();
+  assert.equal(ui.calls.length, 1);
+  assert.deepEqual(Object.keys(ui.calls[0]).sort(), ["activityContext", "activityId", "userReflection"]);
+  // Fields of PersistedBreathingSession, the state the timed Practice player keeps.
+  const sent = JSON.stringify(ui.calls[0]);
+  for (const field of ["startedAt", "accumulatedActiveMs", "savedAt", "completed", "elapsed", "paused", "running"]) {
+    assert.ok(!sent.includes(field), `${field} must not be sent`);
+  }
+});
+
 test("writing controls explain requirements and results have ordered accessible names", async () => {
   const ui = screen(async () => fixture);
   const input = ui.input();

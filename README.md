@@ -174,7 +174,7 @@ The guided-reflection request is validated with the shared Zod schema at:
 supabase/schema/guidedReflectionSchema.ts
 ```
 
-The schema requires `activityId`, `activityContext`, and `userReflection` for requests, and exactly three `intentions` for responses. Unexpected fields are rejected. The endpoint fixture suite sends each case through the authenticated local `guided-reflection` route and compares its HTTP status and complete JSON body. Run it with `npm --prefix mobile run test:endpoint-integration` after starting local Supabase. Empty, too-short, and oversized reflections return a controlled validation error; ordinary inputs receive generic intentions; and clearly concerning text receives supportive, non-clinical intentions. The mock makes no external provider calls and does not diagnose or assess crisis risk.
+The schema requires `activityId`, `activityContext`, and `userReflection` for requests, and exactly three `intentions` for responses. Unexpected fields are rejected. The endpoint fixture suite sends each case through the authenticated local `guided-reflection` route and compares its HTTP status and complete JSON body. Run it with `npm --prefix mobile run test:endpoint-integration` after starting local Supabase. Empty, too-short, and oversized reflections return a controlled validation error; ordinary inputs receive generic intentions; and text containing crisis language receives the fixed support response described under "Crisis Support Response" instead of intentions. The mock makes no external provider calls and does not diagnose or assess crisis risk.
 
 From the repository root, run all tests with:
 
@@ -203,6 +203,66 @@ deno task test:mock-adapter
 ```
 
 This suite asserts the frozen response contract: exactly three `intentions` on success, `provider: "mock"`, stable `title`/`explanation` field names with no extra keys, and stable `PROVIDER_TIMEOUT`/`PROVIDER_ERROR` error codes on failure. It fails if that contract changes unexpectedly. It also runs as part of `deno task tests`.
+
+### Week 2 Sensation Lexicon (mock only)
+
+The same adapter file also exposes `generateMockSensationLexicon(activityContext, sensations, scenario?, timing?)`. It takes exactly three sensations and returns `{ items, provider: "mock" }`, where each item is `{ original, isVague, suggestions }`: `original` is the student's own text, and `suggestions` holds plain sensory words only when the sensation uses a vague word such as "weird" or "fine". Output is deterministic, and the four scenarios above behave the same way (`PROVIDER_TIMEOUT` / `PROVIDER_ERROR` on failure). Success bodies carry no `[Demo: ...]` label.
+
+Requests and responses are validated by `supabase/schema/sensationLexiconSchema.ts`; `sensationLexiconMatchesRequest` additionally checks that a response echoes the sensations it was asked about. `getSensationLexiconProvider()` in the selector returns the mock (following `MOCK_PROVIDER_SCENARIO` and the timing variables) or the unimplemented `future` stub.
+
+### General AI Activity Endpoint
+
+`POST /functions/v1/ai-activity` (`supabase/functions/ai-activity/`) is the one authenticated endpoint for AI labs. The request names the activity `kind`, and each kind has its own typed `input` and `result`:
+
+```json
+{ "kind": "sensation_lexicon", "activityId": "<uuid of a published activity>", "activityContext": "...", "input": { "sensations": ["...", "...", "..."] } }
+```
+
+```json
+{ "kind": "sensation_lexicon", "provider": "mock", "result": { "items": [] } }
+```
+
+| `kind` | `input` | `result` |
+| --- | --- | --- |
+| `intention_mirror` (Week 1) | `{ reflection }`, 3–2000 characters | `{ intentions }`, exactly three `{ title, explanation }` |
+| `sensation_lexicon` (Week 2) | `{ sensations }`, exactly three strings of 2–80 characters | `{ items }`, exactly three `{ original, isVague, suggestions }` |
+| `distraction_audit` (Week 3) | `{ events }`, 0–300 taps, each `{ id, at, label }` with an ISO timestamp and a 1–40 character label | `{ totalEvents, categories, uncategorized, assignments }` |
+
+Routing lives in `supabase/functions/_shared/providers/providerSelector.ts`: a table maps each kind to its implementation for each provider name, and `runAiActivity(call)` runs a call through it. The provider is the one named by `GUIDED_REFLECTION_PROVIDER`, defaulting to `mock`; the mock follows `MOCK_PROVIDER_SCENARIO` and the timing variables for every kind. The contract is defined in `supabase/schema/aiActivitySchema.ts`, which reuses each kind's own schema for its limits. The endpoint rejects a response of the wrong kind or one that does not match the request.
+
+The user comes from the session. A client-supplied provider, user ID, result, `devMockScenario`, or any other unknown property is rejected. Nothing is stored. Errors contain only `{ error, message }`:
+
+| HTTP | Error | Meaning |
+| --- | --- | --- |
+| 400 | `INVALID_INPUT` | Invalid JSON, unknown kind, or input that does not fit the kind |
+| 401 | `AUTH_REQUIRED` | Missing or invalid user authentication |
+| 404 | `ACTIVITY_NOT_FOUND` | Activity missing or not published |
+| 408 | `PROVIDER_TIMEOUT` | Five-second deadline or adapter timeout |
+| 501 | `PROVIDER_NOT_CONFIGURED` | The selected provider is not implemented |
+| 502 | `PROVIDER_ERROR` | Provider failure, or output that fails the schema or does not match the request |
+| 503 | `ACTIVITY_CHECK_UNAVAILABLE` | The activity lookup failed |
+
+For the Week 3 Distraction Audit, the provider only assigns each event a category (or none). The server computes the counts and percentages in `supabase/functions/_shared/providers/distractionAudit.ts`: the denominator is every logged event, percentages are whole numbers that total exactly 100, and an empty log is answered without calling a provider. The mock assigns categories by keyword from a placeholder list of six. A worked example with exact expected output is in `supabase/functions/_shared/providers/activityContracts.md` and is the test fixture `supabase/tests/fixtures/distractionAuditExample.ts`. The mobile client does not support this kind yet.
+
+To add a lab: add its kind, input, and result to `types.ts`; implement it in the mock and the real adapter; add its schema and its entry in the routing table and `aiActivitySchema.ts`; add tests.
+
+The app calls the endpoint through `getAiActivity(kind, request)` in `mobile/lib/ai-activity.ts`, which uses the signed-in session and holds no provider key. `getSensationWords` in `mobile/lib/sensation-lexicon.ts` is the Week 2 wrapper. No screen uses either yet: the Week 1 screen still reads its local mock fixture, and the older `guided-reflection` and `mindfulness-response` endpoints are unchanged.
+
+### Endpoint Integration Suite
+
+`npm --prefix mobile run test:endpoint-integration` runs three suites against local Supabase, using the real Edge runtime, user authentication, database, and mock adapter: `mindfulness-response`, the `guided-reflection` fixtures, and `ai-activity` (Weeks 1, 2, and 3). The `ai-activity` suite covers every kind for success, 401, 400, 404, 405, 408, 501, and 502, the crisis support response, recovery after failures, and that the endpoint stores nothing. It needs Docker, `npx supabase start`, and the migrations applied; it refuses any API URL that is not `127.0.0.1`.
+
+The suite runs on Linux, WSL, and Windows. If the default API port is unavailable (on Windows, `netsh interface ipv4 show excludedportrange protocol=tcp` lists reserved ports), set `SUPABASE_API_PORT` to a free port in the shell before `npx supabase start` and before running the suite. This overrides `api.port` without editing `supabase/config.toml`.
+
+### Crisis Support Response
+
+`supabase/functions/_shared/crisisSupport.ts` is the only place crisis language (self-harm, suicidal ideation, abuse) is detected and answered. `guided-reflection`, `mindfulness-response`, and `ai-activity` all call it on the student's text before validation and before any provider. On a match they return HTTP 200 with a fixed, non-generated body and stop: no provider call, no saved result, no session row.
+
+```json
+{ "outcome": "support", "message": "...", "resources": [{ "name": "...", "contact": "..." }] }
+```
+
+The resources are the 988 Suicide & Crisis Lifeline, UCF Counseling and Psychological Services, and emergency services. **The message wording is a placeholder that the sponsor has not approved.** Detection is a phrase list that leans toward over-matching; it will still miss some wording, so it is not evidence of complete coverage.
 
 ### Provider Selection
 

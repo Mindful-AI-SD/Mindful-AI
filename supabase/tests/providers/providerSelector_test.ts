@@ -1,6 +1,7 @@
 import {
   DEFAULT_PROVIDER_NAME,
   getGuidedReflectionProvider,
+  getSensationLexiconProvider,
   isProviderName,
   resolveProviderName,
 } from "../../functions/_shared/providers/providerSelector.ts";
@@ -102,6 +103,55 @@ Deno.test("getGuidedReflectionProvider defaults to the resolved provider name", 
 
     try {
       await provider("context", "an ordinary reflection");
+    } catch (error) {
+      thrown = error;
+    }
+
+    assert(
+      thrown instanceof ProviderNotConfiguredError,
+      "omitting the name must use the environment-resolved provider",
+    );
+  });
+});
+
+Deno.test("getSensationLexiconProvider(\"mock\") returns a working provider", async () => {
+  const provider = getSensationLexiconProvider("mock");
+  const response = await provider("context", [
+    "tight shoulders",
+    "weird",
+    "warm hands",
+  ]);
+
+  assert(response.provider === "mock", "mock provider must self-identify as mock");
+  assert(
+    response.items.length === 3,
+    "mock provider must return exactly three items",
+  );
+});
+
+Deno.test("getSensationLexiconProvider(\"future\") returns the unconfigured stub", async () => {
+  const provider = getSensationLexiconProvider("future");
+  let thrown: unknown;
+
+  try {
+    await provider("context", ["tight shoulders", "weird", "warm hands"]);
+  } catch (error) {
+    thrown = error;
+  }
+
+  assert(
+    thrown instanceof ProviderNotConfiguredError,
+    "future provider must reject with ProviderNotConfiguredError",
+  );
+});
+
+Deno.test("getSensationLexiconProvider defaults to the resolved provider name", async () => {
+  await withEnv("future", async () => {
+    const provider = getSensationLexiconProvider();
+    let thrown: unknown;
+
+    try {
+      await provider("context", ["tight shoulders", "weird", "warm hands"]);
     } catch (error) {
       thrown = error;
     }

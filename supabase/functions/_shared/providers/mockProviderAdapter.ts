@@ -1,5 +1,16 @@
-import type { ReflectionIntention } from "./types.ts";
-import { ProviderError, ProviderTimeoutError } from "./types.ts";
+import type {
+  DistractionAssignment,
+  DistractionCategory,
+  DistractionEvent,
+  ReflectionIntention,
+  SensationLexiconItem,
+  SensationList,
+} from "./types.ts";
+import {
+  DISTRACTION_CATEGORIES,
+  ProviderError,
+  ProviderTimeoutError,
+} from "./types.ts";
 
 // Re-exported for callers that already import these from this module.
 export type { ReflectionIntention };
@@ -17,9 +28,8 @@ export type MockTimingConfig = {
   timeoutMs: number;
 };
 
-const CONCERNING_LANGUAGE =
-  /\b(?:might|may|want to|plan to|going to)\s+(?:hurt|harm)\s+myself\b/i;
-
+// Crisis language is handled before any provider is called, by
+// ../crisisSupport.ts. The mock has no safety logic of its own.
 const ORDINARY_INTENTIONS: MockProviderResponse["intentions"] = [
   {
     title: "Name one sensation",
@@ -35,24 +45,6 @@ const ORDINARY_INTENTIONS: MockProviderResponse["intentions"] = [
     title: "Carry it forward",
     explanation:
       "Choose one small way to bring this awareness into the next hour of your day.",
-  },
-];
-
-const CONCERNING_INTENTIONS: MockProviderResponse["intentions"] = [
-  {
-    title: "Reach out to someone you trust",
-    explanation:
-      "Consider sharing how you're feeling with a friend, family member, or counselor today.",
-  },
-  {
-    title: "Find a grounding action",
-    explanation:
-      "Try a simple grounding technique, like naming five things you can see, to steady the moment.",
-  },
-  {
-    title: "Know support is available",
-    explanation:
-      "If the feeling grows stronger, a crisis line or trusted professional can help right away.",
   },
 ];
 
@@ -156,15 +148,8 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function selectIntentions(
-  userReflection: string,
-  label: string,
-): MockProviderResponse["intentions"] {
-  const base = CONCERNING_LANGUAGE.test(userReflection)
-    ? CONCERNING_INTENTIONS
-    : ORDINARY_INTENTIONS;
-
-  return base.map((intention) => ({
+function selectIntentions(label: string): MockProviderResponse["intentions"] {
+  return ORDINARY_INTENTIONS.map((intention) => ({
     ...intention,
     title: `${label} ${intention.title}`,
   })) as MockProviderResponse["intentions"];
@@ -174,7 +159,7 @@ function selectIntentions(
 // (activityContext, userReflection) -> Promise<MockProviderResponse>.
 export async function generateMockGuidedReflection(
   activityContext: string,
-  userReflection: string,
+  _userReflection: string,
   scenario: MockScenario = DEFAULT_SCENARIO,
   timing: MockTimingConfig = DEFAULT_TIMING_CONFIG,
 ): Promise<MockProviderResponse> {
@@ -193,15 +178,190 @@ export async function generateMockGuidedReflection(
     case "delayed":
       await wait(timing.delayMs);
       return {
-        intentions: selectIntentions(userReflection, DEMO_LABELS.delayed),
+        intentions: selectIntentions(DEMO_LABELS.delayed),
         provider: "mock",
       };
 
     case "success":
     default:
       return {
-        intentions: selectIntentions(userReflection, DEMO_LABELS.success),
+        intentions: selectIntentions(DEMO_LABELS.success),
         provider: "mock",
       };
+  }
+}
+
+export type MockSensationLexiconResponse = {
+  items: [SensationLexiconItem, SensationLexiconItem, SensationLexiconItem];
+  provider: "mock";
+};
+
+// Synthetic word lists for the mock only; not sponsor-approved curriculum
+// copy. Every suggestion is a plain sensory word: no causes, no clinical or
+// diagnostic terms. Keys are the vague words the mock recognizes.
+const VAGUE_SENSATION_WORDS: Record<string, string[]> = {
+  weird: ["tingling", "fluttery", "buzzing", "prickly"],
+  strange: ["tingling", "floaty", "buzzing", "prickly"],
+  funny: ["fluttery", "ticklish", "tingling", "jittery"],
+  off: ["unsteady", "heavy", "restless", "hollow"],
+  bad: ["tight", "heavy", "achy", "sore"],
+  uncomfortable: ["tight", "stiff", "restless", "warm"],
+  tired: ["heavy", "slow", "droopy", "sluggish"],
+  fine: ["loose", "steady", "warm", "light"],
+  okay: ["loose", "steady", "warm", "light"],
+  ok: ["loose", "steady", "warm", "light"],
+  good: ["loose", "light", "warm", "steady"],
+};
+
+function describeSensation(original: string): SensationLexiconItem {
+  const words: string[] = original.toLowerCase().match(/[a-z]+/g) ?? [];
+  const vagueWord = words.find((word) => word in VAGUE_SENSATION_WORDS);
+
+  if (vagueWord === undefined) {
+    return { original, isVague: false, suggestions: [] };
+  }
+
+  return {
+    original,
+    isVague: true,
+    // Never offer a word the student already used.
+    suggestions: VAGUE_SENSATION_WORDS[vagueWord].filter((suggestion) =>
+      !words.includes(suggestion)
+    ),
+  };
+}
+
+function describeSensations(
+  sensations: SensationList,
+): MockSensationLexiconResponse {
+  return {
+    items: sensations.map(
+      describeSensation,
+    ) as MockSensationLexiconResponse["items"],
+    provider: "mock",
+  };
+}
+
+// Same scenarios and timing knobs as generateMockGuidedReflection. Success
+// bodies carry no demo label, because every string in them is either the
+// student's own text or a single suggested word; failures keep the label in
+// the error message.
+export async function generateMockSensationLexicon(
+  _activityContext: string,
+  sensations: SensationList,
+  scenario: MockScenario = DEFAULT_SCENARIO,
+  timing: MockTimingConfig = DEFAULT_TIMING_CONFIG,
+): Promise<MockSensationLexiconResponse> {
+  switch (scenario) {
+    case "error":
+      throw new ProviderError(
+        `${DEMO_LABELS.error} Mock provider returned an error`,
+      );
+
+    case "timeout":
+      await wait(timing.timeoutMs);
+      throw new ProviderTimeoutError(
+        `${DEMO_LABELS.timeout} Mock provider timed out after ${timing.timeoutMs}ms`,
+      );
+
+    case "delayed":
+      await wait(timing.delayMs);
+      return describeSensations(sensations);
+
+    case "success":
+    default:
+      return describeSensations(sensations);
+  }
+}
+
+export type MockDistractionAuditResponse = {
+  assignments: DistractionAssignment[];
+  provider: "mock";
+};
+
+// Synthetic keyword lists for the mock only. A label is matched word by word,
+// and the first category in DISTRACTION_CATEGORIES order with a matching word
+// wins. A label with no matching word is left uncategorized (null).
+const DISTRACTION_KEYWORDS: Record<DistractionCategory, string[]> = {
+  social_media: [
+    "instagram",
+    "tiktok",
+    "snapchat",
+    "facebook",
+    "twitter",
+    "reddit",
+    "social",
+  ],
+  messaging: ["text", "message", "messages", "chat", "email", "call", "dm"],
+  entertainment: [
+    "youtube",
+    "netflix",
+    "video",
+    "videos",
+    "game",
+    "games",
+    "music",
+    "show",
+    "tv",
+  ],
+  news_and_browsing: ["news", "browsing", "search", "shopping", "headlines"],
+  work_and_school: [
+    "homework",
+    "assignment",
+    "class",
+    "work",
+    "deadline",
+    "canvas",
+  ],
+  thoughts: ["worry", "worrying", "daydream", "planning", "memory", "thought"],
+};
+
+function categorizeDistraction(label: string): DistractionCategory | null {
+  const words: string[] = label.toLowerCase().match(/[a-z]+/g) ?? [];
+
+  return DISTRACTION_CATEGORIES.find((category) =>
+    DISTRACTION_KEYWORDS[category].some((keyword) => words.includes(keyword))
+  ) ?? null;
+}
+
+function categorizeDistractions(
+  events: DistractionEvent[],
+): MockDistractionAuditResponse {
+  return {
+    assignments: events.map((event) => ({
+      eventId: event.id,
+      category: categorizeDistraction(event.label),
+    })),
+    provider: "mock",
+  };
+}
+
+// Same scenarios and timing knobs as the other mocks. It returns assignments
+// only; summarizeDistractionAudit turns them into counts and percentages.
+export async function generateMockDistractionAudit(
+  _activityContext: string,
+  events: DistractionEvent[],
+  scenario: MockScenario = DEFAULT_SCENARIO,
+  timing: MockTimingConfig = DEFAULT_TIMING_CONFIG,
+): Promise<MockDistractionAuditResponse> {
+  switch (scenario) {
+    case "error":
+      throw new ProviderError(
+        `${DEMO_LABELS.error} Mock provider returned an error`,
+      );
+
+    case "timeout":
+      await wait(timing.timeoutMs);
+      throw new ProviderTimeoutError(
+        `${DEMO_LABELS.timeout} Mock provider timed out after ${timing.timeoutMs}ms`,
+      );
+
+    case "delayed":
+      await wait(timing.delayMs);
+      return categorizeDistractions(events);
+
+    case "success":
+    default:
+      return categorizeDistractions(events);
   }
 }

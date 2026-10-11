@@ -1,4 +1,5 @@
-const { spawn } = require("node:child_process");
+const { execFileSync, spawn } = require("node:child_process");
+const { windows } = require("./local-supabase.cjs");
 const { writeFileSync } = require("node:fs");
 const { join } = require("node:path");
 const { setTimeout: delay } = require("node:timers/promises");
@@ -11,6 +12,8 @@ module.exports = async function serve(
   scenario,
   apiUrl,
   functionName = "mindfulness-response",
+  // Further server-only settings for this run, e.g. the provider selection.
+  extraEnv = {},
 ) {
   const envFile = join(directory, "scenario.env");
   writeFileSync(
@@ -21,6 +24,7 @@ module.exports = async function serve(
       "MOCK_PROVIDER_DELAY_MS=6000",
       "MOCK_PROVIDER_ALLOW_SCENARIO_OVERRIDE=false",
       "MIN74_PRIVATE_CONFIG=min74-private-config-sentinel",
+      ...Object.entries(extraEnv).map(([name, value]) => `${name}=${value}`),
       "",
     ].join("\n"),
     { mode: 0o600 },
@@ -33,7 +37,10 @@ module.exports = async function serve(
     functionName,
     "--env-file",
     envFile,
-  ], { cwd: root, detached: true, stdio: ["ignore", "pipe", "pipe"] });
+  ], windows
+    // npx is a .cmd shim on Windows, which Node only runs through a shell.
+    ? { cwd: root, shell: true, stdio: ["ignore", "pipe", "pipe"] }
+    : { cwd: root, detached: true, stdio: ["ignore", "pipe", "pipe"] });
   let ready = false, closed = false, failed = false, output = "";
   child.on("error", () => {
     failed = true;
@@ -50,6 +57,21 @@ module.exports = async function serve(
   child.stderr.on("data", capture);
   const signal = (name) => {
     if (!child.pid || closed) return;
+    if (windows) {
+      // Windows has no process groups: end the CLI's process tree, then the
+      // Edge runtime container it would otherwise leave serving old settings.
+      for (
+        const [command, args] of [
+          ["taskkill", ["/pid", String(child.pid), "/T", "/F"]],
+          ["docker", ["rm", "-f", "supabase_edge_runtime_Mindful-AI"]],
+        ]
+      ) {
+        try {
+          execFileSync(command, args, { stdio: "ignore" });
+        } catch { /* Already gone. */ }
+      }
+      return;
+    }
     try {
       process.kill(-child.pid, name);
     } catch (error) {

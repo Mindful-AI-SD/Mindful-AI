@@ -42,7 +42,16 @@
       "activityContext": "A breathing exercise about noticing physical sensations.",
       "userReflection": "I am worried that I might hurt myself tonight."
     },
-    "expected": { "status": 200, "profile": "concerning" }
+    "expected": { "status": 200, "profile": "support" }
+  },
+  "paraphrasedConcerningReflection": {
+    "name": "paraphrased concerning reflection",
+    "request": {
+      "activityId": "$publishedActivityId",
+      "activityContext": "A breathing exercise about noticing physical sensations.",
+      "userReflection": "Lately I keep thinking everyone would be better off without me."
+    },
+    "expected": { "status": 200, "profile": "support" }
   },
   "emptyReflection": {
     "name": "empty reflection",

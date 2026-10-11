@@ -73,20 +73,21 @@ Deno.test("is deterministic for the same input", async () => {
   );
 });
 
-Deno.test("returns a different intention set for concerning language", async () => {
+// Crisis language is answered by the shared crisis check before an endpoint
+// calls any provider, so the mock must not carry its own copy of that logic.
+Deno.test("does not vary its output for crisis language", async () => {
   const ordinary = await generateMockGuidedReflection(
     "context",
     "I felt calm today.",
   );
-  const concerning = await generateMockGuidedReflection(
+  const crisis = await generateMockGuidedReflection(
     "context",
     "I might hurt myself tonight.",
   );
 
   assert(
-    JSON.stringify(ordinary.intentions) !==
-      JSON.stringify(concerning.intentions),
-    "concerning language must produce a different intention set",
+    JSON.stringify(ordinary) === JSON.stringify(crisis),
+    "the mock must have no crisis handling of its own",
   );
 });
 
