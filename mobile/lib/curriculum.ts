@@ -19,19 +19,23 @@ export type CurriculumWeek = {
 };
 
 export async function getPublishedWeekOne(): Promise<CurriculumWeek> {
+  return getPublishedWeek(1);
+}
+
+export async function getPublishedWeek(weekNumber: 1 | 2): Promise<CurriculumWeek> {
   const { data: week, error: weekError } = await supabase
     .from("weeks")
     .select("id, week_number, title, theme, description")
-    .eq("week_number", 1)
+    .eq("week_number", weekNumber)
     .eq("is_published", true)
     .maybeSingle();
 
   if (weekError) {
-    throw new Error(`Could not load Week 1: ${weekError.message}`);
+    throw new Error(`Could not load Week ${weekNumber}. Please retry.`);
   }
 
   if (!week) {
-    throw new Error("Published Week 1 was not found.");
+    throw new Error(`Published Week ${weekNumber} was not found.`);
   }
 
   const { data: activities, error: activitiesError } = await supabase
@@ -45,7 +49,7 @@ export async function getPublishedWeekOne(): Promise<CurriculumWeek> {
 
   if (activitiesError) {
     throw new Error(
-      `Could not load Week 1 activities: ${activitiesError.message}`,
+      `Could not load Week ${weekNumber} activities. Please retry.`,
     );
   }
 

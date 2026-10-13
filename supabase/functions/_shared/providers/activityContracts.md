@@ -18,7 +18,7 @@ provider only, and all are served by one general endpoint.
 | Week | Contract `kind`              | Student supplies                 | Model returns                                 | Status                             |
 | ---- | ---------------------------- | -------------------------------- | --------------------------------------------- | ---------------------------------- |
 | 1    | `intention_mirror`           | One reflection                   | Exactly 3 intentions                          | Built (mock only)                  |
-| 2    | `sensation_lexicon`          | 3 sensations                     | Optional word choices per sensation           | Built (mock only); no screen       |
+| 2    | `sensation_lexicon`          | 3 sensations                     | Optional word choices per sensation           | Built (mock only); Week 2 Explore  |
 | 3    | `distraction_audit`          | A log of time-stamped taps       | A category per event; server does the math    | Built (mock only); no screen       |
 | 4    | `trigger_sensation_reaction` | One stressful tech event         | 3 parts (each found or unknown) + 3 questions | Not built                          |
 | 5a   | `decentering_shift`          | 3 beliefs                        | 3 reframes                                    | Not built                          |
@@ -141,7 +141,7 @@ type Intention = { title: string; explanation: string };
   reflection without intentions is a curriculum question (see Open questions);
   today the flow blocks.
 
-### 2. `sensation_lexicon` (Week 2, A2) — built against the mock, no screen yet
+### 2. `sensation_lexicon` (Week 2, A2) — connected to Week 2 Explore
 
 ```ts
 input: {
@@ -163,8 +163,9 @@ type Item = {
   `{ items, provider }`; the shared envelope above is still only proposed.
 - Endpoint: the general `POST /functions/v1/ai-activity` with
   `kind: "sensation_lexicon"`. App service: `getSensationWords` in
-  `mobile/lib/sensation-lexicon.ts`. Nothing is stored yet, and there is no
-  `submissionId`, so a retry generates again.
+  `mobile/lib/sensation-lexicon.ts`. The frontend saves the descriptions and
+  returned words in the user's progress record and restores them without another
+  provider request. There is no `submissionId`, so an explicit retry generates again.
 - Output checks: `original` values match the input verbatim; no suggestion
   repeats the original; no clinical or diagnostic terms; no explanation field
   exists, so the model cannot state a cause or a "correct" label.
