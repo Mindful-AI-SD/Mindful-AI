@@ -1,6 +1,6 @@
 import {
-  guidedReflectionSchema,
   guidedReflectionResponseSchema,
+  guidedReflectionSchema,
 } from "../../schema/guidedReflectionSchema.ts";
 
 const request = {
@@ -59,6 +59,22 @@ const cases = [
     valid: true,
   },
   {
+    name: "accepts an explanation at the 24-word boundary",
+    schema: guidedReflectionResponseSchema,
+    value: {
+      ...response,
+      intentions: [
+        {
+          title: "Pause",
+          explanation:
+            "Choose one moment this week to pause, notice your breathing, and gently observe what is present without needing to change anything right away today.",
+        },
+        ...response.intentions.slice(1),
+      ],
+    },
+    valid: true,
+  },
+  {
     name: "rejects fewer than three intentions",
     schema: guidedReflectionResponseSchema,
     value: { ...response, intentions: response.intentions.slice(0, 2) },
@@ -96,6 +112,58 @@ const cases = [
       intentions: [
         { title: " ", explanation: "A reason." },
         ...response.intentions.slice(1),
+      ],
+    },
+    valid: false,
+  },
+  {
+    name: "rejects a title over 60 characters",
+    schema: guidedReflectionResponseSchema,
+    value: {
+      ...response,
+      intentions: [
+        { title: "x".repeat(61), explanation: "A reason." },
+        ...response.intentions.slice(1),
+      ],
+    },
+    valid: false,
+  },
+  {
+    name: "rejects an explanation over 160 characters",
+    schema: guidedReflectionResponseSchema,
+    value: {
+      ...response,
+      intentions: [
+        { title: "Pause", explanation: "x".repeat(161) },
+        ...response.intentions.slice(1),
+      ],
+    },
+    valid: false,
+  },
+  {
+    name: "rejects an explanation over 24 words",
+    schema: guidedReflectionResponseSchema,
+    value: {
+      ...response,
+      intentions: [
+        {
+          title: "Pause",
+          explanation: Array.from({ length: 25 }, () => "notice").join(" "),
+        },
+        ...response.intentions.slice(1),
+      ],
+    },
+    valid: false,
+  },
+  {
+    name: "rejects duplicate intention titles",
+    schema: guidedReflectionResponseSchema,
+    value: {
+      ...response,
+      intentions: [
+        response.intentions[0],
+        { ...response.intentions[1], title: "pause" },
+        response.intentions[2],
       ],
     },
     valid: false,

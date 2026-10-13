@@ -3,6 +3,7 @@ import {
   ProviderError,
   ProviderTimeoutError,
 } from "../../functions/_shared/providers/mockProviderAdapter.ts";
+import { guidedReflectionResponseSchema } from "../../schema/guidedReflectionSchema.ts";
 
 function assert(condition: boolean, message: string): void {
   if (!condition) {
@@ -13,6 +14,10 @@ function assert(condition: boolean, message: string): void {
 function assertValidResponse(
   response: { intentions: unknown[]; provider: string },
 ): void {
+  assert(
+    guidedReflectionResponseSchema.safeParse(response).success,
+    "response must satisfy the production intention contract",
+  );
   assert(response.provider === "mock", "provider must be mock");
   assert(
     response.intentions.length === 3,

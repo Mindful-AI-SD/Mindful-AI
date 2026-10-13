@@ -8,15 +8,22 @@ export const guidedReflectionSchema = z.object({
 }).strict();
 
 export const guidedReflectionResponseSchema = z.object({
-  intentions: z.array(z.object({
-    title: z.string().trim().min(1).max(120),
-    explanation: z.string().trim().min(1).max(1000),
-  }).strict()).length(3),
+  intentions: z.array(
+    z.object({
+      title: z.string().trim().min(1).max(60),
+      explanation: z.string().trim().min(1).max(160).refine(
+        (value) => value.split(/\s+/u).length <= 24,
+      ),
+    }).strict(),
+  ).length(3).refine((intentions) => {
+    const titles = intentions.map(({ title }) => title.toLowerCase());
+    return new Set(titles).size === titles.length;
+  }),
   provider: z.literal("mock"),
 }).strict();
 
-export type GuidedReflectionRequest =
-  z.infer<typeof guidedReflectionSchema>;
+export type GuidedReflectionRequest = z.infer<typeof guidedReflectionSchema>;
 
-export type GuidedReflectionResponse =
-  z.infer<typeof guidedReflectionResponseSchema>;
+export type GuidedReflectionResponse = z.infer<
+  typeof guidedReflectionResponseSchema
+>;
