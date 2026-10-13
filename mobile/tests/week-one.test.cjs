@@ -162,3 +162,49 @@ test("Explore cannot advance with fewer than 150 words or fewer than three inten
   await db.api.saveWeekOneStep("a", "activity", "writing");
   assert.equal(db.record.current_step, "intention_mirror");
 });
+
+test("all legacy saved step values remain readable and resume without rewriting data", async () => {
+  for (const step of steps) {
+    const db = setup();
+    await db.api.startWeekOne("a", "activity");
+    db.record.current_step = step;
+    db.record.writing = "notice ".repeat(150).trim();
+    db.record.generated_intentions = [{ title: "one" }, { title: "two" }, { title: "three" }];
+    db.record.reflection_answers = {
+      post_breathing_urge: "no", data_self_portrait_visible: "Habits", data_self_portrait_missing: "Context",
+      ai_gap_got_right: "Attention", ai_gap_missed: "Context", ai_gap_reveals: "Limits", yellowdig_draft: "Draft",
+      legacy_unknown_key: "Keep this unchanged",
+    };
+    // Deliberately omit Arrive ratings: old records must still be readable.
+    if (step === "post_breathing_check_in") delete db.record.reflection_answers.post_breathing_urge;
+    if (step === "writing") db.record.generated_intentions = [];
+    if (step === "data_self_portrait") delete db.record.reflection_answers.data_self_portrait_visible;
+    if (step === "ai_gap_reflection") delete db.record.reflection_answers.ai_gap_missed;
+    if (step === "completed") {
+      db.record.status = "completed";
+      db.record.completed_at = "2026-10-05T00:00:00.000Z";
+    }
+    const before = structuredClone(db.record);
+    assert.deepEqual(await db.api.getWeekOneProgress("a", "activity"), before);
+    assert.equal(db.api.deriveNextAllowedStep(before), step);
+    assert.deepEqual(await db.api.startWeekOne("a", "activity"), before);
+    assert.deepEqual(db.record, before);
+  }
+});
+
+test("legacy completed progress stays complete without new Arrive answers or writes", async () => {
+  const db = setup();
+  await db.api.startWeekOne("a", "activity");
+  db.record.current_step = "completed";
+  db.record.status = "completed";
+  db.record.completed_at = "2026-09-25T00:00:00.000Z";
+  db.record.reflection_answers = { legacy_answer: "keep" };
+  const before = structuredClone(db.record);
+  assert.equal(db.api.getWeekOneCompletionIssue(before), null);
+  const result = await db.api.completeWeekOne("a", "activity");
+  assert.equal(result.completed, true);
+  assert.equal(result.alreadyCompleted, true);
+  assert.equal(result.completedAt, before.completed_at);
+  assert.deepEqual(result.progress, before);
+  assert.deepEqual(db.record, before);
+});
