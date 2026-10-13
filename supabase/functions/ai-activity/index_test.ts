@@ -112,10 +112,11 @@ Deno.test("AI activity endpoint with real Supabase authentication middleware", a
     isVague: index === 1,
     suggestions: index === 1 ? ["tingling", "buzzing"] : [],
   }));
-  const intentions = Array.from(
-    { length: 3 },
-    () => ({ title: "Notice", explanation: "Breathe slowly." }),
-  );
+  const intentions = [
+    { title: "Notice", explanation: "Breathe slowly." },
+    { title: "Pause", explanation: "Make room for a moment." },
+    { title: "Choose", explanation: "Continue at your own pace." },
+  ];
   const lexiconOutput = {
     kind: "sensation_lexicon",
     provider: "mock",
@@ -538,9 +539,9 @@ Deno.test("AI activity endpoint with real Supabase authentication middleware", a
               ...mirrorOutput,
               provider: " mock ",
               result: {
-                intentions: intentions.map(() => ({
-                  title: " Notice ",
-                  explanation: " Breathe slowly. ",
+                intentions: intentions.map(({ title, explanation }) => ({
+                  title: ` ${title} `,
+                  explanation: ` ${explanation} `,
                 })),
               },
             });

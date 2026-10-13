@@ -168,10 +168,11 @@ Deno.test("mindfulness endpoint with real Supabase authentication middleware", a
         assert.equal(calls, 0);
       },
     );
-    const intentions = Array.from(
-      { length: 3 },
-      () => ({ title: " Notice ", explanation: " Breathe slowly. " }),
-    );
+    const intentions = [
+      { title: " Notice ", explanation: " Breathe slowly. " },
+      { title: " Pause ", explanation: " Make room for a moment. " },
+      { title: " Choose ", explanation: " Continue at your own pace. " },
+    ];
     await t.step("normalizes validated input and output", async () => {
       const handler = createMindfulnessEndpoint((context, reflection) => {
         assert.equal(context, payload.activityContext);
@@ -190,10 +191,11 @@ Deno.test("mindfulness endpoint with real Supabase authentication middleware", a
       );
       assert.equal(response.status, 200);
       assert.deepEqual(await response.json(), {
-        intentions: intentions.map(() => ({
-          title: "Notice",
-          explanation: "Breathe slowly.",
-        })),
+        intentions: [
+          { title: "Notice", explanation: "Breathe slowly." },
+          { title: "Pause", explanation: "Make room for a moment." },
+          { title: "Choose", explanation: "Continue at your own pace." },
+        ],
         provider: "mock",
       });
     });
@@ -567,10 +569,11 @@ Deno.test("mindfulness endpoint with real Supabase authentication middleware", a
         };
         const first = { intentions, provider: "mock" };
         const second = {
-          intentions: intentions.map(() => ({
-            title: "Later",
-            explanation: "A later result.",
-          })),
+          intentions: [
+            { title: "Later", explanation: "A later result." },
+            { title: "Reflect", explanation: "Make space for noticing." },
+            { title: "Continue", explanation: "Choose a gentle next step." },
+          ],
           provider: "mock",
         };
         let calls = 0;
