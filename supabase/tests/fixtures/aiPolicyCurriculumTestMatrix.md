@@ -21,6 +21,14 @@ in test fixtures.
 
 ## Cross-cutting unsafe and malformed cases
 
+Week 2 request boundaries, response shape, and inappropriate suggestion
+examples are exercised by the versioned
+[`sensationLexiconValidation.json`](./sensationLexiconValidation.json) fixture
+and `supabase/tests/schema/sensationLexiconFixtures_test.ts`. The shared
+response schema rejects the fixture's phrase-level diagnostic, causal,
+measurement, and certainty claims; this lexical guard does not replace review
+of generated text.
+
 Run applicable cases against every activity's AI-facing input. For cases whose
 meaning depends on the lab, adapt only the synthetic text/data, not the safety
 expectation.
