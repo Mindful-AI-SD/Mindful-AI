@@ -63,16 +63,16 @@
       "expectedOutput": {
         "intentions": [
           {
-            "title": "Notice one moment of ease",
-            "explanation": "When you pause this week, gently notice one sensation without needing to change it."
+            "title": "Keep curiosity in your own hands",
+            "explanation": "When AI offers an idea, notice what feels useful and choose what fits your own thinking."
           },
           {
-            "title": "Make space for a pause",
-            "explanation": "Choose one ordinary moment to pause and meet your experience with curiosity."
+            "title": "Pause to check a claim",
+            "explanation": "Before relying on a fluent answer, choose one claim to verify with another source."
           },
           {
-            "title": "Carry awareness into a routine",
-            "explanation": "During a familiar daily activity, take one breath and notice what is present."
+            "title": "Notice when speed matters",
+            "explanation": "When convenience helps, pause to choose whether a quick answer or more time feels right."
           }
         ]
       }
