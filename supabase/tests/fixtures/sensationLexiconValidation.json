@@ -1,0 +1,155 @@
+{
+  "version": 1,
+  "requestCases": [
+    {
+      "name": "three distinct sensation descriptions",
+      "expectedValidation": "accept",
+      "request": {
+        "activityId": "6f1c2b9e-5a7d-4e3f-9b1a-2c4d6e8f0a1b",
+        "activityContext": "Sensation Lexicon",
+        "sensations": ["tight shoulders", "weird", "warm hands"]
+      }
+    },
+    {
+      "name": "minimum and maximum sensation lengths",
+      "expectedValidation": "accept",
+      "request": {
+        "activityId": "6f1c2b9e-5a7d-4e3f-9b1a-2c4d6e8f0a1b",
+        "activityContext": "Sensation Lexicon",
+        "sensations": [
+          "ok",
+          "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          "warm hands"
+        ]
+      }
+    },
+    {
+      "name": "missing sensations field",
+      "expectedValidation": "reject",
+      "request": {
+        "activityId": "6f1c2b9e-5a7d-4e3f-9b1a-2c4d6e8f0a1b",
+        "activityContext": "Sensation Lexicon"
+      }
+    },
+    {
+      "name": "only two sensations",
+      "expectedValidation": "reject",
+      "request": {
+        "activityId": "6f1c2b9e-5a7d-4e3f-9b1a-2c4d6e8f0a1b",
+        "activityContext": "Sensation Lexicon",
+        "sensations": ["tight shoulders", "weird"]
+      }
+    },
+    {
+      "name": "oversized sensation",
+      "expectedValidation": "reject",
+      "request": {
+        "activityId": "6f1c2b9e-5a7d-4e3f-9b1a-2c4d6e8f0a1b",
+        "activityContext": "Sensation Lexicon",
+        "sensations": [
+          "tight shoulders",
+          "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          "warm hands"
+        ]
+      }
+    }
+  ],
+  "responseContract": {
+    "topLevelKeys": ["items", "provider"],
+    "itemKeys": ["original", "isVague", "suggestions"],
+    "itemCount": 3,
+    "maximumSuggestionsPerItem": 5,
+    "maximumSuggestionCharacters": 40
+  },
+  "validResponse": {
+    "items": [
+      {
+        "original": "tight shoulders",
+        "isVague": false,
+        "suggestions": []
+      },
+      {
+        "original": "weird",
+        "isVague": true,
+        "suggestions": ["tingling", "buzzing"]
+      },
+      {
+        "original": "warm hands",
+        "isVague": false,
+        "suggestions": []
+      }
+    ],
+    "provider": "mock"
+  },
+  "invalidResponses": [
+    {
+      "name": "missing item",
+      "response": {
+        "items": [
+          {
+            "original": "tight shoulders",
+            "isVague": false,
+            "suggestions": []
+          },
+          {
+            "original": "weird",
+            "isVague": true,
+            "suggestions": ["tingling"]
+          }
+        ],
+        "provider": "mock"
+      }
+    },
+    {
+      "name": "unexpected top-level field",
+      "response": {
+        "items": [
+          {
+            "original": "tight shoulders",
+            "isVague": false,
+            "suggestions": []
+          },
+          {
+            "original": "weird",
+            "isVague": true,
+            "suggestions": ["tingling"]
+          },
+          {
+            "original": "warm hands",
+            "isVague": false,
+            "suggestions": []
+          }
+        ],
+        "provider": "mock",
+        "diagnosis": "not allowed"
+      }
+    }
+  ],
+  "inappropriateContentCases": [
+    {
+      "name": "diagnostic label",
+      "suggestion": "anxiety disorder",
+      "expectedValidation": "reject"
+    },
+    {
+      "name": "causal inference",
+      "suggestion": "caused by stress",
+      "expectedValidation": "reject"
+    },
+    {
+      "name": "measurement claim",
+      "suggestion": "measured at 98 percent",
+      "expectedValidation": "reject"
+    },
+    {
+      "name": "claim of objectively correct label",
+      "suggestion": "the correct word",
+      "expectedValidation": "reject"
+    },
+    {
+      "name": "optional sensory vocabulary",
+      "suggestion": "fluttery",
+      "expectedValidation": "accept"
+    }
+  ]
+}

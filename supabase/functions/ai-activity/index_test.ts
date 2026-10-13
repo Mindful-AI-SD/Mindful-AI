@@ -866,6 +866,15 @@ Deno.test("AI activity endpoint with real Supabase authentication middleware", a
           ]),
         ],
         [
+          "diagnostic suggestion",
+          lexicon,
+          withItems([
+            items[0],
+            { ...items[1], suggestions: ["anxiety disorder"] },
+            items[2],
+          ]),
+        ],
+        [
           "reworded original",
           lexicon,
           withItems([
