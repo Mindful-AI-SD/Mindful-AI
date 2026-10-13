@@ -27,11 +27,6 @@ const FORMS = {
       { key: "data_self_portrait_missing", label: "What would that data leave out?" },
     ],
   },
-  yellowdig_draft: {
-    title: "Yellowdig draft",
-    instructions: "Draft a discussion post about what you noticed, what AI got right or missed, and one question for others. This saves your draft; it does not post to Yellowdig.",
-    fields: [{ key: "yellowdig_draft", label: "Your discussion draft" }],
-  },
 };
 
 function PostBreathingCheckIn({ progress, busy, onSave, onExit }: {
@@ -128,14 +123,6 @@ function Questions({ progress, busy, onSave, onExit }: {
             </Pressable>
             <AccessibleHeading>{form.title}</AccessibleHeading>
             <ThemedText>{form.instructions}</ThemedText>
-            {progress.current_step === "yellowdig_draft" && (
-              <View style={styles.section}>
-                <ThemedText accessibilityRole="header" type="smallBold">Your gap reflection</ThemedText>
-                {["ai_gap_got_right", "ai_gap_missed", "ai_gap_reveals"].map(key => (
-                  <ThemedText key={key}>{progress.reflection_answers[key]}</ThemedText>
-                ))}
-              </View>
-            )}
             {form.fields.map(field => (
               <View key={field.key} style={styles.section}>
                 <ThemedText>{field.label}</ThemedText>
@@ -149,7 +136,7 @@ function Questions({ progress, busy, onSave, onExit }: {
             <Pressable accessibilityRole="button" disabled={!valid || busy}
               accessibilityState={{ disabled: !valid || busy, busy }} style={styles.button}
               onPress={() => void onSave(answers, true)}>
-              <ThemedText style={styles.buttonText}>{progress.current_step === "yellowdig_draft" ? "Complete Week 1" : "Save and continue"}</ThemedText>
+              <ThemedText style={styles.buttonText}>Save and continue</ThemedText>
             </Pressable>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -264,9 +251,7 @@ export function WeekOneFlow({ activityId, onExit, showModuleEntry = false }: {
       {progress?.current_step === "completed" && (
         <ScrollView contentContainerStyle={styles.content}>
           <AccessibleHeading>Week 1 complete</AccessibleHeading>
-          <ThemedText>Your writing, intentions, reflections, and Yellowdig draft are saved.</ThemedText>
-          <ThemedText accessibilityRole="header" type="subtitle">Your Yellowdig draft</ThemedText>
-          <ThemedText>{progress.reflection_answers.yellowdig_draft}</ThemedText>
+          <ThemedText>Your mood and energy ratings, writing, intentions, and reflections are saved.</ThemedText>
           <Pressable accessibilityRole="button" style={styles.button} onPress={onExit}>
             <ThemedText style={styles.buttonText}>Back to Week 1</ThemedText>
           </Pressable>

@@ -20,7 +20,7 @@ function progress(overrides = {}) {
     user_id: "user-1",
     activity_id: "activity-1",
     status: "in_progress",
-    current_step: "yellowdig_draft",
+    current_step: "ai_gap_reflection",
     writing: "notice ".repeat(150).trim(),
     generated_intentions: intentions,
     reflection_answers: { arrive_mood: "3", arrive_energy: "4",
@@ -30,7 +30,6 @@ function progress(overrides = {}) {
       ai_gap_got_right: "What it got right",
       ai_gap_missed: "What it missed",
       ai_gap_reveals: "What that reveals",
-      yellowdig_draft: "My discussion draft",
     },
     started_at: "2026-10-02T12:00:00.000Z",
     completed_at: null,
@@ -56,7 +55,7 @@ describe("getWeekOneCompletionIssue", () => {
       });
   });
 
-  test("requires every reflection and the discussion draft", () => {
+  test("requires every reflection", () => {
     const reflection_answers = { ...progress().reflection_answers };
     delete reflection_answers.ai_gap_missed;
     expect(getWeekOneCompletionIssue(progress({ reflection_answers }))).toEqual({

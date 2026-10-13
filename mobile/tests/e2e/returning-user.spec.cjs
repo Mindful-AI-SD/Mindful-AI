@@ -6,7 +6,7 @@ const config = parseEnv(fs.readFileSync(path.join(__dirname, "../../.env"), "utf
 const backend = config.EXPO_PUBLIC_SUPABASE_URL.replace(/\/$/, "");
 const userId = "11111111-1111-4111-8111-111111111111";
 const activityId = "22222222-2222-4222-8222-222222222222";
-const writing = "I noticed my attention wandering. This week I want to pause and listen before reacting. " + "notice ".repeat(134).trim();
+const writing = "I noticed my attention wandering. This week I want to pause and listen before reacting. " + "notice ".repeat(135).trim();
 
 async function simulateBackend(context) {
   let progress = null, revision = 0;
@@ -78,6 +78,7 @@ for (const restart of [false, true]) {
       expect(db.progress.current_step).toBe("writing");
     }
     await page.getByRole("checkbox").check();
+    await expect(page.getByRole("button", { name: "Submit writing" })).toBeEnabled();
     await page.getByRole("button", { name: "Submit writing" }).click();
     await expect(page.getByRole("heading", { name: "Mock intentions", exact: true })).toBeVisible();
     expect(db.progress.current_step).toBe("intention_mirror");
@@ -106,8 +107,21 @@ for (const restart of [false, true]) {
     await page.getByRole("textbox", { name: "What did the mock intentions get right?" }).fill("They noticed attention.");
     await page.getByRole("textbox", { name: "What did they miss?" }).fill("My personal context.");
     await page.getByRole("textbox", { name: "What does the gap reveal?" }).fill("AI cannot know my full experience.");
-    await page.getByRole("button", { name: "Continue to Yellowdig draft" }).click();
-    await page.getByRole("textbox", { name: "Your discussion draft" }).fill("I noticed that data captures patterns but misses context. What do others notice?");
+    if (restart) {
+      await page.getByRole("button", { name: "Save reflection", exact: true }).click();
+      await expect.poll(() => db.progress.reflection_answers.ai_gap_reveals).toBe("AI cannot know my full experience.");
+      expect(db.progress.status).toBe("in_progress");
+      await page.reload();
+      await page.getByRole("button", { name: "Notice and Reflect. In progress", exact: true }).click();
+      await expect(page.getByText("Beat 4 of 4: Notice the gap", { exact: true })).toBeVisible();
+      await page.getByRole("button", { name: /^Resume:/ }).click();
+      await expect(page.getByRole("heading", { name: "Notice the gap", exact: true })).toBeVisible();
+      await expect(page.getByRole("textbox", { name: "What did the mock intentions get right?" })).toHaveValue("They noticed attention.");
+      await expect(page.getByRole("textbox", { name: "What did they miss?" })).toHaveValue("My personal context.");
+      await expect(page.getByRole("textbox", { name: "What does the gap reveal?" })).toHaveValue("AI cannot know my full experience.");
+      expect(db.progress.current_step).toBe("ai_gap_reflection");
+    }
+    await expect(page.getByRole("textbox", { name: "Your discussion draft" })).toHaveCount(0);
     await page.getByRole("button", { name: "Complete Week 1", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Week 1 complete", exact: true })).toBeVisible();
     expect(db.progress.current_step).toBe("completed");
@@ -116,11 +130,11 @@ for (const restart of [false, true]) {
     expect(db.progress.writing).toBe(writing);
     expect(db.progress.generated_intentions).toEqual(savedIntentions);
     expect(db.progress.reflection_answers).toEqual({
+      arrive_mood: "3", arrive_energy: "4",
       post_breathing_urge: "no", post_breathing_note: "My breathing feels slower.",
       data_self_portrait_visible: "My daily habits.", data_self_portrait_missing: "Why I make choices.",
       ai_gap_got_right: "They noticed attention.", ai_gap_missed: "My personal context.",
       ai_gap_reveals: "AI cannot know my full experience.",
-      yellowdig_draft: "I noticed that data captures patterns but misses context. What do others notice?",
     });
     await page.reload();
     await page.getByRole("button", { name: "Notice and Reflect. Completed", exact: true }).click();

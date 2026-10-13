@@ -7,7 +7,6 @@ export const WEEK_ONE_STEPS = [
   "intention_mirror",
   "data_self_portrait",
   "ai_gap_reflection",
-  "yellowdig_draft",
   "completed",
 ] as const;
 

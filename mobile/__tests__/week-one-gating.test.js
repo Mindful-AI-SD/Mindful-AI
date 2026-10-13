@@ -39,7 +39,7 @@ describe("deriveNextAllowedStep", () => {
 
   test("restores the first unfinished reflection step", () => {
     expect(deriveNextAllowedStep(progress({
-      current_step: "yellowdig_draft",
+      current_step: "ai_gap_reflection",
       reflection_answers: {
         post_breathing_urge: "No",
         data_self_portrait_visible: "Visible answer",

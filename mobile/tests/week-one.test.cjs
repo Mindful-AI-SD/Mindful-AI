@@ -4,7 +4,7 @@ const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
 const ts = require("typescript");
-const steps = ["breathing", "post_breathing_check_in", "writing", "intention_mirror", "data_self_portrait", "ai_gap_reflection", "yellowdig_draft", "completed"];
+const steps = ["breathing", "post_breathing_check_in", "writing", "intention_mirror", "data_self_portrait", "ai_gap_reflection", "completed"];
 
 function setup() {
   let record = null, user = "a", fail = false, conflict = false, revision = 0;
@@ -55,7 +55,7 @@ test("normal path persists each step, answers, and completion together", async (
   await db.api.saveWeekOneArrival("a", "activity", { arrive_mood: "3", arrive_energy: "4" });
   const answers = {
     post_breathing_urge: "no", post_breathing_note: "Calmer", data_self_portrait_visible: "Habits", data_self_portrait_missing: "Context",
-    ai_gap_got_right: "Attention", ai_gap_missed: "Context", ai_gap_reveals: "Limits", yellowdig_draft: "My discussion post",
+    ai_gap_got_right: "Attention", ai_gap_missed: "Context", ai_gap_reveals: "Limits",
   };
   for (let i = 0; i < steps.length - 1; i++) {
     if (steps[i] === "writing") { db.record.writing = "notice ".repeat(150).trim(); db.record.generated_intentions = [{}, {}, {}]; }
@@ -63,7 +63,6 @@ test("normal path persists each step, answers, and completion together", async (
       post_breathing_check_in: ["post_breathing_urge", "post_breathing_note"],
       data_self_portrait: ["data_self_portrait_visible", "data_self_portrait_missing"],
       ai_gap_reflection: ["ai_gap_got_right", "ai_gap_missed", "ai_gap_reveals"],
-      yellowdig_draft: ["yellowdig_draft"],
     }[steps[i]] ?? [];
     await db.api.saveWeekOneStep("a", "activity", steps[i], Object.fromEntries(keys.map(key => [key, answers[key]])));
     assert.equal((await db.api.getWeekOneProgress("a", "activity")).current_step, steps[i + 1]);
@@ -71,7 +70,8 @@ test("normal path persists each step, answers, and completion together", async (
   assert.equal(db.record.status, "completed");
   assert.ok(db.record.completed_at);
   assert.equal(db.record.writing, "notice ".repeat(150).trim());
-  assert.equal(db.record.reflection_answers.yellowdig_draft, answers.yellowdig_draft);
+  assert.equal(db.record.reflection_answers.ai_gap_reveals, answers.ai_gap_reveals);
+  assert.equal(db.record.reflection_answers.yellowdig_draft, undefined);
 });
 
 test("reopening preserves writing and intention steps without resetting data", async () => {
@@ -161,4 +161,57 @@ test("Explore cannot advance with fewer than 150 words or fewer than three inten
   db.record.generated_intentions = [{}, {}, {}];
   await db.api.saveWeekOneStep("a", "activity", "writing");
   assert.equal(db.record.current_step, "intention_mirror");
+});
+
+test("legacy Yellowdig resumes at the final beat with answers intact and completes without a discussion draft", async () => {
+  const db = setup();
+  await db.api.startWeekOne("a", "activity");
+  db.record.current_step = "yellowdig_draft";
+  db.record.writing = "notice ".repeat(150).trim();
+  db.record.generated_intentions = [{}, {}, {}];
+  db.record.reflection_answers = {
+    arrive_mood: "3", arrive_energy: "4", post_breathing_urge: "no",
+    data_self_portrait_visible: "Patterns", data_self_portrait_missing: "Context",
+    ai_gap_got_right: "Attention", ai_gap_missed: "Context", ai_gap_reveals: "Limits",
+  };
+  const original = structuredClone(db.record.reflection_answers);
+  const restored = await db.api.startWeekOne("a", "activity");
+  assert.equal(restored.current_step, "ai_gap_reflection");
+  assert.equal(restored.status, "in_progress");
+  assert.deepEqual(JSON.parse(JSON.stringify(restored.reflection_answers)), original);
+  assert.equal((await db.api.startWeekOne("a", "activity")).current_step, "ai_gap_reflection");
+  db.conflict(true);
+  await assert.rejects(db.api.saveWeekOneStep("a", "activity", "ai_gap_reflection"), /changed/);
+  assert.equal(db.record.status, "in_progress");
+  assert.deepEqual(JSON.parse(JSON.stringify(db.record.reflection_answers)), original);
+  db.conflict(false);
+  const completed = await db.api.saveWeekOneStep("a", "activity", "ai_gap_reflection");
+  assert.equal(completed.status, "completed");
+  assert.equal(completed.current_step, "completed");
+  assert.ok(completed.completed_at);
+  const reopened = await db.api.startWeekOne("a", "activity");
+  assert.equal(reopened.current_step, "completed");
+  assert.equal(reopened.completed_at, completed.completed_at);
+  assert.deepEqual(JSON.parse(JSON.stringify(reopened.reflection_answers)), original);
+  assert.equal(reopened.reflection_answers.yellowdig_draft, undefined);
+});
+
+test("incomplete final reflections remain in progress after restoring or attempting completion", async () => {
+  const db = setup();
+  await db.api.startWeekOne("a", "activity");
+  db.record.current_step = "ai_gap_reflection";
+  db.record.writing = "notice ".repeat(150).trim();
+  db.record.generated_intentions = [{}, {}, {}];
+  db.record.reflection_answers = {
+    arrive_mood: "3", arrive_energy: "4", post_breathing_urge: "no",
+    data_self_portrait_visible: "Patterns", data_self_portrait_missing: "Context",
+    ai_gap_got_right: "Attention", ai_gap_missed: "Context", ai_gap_reveals: "",
+  };
+  assert.equal((await db.api.startWeekOne("a", "activity")).current_step, "ai_gap_reflection");
+  await assert.rejects(db.api.saveWeekOneStep("a", "activity", "ai_gap_reflection"), /all AI gap/);
+  assert.equal(db.record.status, "in_progress");
+  assert.equal(db.record.completed_at, null);
+  const completed = await db.api.saveWeekOneStep("a", "activity", "ai_gap_reflection", { ai_gap_reveals: "Limits" });
+  assert.equal(completed.status, "completed");
+  assert.equal(completed.reflection_answers.ai_gap_reveals, "Limits");
 });

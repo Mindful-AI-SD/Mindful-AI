@@ -6,7 +6,7 @@ export const WEEK_ONE_BEATS: FourBeats = [
   { id: "arrive", title: "Arrive", description: "Rate your mood and energy before practicing." },
   { id: "practice", title: "Practice", description: "Breathe, then notice how you feel in the post-practice check-in." },
   { id: "explore", title: "Explore", description: "Write at least 150 words in Intention Mirror and review three intentions." },
-  { id: "reflection", title: "Integration reflection", description: "Reflect on your data self-portrait and what the intentions got right, missed, and revealed." },
+  { id: "reflection", title: "Notice the gap", description: "Reflect on your data self-portrait and what the intentions got right, missed, and revealed. Save your reflections to complete Week 1." },
 ];
 
 export function weekOneBeatId(step: WeekOneStep, answers?: ReflectionAnswers): string {
