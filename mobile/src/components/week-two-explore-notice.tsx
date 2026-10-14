@@ -5,6 +5,7 @@ import { AccessibleStatus } from "./accessibility";
 import { SENSATION_KEYS, validSensations, type LexiconWords } from "../../lib/week-two";
 import type { ReflectionAnswers } from "../../lib/progress";
 import type { SensationLexiconData } from "../../lib/sensation-lexicon";
+import { WEEK_TWO_ETHICS_CARD } from "../../lib/ethics-cards";
 
 export function SensationResults({ data }: { data: LexiconWords }) {
   return <View style={styles.section}>
@@ -64,8 +65,8 @@ export function WeekTwoNotice({ answers, data, busy, onChange, onComplete }: {
   return <View style={styles.section}>
     <SensationResults data={data} />
     <View style={styles.card}>
-      <ThemedText accessibilityRole="header" type="subtitle">Tracker ethics</ThemedText>
-      <ThemedText>A tracker can record measurements, but those numbers do not tell the whole story of your experience. Consider what it collects, who can access it, and what you choose to share.</ThemedText>
+      <ThemedText accessibilityRole="header" type="subtitle">{WEEK_TWO_ETHICS_CARD.title}</ThemedText>
+      <ThemedText>{WEEK_TWO_ETHICS_CARD.body}</ThemedText>
     </View>
     {[
       { key: "week_two_tracker_reflection", label: "What could a tracker show, and what might it miss?" },

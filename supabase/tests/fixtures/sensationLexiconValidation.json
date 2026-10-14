@@ -147,6 +147,26 @@
       "expectedValidation": "reject"
     },
     {
+      "name": "unsupported tracker privacy claim",
+      "suggestion": "your data is private",
+      "expectedValidation": "reject"
+    },
+    {
+      "name": "unsupported tracker accuracy claim",
+      "suggestion": "always accurate",
+      "expectedValidation": "reject"
+    },
+    {
+      "name": "unsupported equity claim",
+      "suggestion": "works for everyone",
+      "expectedValidation": "reject"
+    },
+    {
+      "name": "assumed consent to track",
+      "suggestion": "you agreed to track",
+      "expectedValidation": "reject"
+    },
+    {
       "name": "optional sensory vocabulary",
       "suggestion": "fluttery",
       "expectedValidation": "accept"

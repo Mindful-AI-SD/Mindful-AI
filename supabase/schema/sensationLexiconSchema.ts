@@ -4,7 +4,7 @@ const sensation = z.string().trim().min(2).max(80);
 // This phrase screen blocks common violations of the Week 2 response policy;
 // it is a guardrail, not a substitute for reviewing provider-generated text.
 const disallowedSuggestionLanguage =
-  /\b(?:diagnos(?:e|is|ed|ing)?|disorder|clinical|symptom|treatment|caused by|because of|due to|indicates?|proves?|measured|measurement|the correct (?:word|label)|objectively correct|definitely means)\b/i;
+  /\b(?:diagnos(?:e|is|ed|ing)?|disorder|clinical|symptom|treatment|caused by|because of|due to|indicates?|proves?|measured|measurement|the correct (?:word|label)|objectively correct|definitely means|private|confidential|secure|accurate|accuracy|unbiased|fair for everyone|guarantees?|works for everyone|you (?:agreed|consented) to (?:share|track))\b/i;
 const sensationSuggestion = z.string().trim().min(1).max(40).refine(
   (suggestion) => !disallowedSuggestionLanguage.test(suggestion),
 );
