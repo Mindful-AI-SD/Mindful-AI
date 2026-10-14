@@ -7,6 +7,8 @@ import type {
   GuidedReflectionProvider,
   SensationLexiconProvider,
 } from "./types.ts";
+import { ProviderError } from "./types.ts";
+import { aiActivityResponseSchema } from "../../../schema/aiActivitySchema.ts";
 import { summarizeDistractionAudit } from "./distractionAudit.ts";
 import {
   generateMockDistractionAudit,
@@ -175,6 +177,20 @@ export function getActivityProvider<K extends AiActivityKind>(
   return ACTIVITY_PROVIDERS[kind][name];
 }
 
+function assertValidAiActivityOutput(
+  kind: AiActivityKind,
+  output: unknown,
+): AiActivityOutput {
+  const payload = typeof output === "object" && output !== null
+    ? output as Record<string, unknown>
+    : {};
+  const parsed = aiActivityResponseSchema.safeParse({ kind, ...payload });
+  if (!parsed.success) {
+    throw new ProviderError("The provider returned an invalid response for this activity.");
+  }
+  return parsed.data as AiActivityOutput;
+}
+
 // Runs one call through its kind's provider and tags the result with the kind.
 // New endpoints use this rather than importing an adapter.
 export async function runAiActivity(
@@ -183,28 +199,28 @@ export async function runAiActivity(
 ): Promise<AiActivityOutput> {
   switch (call.kind) {
     case "intention_mirror":
-      return {
-        kind: call.kind,
-        ...await getActivityProvider(call.kind, name)(
-          call.activityContext,
-          call.input,
-        ),
-      };
+      return assertValidAiActivityOutput(call.kind, await getActivityProvider(
+        call.kind,
+        name,
+      )(
+        call.activityContext,
+        call.input,
+      ));
     case "sensation_lexicon":
-      return {
-        kind: call.kind,
-        ...await getActivityProvider(call.kind, name)(
-          call.activityContext,
-          call.input,
-        ),
-      };
+      return assertValidAiActivityOutput(call.kind, await getActivityProvider(
+        call.kind,
+        name,
+      )(
+        call.activityContext,
+        call.input,
+      ));
     case "distraction_audit":
-      return {
-        kind: call.kind,
-        ...await getActivityProvider(call.kind, name)(
-          call.activityContext,
-          call.input,
-        ),
-      };
+      return assertValidAiActivityOutput(call.kind, await getActivityProvider(
+        call.kind,
+        name,
+      )(
+        call.activityContext,
+        call.input,
+      ));
   }
 }
