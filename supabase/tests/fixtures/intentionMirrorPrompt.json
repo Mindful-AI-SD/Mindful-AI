@@ -159,6 +159,31 @@
       }
     },
     {
+      "name": "rejects assumed reasons for practice or AI use",
+      "userReflection": "I noticed my breathing slow down.",
+      "unsupportedClaims": [
+        "you practice to manage stress",
+        "you use AI to stay productive"
+      ],
+      "expectedValidation": "reject",
+      "candidateOutput": {
+        "intentions": [
+          {
+            "title": "Practice for stress relief",
+            "explanation": "You practice to manage stress, and you use AI to stay productive."
+          },
+          {
+            "title": "Notice a breath",
+            "explanation": "Gently notice one breath without needing to change it."
+          },
+          {
+            "title": "Pause when you can",
+            "explanation": "You can take a gentle pause at your own pace."
+          }
+        ]
+      }
+    },
+    {
       "name": "rejects judgmental language",
       "userReflection": "I found it hard to focus.",
       "expectedValidation": "reject",

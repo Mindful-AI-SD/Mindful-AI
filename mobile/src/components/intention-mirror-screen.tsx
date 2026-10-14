@@ -19,6 +19,7 @@ import { useSignedInUserId } from "@/components/auth-gate";
 import { useWritingDraft } from "@/hooks/use-writing-draft";
 import { getIntentions, type IntentionResponse } from "../../lib/intention";
 import { saveProgressIntentions } from "../../lib/progress";
+import { WEEK_ONE_ETHICS_CARD } from "../../lib/ethics-cards";
 
 import { countWritingWords, MIN_WRITING_WORDS, MAX_WRITING_CHARACTERS, validWeekOneWriting } from "../../lib/week-one-writing";
 const MAX_CHARACTERS = MAX_WRITING_CHARACTERS;
@@ -180,6 +181,10 @@ export function IntentionMirrorScreen({
             {submission.status === "writing" && (
               <>
                 <View style={styles.section}>
+                  <View style={styles.ethicsCard}>
+                    <ThemedText type="smallBold">{WEEK_ONE_ETHICS_CARD.title}</ThemedText>
+                    <ThemedText>{WEEK_ONE_ETHICS_CARD.body}</ThemedText>
+                  </View>
                   <ThemedText type="smallBold">Your writing</ThemedText>
                   <ThemedText>
                     Write at least {MIN_WRITING_WORDS} words, up to 2,000 characters. Only share what you feel
@@ -374,6 +379,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 12,
     backgroundColor: "#41644a",
+  },
+  ethicsCard: {
+    gap: 8,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#b9cbbd",
+    borderRadius: 12,
   },
   submitText: { color: "#ffffff", fontWeight: "700" },
   disabled: { opacity: 0.45 },
