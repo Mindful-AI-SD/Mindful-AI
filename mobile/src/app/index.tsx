@@ -1,5 +1,5 @@
 import { useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   Alert,
   ActivityIndicator,
@@ -12,13 +12,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { SignOutButton } from "@/components/sign-out-button";
 import { WeekOneFlow } from "@/components/week-one-flow";
+import { WeekTwoFlow } from "@/components/week-two-flow";
 import { useSignedInUserId } from "@/components/auth-gate";
 import { AccessibleHeading } from "@/components/accessibility";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import {
   type CurriculumWeek,
-  getPublishedWeekOne,
+  getPublishedWeek,
 } from "../../lib/curriculum";
 import {
   type ActivityProgress,
@@ -39,6 +40,8 @@ export default function HomeScreen() {
   const [activeScreen, setActiveScreen] = useState<ActiveScreen>("curriculum");
   const [activeActivityId, setActiveActivityId] = useState<string | null>(null);
   const [week, setWeek] = useState<CurriculumWeek | null>(null);
+  const [selectedWeek, setSelectedWeek] = useState<1 | 2>(1);
+  const loadVersion = useRef(0);
   const [progressByActivityId, setProgressByActivityId] = useState<
     Record<string, ActivityProgress>
   >({});
@@ -49,34 +52,38 @@ export default function HomeScreen() {
   const [resetMessage, setResetMessage] = useState<string | null>(null);
 
   const loadWeek = useCallback(async () => {
+    const current = ++loadVersion.current;
     setIsLoading(true);
     setErrorMessage(null);
 
     try {
-      const weekOne = await getPublishedWeekOne();
+      const weekOne = await getPublishedWeek(selectedWeek);
       const progress = await getActivityProgress(
         userId,
         weekOne.activities.map((activity) => activity.id),
       );
+      if (loadVersion.current !== current) return;
       setWeek(weekOne);
       setProgressByActivityId(
         Object.fromEntries(progress.map((item) => [item.activity_id, item])),
       );
     } catch (error) {
+      if (loadVersion.current !== current) return;
       setWeek(null);
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : "An unknown error occurred while loading Week 1.",
+          : `Could not load Week ${selectedWeek}. Please retry.`,
       );
     } finally {
-      setIsLoading(false);
+      if (loadVersion.current === current) setIsLoading(false);
     }
-  }, [userId]);
+  }, [userId, selectedWeek]);
 
   useFocusEffect(
     useCallback(() => {
       if (activeScreen === "curriculum") void loadWeek();
+      return () => { loadVersion.current++; };
     }, [activeScreen, loadWeek]),
   );
 
@@ -136,6 +143,9 @@ export default function HomeScreen() {
   }
 
   if (activeScreen === "week-one" && activeActivity) {
+    if (week?.week_number === 2) {
+      return <WeekTwoFlow key={activeActivity.id} activityId={activeActivity.id} onExit={returnToCurriculum} />;
+    }
     return (
       <WeekOneFlow
         key={activeActivity.id}
@@ -155,21 +165,39 @@ export default function HomeScreen() {
             <AccessibleHeading focusKey={activeScreen}>Your curriculum</AccessibleHeading>
           </View>
 
+          <View accessibilityRole="radiogroup" accessibilityLabel="Curriculum week" style={styles.activityMetadata}>
+            {([1, 2] as const).map(number => (
+              <Pressable key={number} accessibilityRole="radio" accessibilityLabel={`Week ${number}`}
+                accessibilityState={{ checked: selectedWeek === number }} aria-checked={selectedWeek === number}
+                style={styles.weekChoice} onPress={() => {
+                  if (selectedWeek === number) return;
+                  loadVersion.current++;
+                  setWeek(null);
+                  setProgressByActivityId({});
+                  setIsLoading(true);
+                  setErrorMessage(null);
+                  setSelectedWeek(number);
+                }}>
+                <ThemedText>{`Week ${number}${selectedWeek === number ? " ✓" : ""}`}</ThemedText>
+              </Pressable>
+            ))}
+          </View>
+
           {isLoading && (
             <View style={styles.centered}>
               <ActivityIndicator color="#41644a" size="large" />
-              <ThemedText>Loading Week 1...</ThemedText>
+              <ThemedText>{`Loading Week ${selectedWeek}...`}</ThemedText>
             </View>
           )}
 
           {!isLoading && errorMessage && (
             <ThemedView style={styles.messageCard}>
-              <ThemedText type="subtitle">Unable to load Week 1</ThemedText>
+              <ThemedText type="subtitle">{`Unable to load Week ${selectedWeek}`}</ThemedText>
               <ThemedText accessibilityRole="alert">{errorMessage}</ThemedText>
 
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Retry loading Week 1"
+                accessibilityLabel={`Retry loading Week ${selectedWeek}`}
                 accessibilityHint="Loads the curriculum and activities again."
                 onPress={() => void loadWeek()}
                 style={({ pressed }) => [
@@ -261,7 +289,7 @@ export default function HomeScreen() {
             </>
           )}
 
-          {__DEV__ && week && (
+          {__DEV__ && week?.week_number === 1 && (
             <ThemedView style={styles.developmentCard}>
               <ThemedText type="subtitle">Development tools</ThemedText>
               <ThemedText>
@@ -297,6 +325,7 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  weekChoice: { minHeight: 48, minWidth: 48, padding: 12, justifyContent: "center" },
   container: {
     flex: 1,
   },

@@ -102,8 +102,14 @@ test.each(legacyMappings)(
 );
 
 test("mapping covers every existing persisted step and keeps the Arrive override", () => {
-  expect(WEEK_ONE_STEPS).toEqual(legacyMappings.map(([step]) => step));
-  expect(Object.keys(WEEK_ONE_STEP_BEATS)).toEqual(WEEK_ONE_STEPS);
+  expect(WEEK_ONE_STEPS).toEqual(
+    legacyMappings.map(([step]) => step).filter((step) =>
+      step !== "yellowdig_draft"
+    ),
+  );
+  expect(Object.keys(WEEK_ONE_STEP_BEATS)).toEqual(
+    legacyMappings.map(([step]) => step),
+  );
   for (const [step] of legacyMappings) {
     expect(weekOneBeatId(step, {})).toBe(
       step === "completed" ? "notice" : "arrive",

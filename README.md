@@ -246,7 +246,7 @@ For the Week 3 Distraction Audit, the provider only assigns each event a categor
 
 To add a lab: add its kind, input, and result to `types.ts`; implement it in the mock and the real adapter; add its schema and its entry in the routing table and `aiActivitySchema.ts`; add tests.
 
-The app calls the endpoint through `getAiActivity(kind, request)` in `mobile/lib/ai-activity.ts`, which uses the signed-in session and holds no provider key. `getSensationWords` in `mobile/lib/sensation-lexicon.ts` is the Week 2 wrapper. No screen uses either yet: the Week 1 screen still reads its local mock fixture, and the older `guided-reflection` and `mindfulness-response` endpoints are unchanged.
+The app calls the endpoint through `getAiActivity(kind, request)` in `mobile/lib/ai-activity.ts`, which uses the signed-in session and holds no provider key. Week 2 Explore uses `getSensationWords` in `mobile/lib/sensation-lexicon.ts` and displays its three returned items. Arrive, Practice, Explore, and Notice save their current step and answers in the student's progress record; the Sensation Lexicon result is saved as a JSON string in `reflection_answers.week_two_lexicon`. Notice includes a tracker ethics question and closing reflection before completion. The Week 1 screen still reads its local mock fixture, and the older `guided-reflection` and `mindfulness-response` endpoints are unchanged.
 
 ### Endpoint Integration Suite
 

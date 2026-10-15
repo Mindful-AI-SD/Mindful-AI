@@ -107,7 +107,7 @@ test("reflection records are scoped by user and activity", async () => {
   await assert.rejects(db.service.saveProgressIntentions("a", "activity", intentions), /Sign in again/);
 });
 
-function screen(service) {
+function screen(service, onContinue) {
   let cursor = 0, back = 0, opened = 0;
   const slots = [], pendingEffects = [], cleanups = [];
   const react = {
@@ -143,7 +143,7 @@ function screen(service) {
   });
   function render() {
     cursor = 0;
-    const tree = component.AiGapReflectionScreen({ activityId: "activity", onBack: () => back++, onOpenIntention: () => opened++ });
+    const tree = component.AiGapReflectionScreen({ activityId: "activity", onBack: () => back++, onOpenIntention: () => opened++, onContinue });
     while (pendingEffects.length) pendingEffects.shift()();
     return tree;
   }
@@ -248,4 +248,38 @@ test("reflection reading order is intentions, named fields, then save", async ()
   assert.ok(nodes.indexOf(save) > nodes.indexOf(fields[2]));
   assert.equal(save.props.accessibilityState.disabled, true);
   assert.match(save.props.accessibilityHint, /Enabled when answers have changed/);
+});
+
+test("final beat keeps answers after failed saves and completes only once per deliberate action", async () => {
+  const db = database();
+  await db.service.saveProgressIntentions("a", "activity", intentions);
+  let completions = 0, finish;
+  const ui = screen(db.service, () => {
+    completions++;
+    return new Promise(resolve => { finish = resolve; });
+  });
+  await turn();
+  assert.match(ui.text(), /Notice the gap/);
+  assert.doesNotMatch(ui.text(), /Yellowdig|discussion draft/);
+  assert.equal(ui.button("Complete Week 1").props.disabled, true);
+  ui.inputs().forEach((input, index) => input.props.onChangeText(`Final answer ${index}`));
+  db.failWrite(true);
+  ui.button("Complete Week 1").props.onPress();
+  await turn();
+  assert.equal(completions, 0);
+  assert.deepEqual(ui.inputs().map(input => input.props.value), ["Final answer 0", "Final answer 1", "Final answer 2"]);
+  db.failWrite(false);
+  const retry = ui.button("Complete Week 1");
+  retry.props.onPress();
+  retry.props.onPress();
+  await turn();
+  assert.equal(completions, 1);
+  assert.ok(ui.button("Completing Week 1…"));
+  assert.equal(ui.button("Back to Week 1").props.disabled, true);
+  finish(false);
+  await turn();
+  assert.ok(ui.button("Complete Week 1"));
+  const reopened = screen(db.service);
+  await turn();
+  assert.deepEqual(reopened.inputs().map(input => input.props.value), ["Final answer 0", "Final answer 1", "Final answer 2"]);
 });

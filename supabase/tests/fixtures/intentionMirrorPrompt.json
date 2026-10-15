@@ -1,6 +1,12 @@
 {
   "version": 1,
   "systemPrompt": "You are a supportive, non-clinical mindfulness reflection assistant. Use only the user reflection and activity context provided. Return exactly three distinct intentions as JSON matching the supplied output schema, with no additional text or fields. Each intention must have a concise title of at most 60 characters and one supportive explanation of at most 160 characters and 24 words. Use gentle, non-judgmental language that offers choices rather than commands. Do not diagnose, prescribe treatment, or use clinical labels. Do not invent or infer personal facts, including names, relationships, events, history, location, or circumstances. If the reflection is sparse, keep the intentions general rather than filling in details.",
+  "writingGuidance": {
+    "targetWords": 150,
+    "minimumCharacters": 3,
+    "maximumCharacters": 2000,
+    "wordCountEnforced": false
+  },
   "outputSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -15,8 +21,13 @@
           "additionalProperties": false,
           "required": ["title", "explanation"],
           "properties": {
-            "title": { "type": "string", "maxLength": 60 },
-            "explanation": { "type": "string", "maxLength": 160 }
+            "title": { "type": "string", "minLength": 1, "maxLength": 60 },
+            "explanation": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "maxWords": 24
+            }
           }
         }
       }
@@ -40,6 +51,28 @@
           {
             "title": "Carry awareness into a routine",
             "explanation": "During a familiar daily activity, take one breath and notice what is present."
+          }
+        ]
+      }
+    },
+    {
+      "name": "about 150 words with hope and concern",
+      "targetWordCount": 150,
+      "userReflection": "I use AI when I want another perspective on ideas. It helps me notice new questions I had not considered. I hope to use these tools thoughtfully and remain curious. I want to learn while keeping my own thinking involved. Sometimes fluent responses make me wonder how reliable they are. I worry about accepting claims without checking them myself first. I wonder if AI can change how I trust myself. Pausing helps me notice what works and what does not. Convenience helps, but I want to choose when speed matters. Responses may be incomplete, so I can seek other views. I can disagree with suggestions that do not fit me. My experience is more complex than one answer can capture. AI can offer ideas, but not decide what I experience. I hope to balance curiosity with care and personal judgment. Pauses may help me choose what to carry forward today.",
+      "expectedValidation": "accept",
+      "expectedOutput": {
+        "intentions": [
+          {
+            "title": "Keep curiosity in your own hands",
+            "explanation": "When AI offers an idea, notice what feels useful and choose what fits your own thinking."
+          },
+          {
+            "title": "Pause to check a claim",
+            "explanation": "Before relying on a fluent answer, choose one claim to verify with another source."
+          },
+          {
+            "title": "Notice when speed matters",
+            "explanation": "When convenience helps, pause to choose whether a quick answer or more time feels right."
           }
         ]
       }
@@ -121,6 +154,31 @@
           {
             "title": "Continue at your pace",
             "explanation": "You can return to the exercise whenever it feels right."
+          }
+        ]
+      }
+    },
+    {
+      "name": "rejects assumed reasons for practice or AI use",
+      "userReflection": "I noticed my breathing slow down.",
+      "unsupportedClaims": [
+        "you practice to manage stress",
+        "you use AI to stay productive"
+      ],
+      "expectedValidation": "reject",
+      "candidateOutput": {
+        "intentions": [
+          {
+            "title": "Practice for stress relief",
+            "explanation": "You practice to manage stress, and you use AI to stay productive."
+          },
+          {
+            "title": "Notice a breath",
+            "explanation": "Gently notice one breath without needing to change it."
+          },
+          {
+            "title": "Pause when you can",
+            "explanation": "You can take a gentle pause at your own pace."
           }
         ]
       }

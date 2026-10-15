@@ -72,20 +72,15 @@ export function getWeekOneCompletionIssue(
       message: "Complete all AI gap reflections before finishing Week 1.",
     };
   }
-  if (savedStepIndex < WEEK_ONE_STEPS.indexOf("yellowdig_draft") ||
-      !hasAnswer(progress, "yellowdig_draft")) {
-    return {
-      missingStep: "yellowdig_draft",
-      message: "View and save your discussion draft before finishing Week 1.",
-    };
-  }
   return null;
 }
 
 export function deriveNextAllowedStep(progress: WeekOneProgress | null): WeekOneStep {
   if (!progress || (!progress.started_at && progress.status === "not_started")) return "breathing";
 
-  const savedStepIndex = WEEK_ONE_STEPS.indexOf(progress.current_step);
+  // Old discussion-step records resume in the final beat without losing their answers.
+  const savedStepIndex = (progress.current_step as string) === "yellowdig_draft"
+    ? WEEK_ONE_STEPS.indexOf("ai_gap_reflection") : WEEK_ONE_STEPS.indexOf(progress.current_step);
   if (savedStepIndex < 0) return "breathing";
   if (progress.status === "completed" && progress.completed_at) return "completed";
 
@@ -104,8 +99,8 @@ export function deriveNextAllowedStep(progress: WeekOneProgress | null): WeekOne
       !hasAnswer(progress, "ai_gap_missed") ||
       !hasAnswer(progress, "ai_gap_reveals")) return "ai_gap_reflection";
 
-  if (!hasAnswer(progress, "yellowdig_draft")) return "yellowdig_draft";
-  return savedStepIndex >= WEEK_ONE_STEPS.indexOf("completed") ? "completed" : "yellowdig_draft";
+  // Saving answers does not complete the week until the user deliberately finishes.
+  return "ai_gap_reflection";
 }
 
 export async function getWeekOneProgress(userId: string, activityId: string): Promise<WeekOneProgress | null> {
@@ -114,7 +109,7 @@ export async function getWeekOneProgress(userId: string, activityId: string): Pr
     .eq("user_id", userId).eq("activity_id", activityId).maybeSingle();
   if (error) throw new Error("Could not load your Week 1 progress. Please retry.");
   await requireOwner(userId);
-  if (data && !WEEK_ONE_STEPS.includes(data.current_step)) {
+  if (data && !WEEK_ONE_STEPS.includes(data.current_step) && data.current_step !== "yellowdig_draft") {
     throw new Error("Your saved step could not be opened. Please retry loading progress.");
   }
   return data;
@@ -163,7 +158,6 @@ const REQUIRED_ANSWERS: Partial<Record<WeekOneStep, string[]>> = {
   post_breathing_check_in: ["post_breathing_urge"],
   data_self_portrait: ["data_self_portrait_visible", "data_self_portrait_missing"],
   ai_gap_reflection: ["ai_gap_got_right", "ai_gap_missed", "ai_gap_reveals"],
-  yellowdig_draft: ["yellowdig_draft"],
 };
 
 export async function completeWeekOne(
@@ -238,7 +232,7 @@ export async function saveWeekOneStep(
     throw new Error("Your saved step changed. Reload progress before continuing.");
   }
   if (expectedStep === "completed") return progress;
-  if (advance && expectedStep === "yellowdig_draft") {
+  if (advance && expectedStep === "ai_gap_reflection") {
     const result = await completeWeekOne(userId, activityId, answers);
     if (!result.completed) throw new Error(result.message);
     return result.progress;

@@ -37,6 +37,8 @@ export function AiGapReflectionScreen({ activityId, onBack, onOpenIntention, onC
   const [isSaving, setIsSaving] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const savingRef = useRef(false);
+  const continuingRef = useRef(false);
+  const [isContinuing, setIsContinuing] = useState(false);
   const version = useRef(0);
 
   useEffect(() => {
@@ -86,14 +88,30 @@ export function AiGapReflectionScreen({ activityId, onBack, onOpenIntention, onC
     }
   }
 
+  async function finish() {
+    if (!onContinue || continuingRef.current || savingRef.current || !reflection ||
+        !QUESTIONS.every(({ key }) => reflection.answers[key].trim())) return;
+    continuingRef.current = true;
+    setIsContinuing(true);
+    const current = version.current;
+    try {
+      if (await save()) await onContinue();
+    } catch {
+      if (version.current === current) setSaveError("Could not complete Week 1. Your answers are still here. Please retry.");
+    } finally {
+      continuingRef.current = false;
+      if (version.current === current) setIsContinuing(false);
+    }
+  }
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.container}>
         <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : undefined}>
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
-            <Pressable accessibilityRole="button" disabled={isSaving} style={styles.action}
+            <Pressable accessibilityRole="button" disabled={isSaving || isContinuing} style={styles.action}
               accessibilityHint="Saves any changed answers before returning to Week 1."
-              accessibilityState={{ disabled: isSaving }}
+              accessibilityState={{ disabled: isSaving || isContinuing }}
               onPress={() => {
                 if (!dirty) onBack();
                 else void save().then((saved) => { if (saved) onBack(); });
@@ -101,7 +119,7 @@ export function AiGapReflectionScreen({ activityId, onBack, onOpenIntention, onC
               <ThemedText>Back to Week 1</ThemedText>
             </Pressable>
             <ThemedText type="smallBold">WEEK 1</ThemedText>
-            <AccessibleHeading focusKey={isLoading ? "loading" : loadError ? "error" : "ready"}>AI gap reflection</AccessibleHeading>
+            <AccessibleHeading focusKey={isLoading ? "loading" : loadError ? "error" : "ready"}>Notice the gap</AccessibleHeading>
 
             {isLoading && (
               <View style={styles.section} accessibilityLiveRegion="polite">
@@ -143,8 +161,8 @@ export function AiGapReflectionScreen({ activityId, onBack, onOpenIntention, onC
                     <TextInput
                       accessibilityLabel={label} multiline textAlignVertical="top"
                       accessibilityHint="Multiline answer. Use Save reflection after editing; the intentions are above the questions."
-                      accessibilityState={{ disabled: isSaving }}
-                      editable={!isSaving} value={reflection.answers[key]}
+                      accessibilityState={{ disabled: isSaving || isContinuing }}
+                      editable={!isSaving && !isContinuing} value={reflection.answers[key]}
                       onChangeText={(text) => {
                         setReflection((value) => value && ({ ...value, answers: { ...value.answers, [key]: text } }));
                         setSaveError(null);
@@ -156,9 +174,9 @@ export function AiGapReflectionScreen({ activityId, onBack, onOpenIntention, onC
                 <AccessibleStatus error={!!saveError}>
                   {isSaving ? "Saving…" : saveError ?? (dirty ? "Unsaved changes" : "Saved")}
                 </AccessibleStatus>
-                <Pressable accessibilityRole="button" disabled={isSaving || !dirty}
+                <Pressable accessibilityRole="button" disabled={isSaving || isContinuing || !dirty}
                   accessibilityHint="Saves all three answers to your account. Enabled when answers have changed."
-                  accessibilityState={{ disabled: isSaving || !dirty, busy: isSaving }}
+                  accessibilityState={{ disabled: isSaving || isContinuing || !dirty, busy: isSaving || isContinuing }}
                   onPress={() => void save()}
                   style={[styles.saveButton, (isSaving || !dirty) && styles.disabled]}>
                   <ThemedText style={styles.buttonText}>{saveError ? "Retry save" : "Save reflection"}</ThemedText>
@@ -169,10 +187,11 @@ export function AiGapReflectionScreen({ activityId, onBack, onOpenIntention, onC
                       <ThemedText>Answer all three questions to continue.</ThemedText>
                     )}
                     <Pressable accessibilityRole="button" style={styles.saveButton}
-                      disabled={isSaving || !QUESTIONS.every(({ key }) => reflection.answers[key].trim())}
-                      accessibilityHint="Saves your answers and opens your discussion draft."
-                      onPress={() => void save().then(saved => { if (saved) void onContinue(); })}>
-                      <ThemedText style={styles.buttonText}>Continue to Yellowdig draft</ThemedText>
+                      disabled={isSaving || isContinuing || !QUESTIONS.every(({ key }) => reflection.answers[key].trim())}
+                      accessibilityState={{ disabled: isSaving || isContinuing || !QUESTIONS.every(({ key }) => reflection.answers[key].trim()), busy: isSaving || isContinuing }}
+                      accessibilityHint="Saves your answers and completes Week 1."
+                      onPress={() => void finish()}>
+                      <ThemedText style={styles.buttonText}>{isContinuing ? "Completing Week 1…" : "Complete Week 1"}</ThemedText>
                     </Pressable>
                   </>
                 )}

@@ -2,7 +2,7 @@
 
 Sources: [MIN-99](https://mindfulnessai.atlassian.net/browse/MIN-99),
 [MIN-104](https://mindfulnessai.atlassian.net/browse/MIN-104), and the
-implementation merged through PR #39 (`0cc96cd`). The Jira descriptions name
+implementation updated through PR #44 (`38aaea7`). The Jira descriptions name
 Lucas as owner; the assignee fields are currently empty. This change does not
 update Jira.
 
@@ -34,9 +34,10 @@ deferred until actual content is available.
 fourth ID/title becomes `notice`/`Notice`. These descriptions are implementation
 text, not a claim of exact sponsor wording. The typed Week 1/2 samples live
 under `mobile/__tests__/fixtures/four-beat-weeks.ts`. Week 2 has no invented
-instructions and is never loaded into the app or database. Existing Sensation
-Lexicon contracts in PR #39 describe an AI activity, not a complete
-source-backed Week 2 four-beat curriculum; they are left unchanged.
+instructions and is never loaded into the app or database. Current `main` also
+includes a Week 2 flow, saved answers, and Sensation Lexicon integration. That
+teammate implementation is retained as merged; this contract sample neither
+replaces it nor asserts that its wording is sponsor-approved.
 
 ## Saved-answer contract and legacy compatibility
 
@@ -60,8 +61,8 @@ flat `reflection_answers`: legacy/unknown keys in those records remain intact.
 Writing and generated intentions retain their existing dedicated columns and
 contracts. No conversion or persistence function is introduced here.
 
-`WEEK_ONE_STEP_BEATS` exhaustively projects every `WeekOneStep` onto an overview
-beat without renaming persisted steps:
+`WEEK_ONE_STEP_BEATS` exhaustively projects every active `WeekOneStep`, plus the
+readable legacy `yellowdig_draft` value, onto an overview beat:
 
 | Existing `current_step`   | Overview beat |
 | ------------------------- | ------------- |
@@ -80,9 +81,14 @@ Completed records stay completed even if they predate those ratings. The
 `completed` mapping selects the final overview beat; it does not mark a separate
 beat complete. `reflection` was an overview ID, not a `WeekOneStep`. Do not
 rename `ai_gap_reflection`, the `reflection` activity type, answer keys, or
-database data. Existing `deriveNextAllowedStep`, `startWeekOne`, and completion
-logic remain the source of truth for gating/resume. Reading the overview never
-rewrites records.
+database data. Current `main` completes Week 1 from `ai_gap_reflection` and no
+longer includes `yellowdig_draft` in the active step sequence. Its existing
+restore logic accepts old discussion-step records and normalizes them to the
+appropriate unfinished step (normally `ai_gap_reflection`), preserving answers.
+Completed legacy records stay completed. This PR preserves that behavior; the
+overview can still project an unnormalized legacy value to `notice`. Existing
+`deriveNextAllowedStep`, `startWeekOne`, and completion logic remain the source
+of truth for gating/resume. Reading the overview never rewrites records.
 
 ## Backward-compatible migration plan — design only
 
@@ -129,5 +135,6 @@ cd mobile && npx tsc --noEmit
 The contract tests cover canonical IDs/order, typed Week 1/2 samples, invalid
 records, saved-answer shape, every legacy mapping, and the Arrive override. The
 existing shell tests verify Notice navigation and old saved-step resume. The
-Week 1 tests verify every saved step remains readable without a rewrite, legacy
-completed records remain complete, and existing save/gating/completion behavior.
+Week 1 tests verify every active saved step remains readable without a rewrite,
+legacy completed records remain complete, and existing save/gating/completion
+behavior.

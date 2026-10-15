@@ -24,7 +24,7 @@ export const WEEK_ONE_BEATS: FourBeats = [
     id: "notice",
     title: "Notice",
     description:
-      "Reflect on your data self-portrait and what the intentions got right, missed, and revealed.",
+      "Reflect on your data self-portrait and what the intentions got right, missed, and revealed. Save your reflections to complete Week 1.",
   },
 ];
 
@@ -39,6 +39,8 @@ export const WEEK_ONE_CONTENT: WeekContent = {
   },
 };
 
+export type WeekOneOverviewStep = WeekOneStep | "yellowdig_draft";
+
 // Keep every persisted WeekOneStep unchanged. This is an overview projection,
 // not a progress conversion or a new set of completion/navigation rules.
 export const WEEK_ONE_STEP_BEATS = {
@@ -50,10 +52,10 @@ export const WEEK_ONE_STEP_BEATS = {
   ai_gap_reflection: "notice",
   yellowdig_draft: "notice",
   completed: "notice",
-} as const satisfies Record<WeekOneStep, BeatId>;
+} as const satisfies Record<WeekOneOverviewStep, BeatId>;
 
 export function weekOneBeatId(
-  step: WeekOneStep,
+  step: WeekOneOverviewStep,
   answers?: ReflectionAnswers,
 ): BeatId {
   if (step !== "completed" && answers && !hasArrivalRatings(answers)) {
@@ -63,7 +65,7 @@ export function weekOneBeatId(
 }
 
 export function weekOneStepLabel(
-  step: WeekOneStep,
+  step: WeekOneOverviewStep,
   answers?: ReflectionAnswers,
 ): string {
   if (step !== "completed" && answers && !hasArrivalRatings(answers)) {
