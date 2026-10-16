@@ -1,3 +1,5 @@
+import { type CurriculumMedia, isCurriculumMedia } from "./curriculum-media";
+
 /** Overview IDs are independent of legacy activity steps and database row IDs. */
 export const BEAT_IDS = ["arrive", "practice", "explore", "notice"] as const;
 export type BeatId = (typeof BEAT_IDS)[number];
@@ -12,6 +14,7 @@ export type ModuleBeat<Id extends BeatId = BeatId> = Readonly<{
   id: Id;
   title: (typeof BEAT_TITLES)[Id];
   description: string;
+  media?: CurriculumMedia;
 }>;
 
 /** Tuple positions enforce the canonical order, not merely a count of four. */
@@ -68,7 +71,8 @@ export function isWeekContent(value: unknown): value is WeekContent {
   return BEAT_IDS.every((id, index) => {
     const beat = beats[index];
     return record(beat) && beat.id === id && beat.title === BEAT_TITLES[id] &&
-      (missing ? beat.description === "" : text(beat.description));
+      (missing ? beat.description === "" : text(beat.description)) &&
+      (beat.media === undefined || isCurriculumMedia(beat.media));
   });
 }
 
@@ -81,4 +85,12 @@ export function isWeekBeatAnswers(value: unknown): value is WeekBeatAnswers {
         text(key) && typeof answer === "string"
       )
     );
+}
+
+/** Read-only boundary for decoded curriculum configuration; never writes storage. */
+export function parseWeekContent(value: unknown): WeekContent {
+  if (!isWeekContent(value)) {
+    throw new Error("The curriculum configuration is invalid.");
+  }
+  return value;
 }
