@@ -47,6 +47,7 @@
   "scripts": {
     "postinstall": "patch-package --error-on-fail",
     "test:returning-user": "playwright test",
+    "test:ai-validation": "node --test tests/ai-activity.test.cjs tests/ai-activity-practice.test.cjs tests/ai-activity-recovery.test.cjs tests/gap-reflection.test.cjs tests/sensation-lexicon.test.cjs tests/week-one.test.cjs tests/week-two.test.cjs && npm run check:client-security && node --test tests/integration/endpoint/guided-reflection-fixtures.test.cjs && node --test tests/integration/endpoint/ai-activity-http.test.cjs",
     "test:endpoint-integration": "node --test tests/integration/endpoint/endpoint-http.test.cjs && node --test tests/integration/endpoint/guided-reflection-fixtures.test.cjs && node --test tests/integration/endpoint/ai-activity-http.test.cjs",
     "check:client-security": "node scripts/check-client-security.cjs",
     "prestart": "npm run check:client-security",
