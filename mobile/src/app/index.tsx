@@ -144,7 +144,7 @@ export default function HomeScreen() {
 
   if (activeScreen === "week-one" && activeActivity) {
     if (week?.week_number === 2) {
-      return <WeekTwoFlow key={activeActivity.id} activityId={activeActivity.id} onExit={returnToCurriculum} />;
+      return <WeekTwoFlow key={activeActivity.id} activityId={activeActivity.id} onExit={returnToCurriculum} practiceConfig={week.practice} />;
     }
     return (
       <WeekOneFlow
@@ -152,6 +152,7 @@ export default function HomeScreen() {
         activityId={activeActivity.id}
         onExit={returnToCurriculum}
         showModuleEntry
+        practiceConfig={week?.practice}
       />
     );
   }

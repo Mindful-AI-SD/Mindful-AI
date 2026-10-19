@@ -1,4 +1,6 @@
 import React from "react";
+jest.mock("../src/components/practice-media", () => ({ __esModule: true, default: () => null }));
+jest.mock("@react-native-async-storage/async-storage", () => require("@react-native-async-storage/async-storage/jest/async-storage-mock"));
 import {
   act,
   cleanup,

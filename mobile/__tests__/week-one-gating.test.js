@@ -19,6 +19,9 @@ function progress(overrides = {}) {
 }
 
 describe("deriveNextAllowedStep", () => {
+  test("resuming a visited check-in keeps its saved step even with earlier answers", () => {
+    expect(deriveNextAllowedStep(progress({ current_step: "post_breathing_check_in", reflection_answers: { post_breathing_urge: "no" } }))).toBe("post_breathing_check_in");
+  });
   test("starts a new user at breathing", () => {
     expect(deriveNextAllowedStep(null)).toBe("breathing");
   });

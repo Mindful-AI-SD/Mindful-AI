@@ -10,8 +10,10 @@ import { loadWeekTwoProgress, saveWeekTwoAnswers, sensationsFrom, SENSATION_KEYS
 import { getSensationWords, type SensationLexiconData } from "../../lib/sensation-lexicon";
 import type { ReflectionAnswers } from "../../lib/progress";
 import { WeekTwoExplore, WeekTwoNotice } from "./week-two-explore-notice";
+import { PracticeBeat } from "./practice-beat";
+import type { ModulePractice } from "../../lib/module-practice";
 
-export function WeekTwoFlow({ activityId, onExit }: { activityId: string; onExit: () => void }) {
+export function WeekTwoFlow({ activityId, onExit, practiceConfig }: { activityId: string; onExit: () => void; practiceConfig?: ModulePractice }) {
   const userId = useSignedInUserId();
   const [saved, setSaved] = useState<WeekTwoProgress | null>(null);
   const [answers, setAnswers] = useState<ReflectionAnswers>({});
@@ -77,10 +79,11 @@ export function WeekTwoFlow({ activityId, onExit }: { activityId: string; onExit
     if (success && exit) onExit();
   }
 
-  async function persist(nextStep: WeekTwoStep = saved!.step, patch = answers, exit = false) {
-    if (!saved) return;
+  async function persist(nextStep: WeekTwoStep = saved!.step, patch = answers, exit = false): Promise<boolean> {
+    if (!saved) return false;
     const success = await run(() => saveWeekTwoAnswers(userId, activityId, saved.step, weekTwoAnswerPatch(patch), nextStep));
     if (success && exit) onExit();
+    return success;
   }
 
   function edit(key: string, value: string) {
@@ -153,19 +156,14 @@ export function WeekTwoFlow({ activityId, onExit }: { activityId: string; onExit
           )}
           {practice && (
             <>
-              <ThemedText>Your body-map check-in is saved. You are ready for Practice.</ThemedText>
-              <ThemedText>Take a quiet moment to notice sensations in your body without judging them. When you are ready, describe what you noticed in Explore.</ThemedText>
               <ThemedText>{`Selected location: ${label}`}</ThemedText>
               <Pressable accessibilityRole="button" disabled={busy} style={styles.action}
                 accessibilityHint="Returns to Arrive with your saved location so you can revise it."
                 onPress={() => void save(false)}>
                 <ThemedText>Revise location</ThemedText>
               </Pressable>
-              <Pressable accessibilityRole="button" disabled={busy} style={styles.action}
-                accessibilityHint="Saves Practice as finished and opens Explore."
-                onPress={() => void persist("week_two_explore", { ...answers, week_two_practice_complete: "yes" })}>
-                <ThemedText>Continue to Explore</ThemedText>
-              </Pressable>
+              <PracticeBeat embedded activityId={activityId} weekNumber={2} config={practiceConfig} isSaving={busy}
+                onContinue={() => persist("week_two_explore", { ...answers, week_two_practice_complete: "yes" })} onExit={onExit} />
             </>
           )}
           {saved?.step === "week_two_explore" && <WeekTwoExplore answers={answers} data={lexicon} support={support}

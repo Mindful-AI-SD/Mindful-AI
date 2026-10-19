@@ -7,7 +7,8 @@ import { ThemedText } from "./themed-text";
 import { ThemedView } from "./themed-view";
 import { IntentionMirrorScreen } from "./intention-mirror-screen";
 import { AiGapReflectionScreen } from "./ai-gap-reflection-screen";
-import BreathingPlayer from "../app/breathing-player";
+import { PracticeBeat } from "./practice-beat";
+import type { ModulePractice } from "../../lib/module-practice";
 import { useTheme } from "@/hooks/use-theme";
 import { returnToWriting, saveWeekOneArrival, saveWeekOneStep, startWeekOne } from "../../lib/week-one";
 import type { ReflectionAnswers, WeekOneProgress } from "../../lib/progress";
@@ -145,8 +146,8 @@ function Questions({ progress, busy, onSave, onExit }: {
   );
 }
 
-export function WeekOneFlow({ activityId, onExit, showModuleEntry = false }: {
-  activityId: string; onExit: () => void; showModuleEntry?: boolean;
+export function WeekOneFlow({ activityId, onExit, showModuleEntry = false, practiceConfig }: {
+  activityId: string; onExit: () => void; showModuleEntry?: boolean; practiceConfig?: ModulePractice;
 }) {
   const userId = useSignedInUserId();
   const [progress, setProgress] = useState<WeekOneProgress | null>(null);
@@ -220,7 +221,7 @@ export function WeekOneFlow({ activityId, onExit, showModuleEntry = false }: {
       {needsArrival && progress && <WeekOneArrive key={`arrive:${attempt}`} savedAnswers={progress.reflection_answers}
         busy={busy} onSave={answers => change(() => saveWeekOneArrival(userId, activityId, answers))} onExit={onExit} />}
       {!needsArrival && progress?.current_step === "breathing" && (
-        <BreathingPlayer activityId={activityId} onContinue={() => save()} onExit={onExit} isSaving={busy} />
+        <PracticeBeat activityId={activityId} weekNumber={1} config={practiceConfig} onContinue={() => save()} onExit={onExit} isSaving={busy} continueLabel="Continue to check-in" />
       )}
       {!needsArrival && progress?.current_step === "post_breathing_check_in" && (
         <PostBreathingCheckIn key={`post-breathing:${attempt}`} progress={progress}
