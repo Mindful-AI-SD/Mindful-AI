@@ -1,7 +1,7 @@
 # Week 1–2 AI Validation Matrix
 
 Scheduled: 2026-10-14  
-Last executed: 2026-10-15
+Last executed: 2026-10-19
 
 ## Run
 
@@ -10,9 +10,11 @@ From the repository root, start local Supabase with Docker (which applies the re
 ```bash
 npx supabase start
 npm --prefix mobile run test:ai-validation
+npm --prefix mobile run test:endpoint-integration
+deno task tests
 ```
 
-The script runs isolated client/state tests first, followed by the authenticated `guided-reflection` and `ai-activity` HTTP suites one at a time. The HTTP tests use the real local Edge runtime, authentication, database activity lookup, and mock provider. They refuse non-loopback Supabase URLs; they do not send requests to a shared or production project.
+The AI validation script runs isolated client/state tests first, followed by the authenticated `guided-reflection` and `ai-activity` HTTP suites one at a time. The endpoint integration script additionally covers `mindfulness-response`. These HTTP tests use the real local Edge runtime, authentication, database activity lookup, and mock provider. They refuse non-loopback Supabase URLs; they do not send requests to a shared or production project. `deno task tests` runs the server-side schema, safety, provider, and function tests.
 
 ## Matrix
 
@@ -29,6 +31,23 @@ The script runs isolated client/state tests first, followed by the authenticated
 | Weeks 1–2 — privacy and persistence | Student text, credentials, provider errors, and client bundle/config boundaries | Client errors do not expose private server diagnostics or student text; provider/service credentials and server-only imports are excluded from client code; `ai-activity` requests do not create rows in the checked tables | `tests/ai-activity.test.cjs`; `npm run check:client-security`; `tests/integration/endpoint/ai-activity-http.test.cjs` |
 | Weeks 1–2 — saved progress ownership | Progress reads/writes and account changes | Progress is scoped to the signed-in user/activity; failed writes and ownership/conflict failures do not erase saved answers or advance completion | `tests/gap-reflection.test.cjs`; `tests/week-one.test.cjs`; `tests/week-two.test.cjs` |
 
+## Observed evidence (2026-10-19)
+
+| Test name(s) | Expected result | Observed status |
+|---|---|---|
+| `intention_mirror: signed-in request uses the one authenticated contract and returns its typed result`; `sensation_lexicon: signed-in request uses the one authenticated contract and returns its typed result` (`tests/ai-activity.test.cjs`) | Send only the typed, authenticated request and accept only the matching typed result | **PASS** — included in the AI validation run (95 passed, 0 failed) |
+| `endpoint failures map to stable codes and never expose server text`; `a request that never reaches the server is a NETWORK_ERROR` (`tests/ai-activity.test.cjs`) | Map failures to stable client error codes without exposing server diagnostics | **PASS** — included in the AI validation run |
+| `intention_mirror after timed Practice: player state attached to the request never leaves the app`; `sensation_lexicon after timed Practice: player state attached to the request never leaves the app` (`tests/ai-activity-practice.test.cjs`) | Keep player state local and omit it from AI requests | **PASS** — included in the AI validation run |
+| `sensation_lexicon: no connection leaves the saved input untouched and the same request retries successfully`; `intention_mirror: a failed request does not change an earlier valid result` (`tests/ai-activity-recovery.test.cjs`) | Preserve saved inputs/results through failures; retry only when requested | **PASS** — included in the AI validation run |
+| `check:client-security` (`scripts/check-client-security.cjs`) | Reject server-only credentials/imports and allow only public client configuration | **PASS** — completed in the AI validation pipeline |
+| `allows only public client configuration`; `finds secret keys and service-role JWTs without echoing values`; `blocks server environment references, dynamic reads, and backend imports`; `patched router decoder preserves query parameters and handles malformed input without hanging` (`tests/client-security.test.cjs`) | Enforce client security checks and ensure malformed query decoding terminates | **PASS** — standalone run: 4 passed, 0 failed |
+| `crisis check: detects …`; `crisis check: does not flag …`; `crisis response: names 988, UCF CAPS, and emergency services`; reflection policy tests for crisis priority and ordinary/invalid input (`supabase/tests/safety/crisisSupport_test.ts`, `supabase/tests/safety/reflectionPolicy_test.ts`) | Detect crisis cases, avoid flagging ordinary text, return the fixed support resources, and prevent provider execution for crisis input | **PASS** — included in `deno task tests` (350 tests passed, 0 failed) |
+| `guided-reflection fixtures pass through the authenticated HTTP endpoint` (`tests/integration/endpoint/guided-reflection-fixtures.test.cjs`) | Exercise fixture cases through local authenticated HTTP, including validation and fixed crisis support | **PASS** — 14 passed, 0 failed |
+| `ai-activity: Week 1, 2, and 3 mock paths over real HTTP, authentication, and the database` (`tests/integration/endpoint/ai-activity-http.test.cjs`) | Verify real local HTTP/auth/database behavior, crisis response, and no endpoint persistence | **PASS** — 18 passed, 0 failed |
+| `MIN-74: actual HTTP authentication, validation, and submission contracts` (`tests/integration/endpoint/endpoint-http.test.cjs`) | Verify authentication, request validation, crisis response without persistence, replay/conflict behavior, and provider failure handling | **PASS** — 14 passed, 0 failed |
+| `mindfulness endpoint with real Supabase authentication middleware` (`supabase/functions/mindfulness-response/index_test.ts`) | Validate authenticated submission, storage failures, timeout recovery, and preserving prior saved intentions | **PASS** — 1 test, 33 steps passed, 0 failed |
+| `AI activity endpoint with real Supabase authentication middleware` (`supabase/functions/ai-activity/index_test.ts`) | Validate authenticated route behavior, sanitized failures, concurrent requests, and recovery | **PASS** — 1 test, 119 steps passed, 0 failed |
+
 ## Privacy boundaries and interpretation
 
 - The unified `ai-activity` route accepts only its typed request fields, requires a user session, and validates that the activity is published. Its HTTP test compares row counts before and after calls across `ai_sessions`, `progress`, `intention_submissions`, and `reflections`; it expects no writes.
@@ -39,16 +58,26 @@ The script runs isolated client/state tests first, followed by the authenticated
 
 ## Latest results
 
-Command: `npm --prefix mobile run test:ai-validation`  
-Executed: 2026-10-15  
-Result: **PARTIAL / BLOCKED**
+Commands:
+
+```text
+npm.cmd --prefix mobile run test:ai-validation
+npm.cmd --prefix mobile run test:endpoint-integration
+node --test tests/client-security.test.cjs  (from mobile/)
+deno task tests
+```
+
+Executed: 2026-10-19
+Result: **PASS**
 
 - Client/state checks: **95 passed, 0 failed**.
 - `npm run check:client-security`: **passed**.
-- `guided-reflection` HTTP integration: **not started**; `npx supabase status` could not connect to `//./pipe/dockerDesktopLinuxEngine` because the Docker engine was unavailable.
-- `ai-activity` HTTP integration: **not run**; the script stops at the preceding failed HTTP suite.
+- Standalone client-security tests: **4 passed, 0 failed**; the malformed-query decoder regression noted in the previous run now passes.
+- `guided-reflection` authenticated HTTP fixtures: **14 passed, 0 failed**.
+- `ai-activity` authenticated HTTP integration: **18 passed, 0 failed**.
+- Full endpoint integration: `mindfulness-response` **14 passed**, `guided-reflection` **14 passed**, and `ai-activity` **18 passed**; **0 failures** across the three suites.
+- `deno task tests`: **350 passed, 0 failed**; `mindfulness-response` function test **1 passed (33 steps)** and `ai-activity` function test **1 passed (119 steps)**; **0 failures**.
+- The HTTP test runner emits Node's `DEP0190` deprecation warning for child-process arguments with `shell: true`; all affected suites pass.
 - No live or external AI provider was called.
 
-To complete the HTTP results, start Docker Desktop, run the command above again, and replace this result section with the resulting test counts.
-
-Out-of-scope regression noticed during the initial broad test run: `tests/client-security.test.cjs` has a failing malformed-query decoder stress test (`RangeError: Maximum call stack size exceeded` at 12,000 malformed `%C2` sequences). The focused matrix uses the passing client-security scanner instead; this separate router-decoder issue is not included in the Week 1–2 AI result.
+The prior run's Docker/Deno blockers are cleared. The deprecation warning is non-failing and remains a maintenance item; it does not block the recorded test results.
