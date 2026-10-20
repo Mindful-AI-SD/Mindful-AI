@@ -70,6 +70,8 @@ test("Week 2 restores all four beats, Sensation Lexicon results, ethics answers,
   await expect(page.getByRole("heading", { name: "Practice", exact: true })).toBeVisible();
   expect(progress.reflection_answers.arrive_body_region).toBe("left_foot");
 
+  await page.getByRole("button", { name: "Start practice", exact: true }).click();
+  await page.getByRole("button", { name: "Finish practice", exact: true }).click();
   await page.getByRole("button", { name: "Continue to Explore", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Explore · Sensation Lexicon", exact: true })).toBeVisible();
   for (const [index, sensation] of ["weird", "warm", "tight"].entries()) {

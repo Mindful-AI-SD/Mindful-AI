@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { modulePractice, type ModulePractice } from "./module-practice";
 
 export type CurriculumActivity = {
   id: string;
@@ -16,6 +17,7 @@ export type CurriculumWeek = {
   theme: string;
   description: string | null;
   activities: CurriculumActivity[];
+  practice?: ModulePractice;
 };
 
 export async function getPublishedWeekOne(): Promise<CurriculumWeek> {
@@ -55,6 +57,8 @@ export async function getPublishedWeek(weekNumber: 1 | 2): Promise<CurriculumWee
 
   return {
     ...week,
+    description: week.description?.trim().startsWith("{") ? null : week.description,
+    practice: modulePractice(weekNumber, week.description, activities?.[0]?.duration_minutes),
     activities: activities ?? [],
   };
 }

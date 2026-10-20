@@ -108,7 +108,7 @@ export async function saveWeekTwoAnswers(
     reflection_answers: answers, current_step: nextStep,
     status: complete ? "completed" : "in_progress",
     completed_at: complete ? new Date().toISOString() : null,
-  }).eq("user_id", userId).eq("activity_id", activityId).eq("updated_at", existing.updated_at)
+  }).eq("user_id", userId).eq("activity_id", activityId).eq("current_step", existing.current_step).eq("updated_at", existing.updated_at)
     .select("reflection_answers,current_step,status,started_at,updated_at,completed_at").maybeSingle();
   if (error) throw new Error("Could not save Week 2. Your answers are still here. Please retry.");
   if (!data) throw new Error("Your progress changed while saving. Reload Week 2 before continuing.");

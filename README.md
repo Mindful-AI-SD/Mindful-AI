@@ -186,6 +186,16 @@ The task discovers test files recursively under `supabase/tests/` and `supabase/
 
 The guided-reflection function uses the same schema before querying Supabase. Keep `deno.lock` committed when dependencies change so the Zod version remains reproducible.
 
+### Week 1–2 AI Validation Matrix
+
+Run the focused AI input, failure, privacy, and local HTTP matrix from the repository root with:
+
+```bash
+npm --prefix mobile run test:ai-validation
+```
+
+The command runs client and persistence tests first, then the authenticated `guided-reflection` and `ai-activity` HTTP suites sequentially against local Supabase. It requires Docker, a running local Supabase stack with migrations applied, and only accepts a loopback API URL. See [the matrix and latest recorded results](mobile/verification/ai-validation-matrix.md).
+
 ### Mock Provider Adapter
 
 The mock LLM provider adapter lives at:
