@@ -5,14 +5,16 @@ import { AccessibleHeading } from "./accessibility";
 import { ThemedText } from "./themed-text";
 import { ThemedView } from "./themed-view";
 
-export type ModuleBeat = Readonly<{ id: string; title: string; description: string }>;
-export type FourBeats = readonly [ModuleBeat, ModuleBeat, ModuleBeat, ModuleBeat];
+import type { BeatId, FourBeats } from "../../lib/four-beat-curriculum";
+
+// Preserve the existing type import path while keeping the contract UI-independent.
+export type { ModuleBeat, FourBeats } from "../../lib/four-beat-curriculum";
 
 /** Module entry/navigation is separate from the activities' own validation and saving. */
 export function FourBeatModuleShell({ title, beats, savedBeatId, savedStepLabel, onResume, onExit }: {
   title: string;
   beats: FourBeats;
-  savedBeatId: string;
+  savedBeatId: BeatId;
   savedStepLabel: string;
   onResume: () => void;
   onExit: () => void;
