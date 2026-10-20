@@ -1,3 +1,4 @@
+
 import React from "react";
 jest.mock("../src/components/practice-media", () => ({ __esModule: true, default: () => null }));
 jest.mock("@react-native-async-storage/async-storage", () => require("@react-native-async-storage/async-storage/jest/async-storage-mock"));
@@ -10,6 +11,7 @@ import {
 } from "@testing-library/react-native";
 
 import { WeekOneFlow } from "../src/components/week-one-flow";
+
 import {
   saveWeekOneArrival,
   saveWeekOneStep,
@@ -21,7 +23,10 @@ jest.mock("../src/components/auth-gate", () => ({
 }));
 
 jest.mock("@/hooks/use-theme", () => ({
-  useTheme: () => ({ text: "#000", backgroundElement: "#fff" }),
+  useTheme: () => ({
+    text: "#000",
+    backgroundElement: "#fff",
+  }),
 }));
 
 jest.mock("react-native-safe-area-context", () => ({
@@ -35,54 +40,143 @@ jest.mock("react-native-safe-area-context", () => ({
 jest.mock("../src/components/accessibility", () => {
   const React = require("react");
   const { Text } = require("react-native");
+
   return {
-    AccessibleHeading: ({ children }) => React.createElement(Text, null, children),
-    AccessibleStatus: ({ children }) => React.createElement(Text, null, children),
+    AccessibleHeading: ({ children }) =>
+      React.createElement(Text, null, children),
+    AccessibleStatus: ({ children }) =>
+      React.createElement(Text, null, children),
   };
 });
 
 jest.mock("../src/components/themed-text", () => {
   const React = require("react");
   const { Text } = require("react-native");
+
   return {
-    ThemedText: ({ children, ...props }) => React.createElement(Text, props, children),
+    ThemedText: ({ children, ...props }) =>
+      React.createElement(Text, props, children),
   };
 });
 
 jest.mock("../src/components/themed-view", () => {
   const React = require("react");
   const { View } = require("react-native");
+
   return {
-    ThemedView: ({ children, ...props }) => React.createElement(View, props, children),
+    ThemedView: ({ children, ...props }) =>
+      React.createElement(View, props, children),
   };
 });
 
 jest.mock("../src/components/intention-mirror-screen", () => {
   const React = require("react");
   const { Text } = require("react-native");
+
   return {
-    IntentionMirrorScreen: () => React.createElement(Text, null, "Intention Mirror"),
+    IntentionMirrorScreen: () =>
+      React.createElement(Text, null, "Intention Mirror"),
   };
 });
 
 jest.mock("../src/components/ai-gap-reflection-screen", () => {
   const React = require("react");
   const { Text } = require("react-native");
+
   return {
-    AiGapReflectionScreen: () => React.createElement(Text, null, "AI Gap Reflection"),
+    AiGapReflectionScreen: () =>
+      React.createElement(Text, null, "AI Gap Reflection"),
   };
 });
 
+// Mock the player to simulate valid completion.
+// The real timer and early-exit behavior are tested separately.
 jest.mock("../src/app/breathing-player", () => {
   const React = require("react");
-  const { Pressable, Text } = require("react-native");
+  const { Pressable, Text, View } = require("react-native");
+
   return {
     __esModule: true,
-    default: ({ onContinue }) => React.createElement(
-      Pressable,
-      { accessibilityRole: "button", onPress: () => onContinue() },
-      React.createElement(Text, null, "Finish breathing"),
-    ),
+
+    default: ({
+      onContinue,
+      onExit,
+      practiceTitle,
+      durationMs,
+      activityId,
+    }) =>
+      React.createElement(
+        View,
+        null,
+
+        React.createElement(
+          Text,
+          null,
+          practiceTitle ?? "Breathing Player",
+        ),
+
+        React.createElement(
+          Text,
+          null,
+          `Practice duration: ${durationMs}`,
+        ),
+
+        React.createElement(
+          Text,
+          null,
+          `Session ID: ${activityId}`,
+        ),
+
+        React.createElement(
+          Pressable,
+          {
+            accessibilityRole: "button",
+            accessibilityLabel: "Finish breathing",
+            onPress: () => onContinue?.(),
+          },
+          React.createElement(
+            Text,
+            null,
+            "Finish breathing",
+          ),
+        ),
+
+        React.createElement(
+          Pressable,
+          {
+            accessibilityRole: "button",
+            accessibilityLabel: "Exit practice",
+            onPress: onExit,
+          },
+          React.createElement(
+            Text,
+            null,
+            "Exit practice",
+          ),
+        ),
+      ),
+  };
+});
+
+// The Week 1 selector now delegates to the shared practice beat used by
+// sponsor-provided media. Mock that boundary while preserving the navigation
+// behavior this suite is responsible for.
+jest.mock("../src/components/practice-beat", () => {
+  const React = require("react");
+  const { Pressable, Text, View } = require("react-native");
+  return {
+    PracticeBeat: ({ activityId, config, onContinue, onExit }) =>
+      React.createElement(View, null,
+        React.createElement(Text, null, config?.title ?? "Practice"),
+        React.createElement(Text, null, `Session ID: ${activityId}`),
+        React.createElement(Pressable, {
+          accessibilityRole: "button", accessibilityLabel: "Finish breathing",
+          onPress: () => onContinue?.(),
+        }, React.createElement(Text, null, "Finish breathing")),
+        React.createElement(Pressable, {
+          accessibilityRole: "button", accessibilityLabel: "Exit practice", onPress: onExit,
+        }, React.createElement(Text, null, "Exit practice")),
+      ),
   };
 });
 
@@ -100,14 +194,21 @@ function progress(currentStep, reflectionAnswers = {}) {
   return {
     user_id: "user-1",
     activity_id: "activity-1",
-    status: currentStep === "completed" ? "completed" : "in_progress",
+    status:
+      currentStep === "completed"
+        ? "completed"
+        : "in_progress",
     current_step: currentStep,
-    reflection_answers: { arrive_mood: "3", arrive_energy: "4", ...reflectionAnswers },
+    reflection_answers: {
+      arrive_mood: "3",
+      arrive_energy: "4",
+      ...reflectionAnswers,
+    },
     generated_intentions: [],
   };
 }
 
-describe("WeekOneFlow breathing navigation", () => {
+describe("WeekOneFlow practice navigation", () => {
   beforeEach(() => {
     mockedStart.mockReset();
     mockedSave.mockReset();
@@ -118,173 +219,520 @@ describe("WeekOneFlow breathing navigation", () => {
     await cleanup();
   });
 
-  test("moves from breathing into the integrated post-breathing check-in", async () => {
-    mockedStart.mockResolvedValue(progress("breathing"));
-    mockedSave.mockResolvedValue(progress("post_breathing_check_in"));
+  test(
+    "moves from breathing into the integrated post-breathing check-in",
+    async () => {
+      mockedStart.mockResolvedValue(progress("breathing"));
 
-    const screen = await render(
-      <WeekOneFlow activityId="activity-1" onExit={jest.fn()} />,
-    );
+      mockedSave.mockResolvedValue(
+        progress("post_breathing_check_in"),
+      );
 
-    await waitFor(() => {
-      expect(screen.getByText("Finish breathing")).toBeTruthy();
-    });
-    await fireEvent.press(screen.getByText("Finish breathing"));
+      const screen = await render(
+        <WeekOneFlow
+          activityId="activity-1"
+          onExit={jest.fn()}
+        />,
+      );
 
-    await waitFor(() => {
+      await waitFor(() => {
+        expect(
+          screen.getByText("Choose your practice"),
+        ).toBeTruthy();
+      });
+
+      // Selecting a practice must not advance Week 1.
+      expect(mockedSave).not.toHaveBeenCalled();
+
+      await fireEvent.press(
+        screen.getByRole("button", {
+          name: "Choose 4-2-6 Breathing",
+        }),
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Finish breathing"),
+        ).toBeTruthy();
+      });
+
       expect(
-        screen.getByText("Did you notice an urge to check your phone?"),
+        screen.getByText("4-2-6 Breathing"),
       ).toBeTruthy();
-    });
-    expect(mockedSave).toHaveBeenCalledWith(
-      "user-1",
-      "activity-1",
-      "breathing",
-      {},
-      true,
-    );
-  });
 
-  test("opens saved writing progress in the intention mirror", async () => {
-    mockedStart.mockResolvedValue(progress("writing"));
+      expect(mockedSave).not.toHaveBeenCalled();
 
-    const screen = await render(
-      <WeekOneFlow activityId="activity-1" onExit={jest.fn()} />,
-    );
+      // The mocked player simulates valid completion.
+      await fireEvent.press(
+        screen.getByText("Finish breathing"),
+      );
 
-    await waitFor(() => {
-      expect(screen.getByText("Intention Mirror")).toBeTruthy();
-    });
-  });
+      await waitFor(() => {
+        expect(
+          screen.getByText(
+            "Did you notice an urge to check your phone?",
+          ),
+        ).toBeTruthy();
+      });
 
-  test("saves without advancing before returning to the curriculum", async () => {
-    const onExit = jest.fn();
-    mockedStart.mockResolvedValue(progress("post_breathing_check_in", {
-      post_breathing_urge: "no",
-      post_breathing_note: "Stayed focused.",
-    }));
-    mockedSave.mockResolvedValue(progress("post_breathing_check_in", {
-      post_breathing_urge: "no",
-      post_breathing_note: "Stayed focused.",
-    }));
+      expect(mockedSave).toHaveBeenCalledTimes(1);
 
-    const screen = await render(
-      <WeekOneFlow activityId="activity-1" onExit={onExit} />,
-    );
+      expect(mockedSave).toHaveBeenCalledWith(
+        "user-1",
+        "activity-1",
+        "breathing",
+        {},
+        true,
+      );
+    },
+  );
 
-    await waitFor(() => {
+  test(
+    "walking selection does not advance until simulated completion",
+    async () => {
+      mockedStart.mockResolvedValue(progress("breathing"));
+
+      mockedSave.mockResolvedValue(
+        progress("post_breathing_check_in"),
+      );
+
+      const screen = await render(
+        <WeekOneFlow
+          activityId="activity-1"
+          onExit={jest.fn()}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Choose your practice"),
+        ).toBeTruthy();
+      });
+
+      await fireEvent.press(
+        screen.getByRole("button", {
+          name: "Choose Mindful Walking",
+        }),
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Mindful Walking"),
+        ).toBeTruthy();
+      });
+
+      expect(mockedSave).not.toHaveBeenCalled();
+
       expect(
-        screen.getByLabelText("What did you notice?").props.value,
-      ).toBe("Stayed focused.");
-    });
-    await fireEvent.press(screen.getByText("Save and return to Week 1"));
+        screen.getByText(
+          "Session ID: activity-1:practice:mindful_walking",
+        ),
+      ).toBeTruthy();
 
-    await waitFor(() => expect(onExit).toHaveBeenCalledTimes(1));
-    expect(mockedSave).toHaveBeenCalledWith(
-      "user-1",
-      "activity-1",
-      "post_breathing_check_in",
-      {
-        arrive_mood: "3", arrive_energy: "4",
-        post_breathing_urge: "no",
-        post_breathing_note: "Stayed focused.",
-      },
-      false,
-    );
-  });
+      await fireEvent.press(
+        screen.getByText("Finish breathing"),
+      );
 
-  test("requires a choice, submits its note, and blocks repeated taps", async () => {
-    let finishSave;
-    mockedStart.mockResolvedValue(progress("post_breathing_check_in"));
-    mockedSave.mockImplementation(
-      () => new Promise(resolve => { finishSave = resolve; }),
-    );
+      await waitFor(() => {
+        expect(
+          screen.getByText(
+            "Did you notice an urge to check your phone?",
+          ),
+        ).toBeTruthy();
+      });
 
-    const screen = await render(
-      <WeekOneFlow activityId="activity-1" onExit={jest.fn()} />,
-    );
+      expect(mockedSave).toHaveBeenCalledTimes(1);
 
-    await waitFor(() => {
-      expect(screen.getByText("Choose Yes or No to continue.")).toBeTruthy();
-    });
-    expect(screen.getByRole("button", {
-      name: "Save and continue",
-    }).props.accessibilityState.disabled).toBe(true);
+      expect(mockedSave).toHaveBeenCalledWith(
+        "user-1",
+        "activity-1",
+        "breathing",
+        {},
+        true,
+      );
+    },
+  );
 
-    await fireEvent.press(screen.getByText("Yes"));
-    expect(screen.getByRole("radio", { name: "Yes" }).props.accessibilityState.checked).toBe(true);
-    expect(screen.getByRole("radio", { name: "No" }).props.accessibilityState.checked).toBe(false);
-    expect(screen.getByText("Your choice: Yes")).toBeTruthy();
-    await fireEvent.changeText(
-      screen.getByLabelText("What did you notice?"),
-      "I reached for my phone.",
-    );
-    await waitFor(() => {
-      expect(screen.getByRole("button", {
+  test(
+    "exiting a selected practice does not advance Week 1",
+    async () => {
+      mockedStart.mockResolvedValue(progress("breathing"));
+
+      const screen = await render(
+        <WeekOneFlow
+          activityId="activity-1"
+          onExit={jest.fn()}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Choose your practice"),
+        ).toBeTruthy();
+      });
+
+      await fireEvent.press(
+        screen.getByRole("button", {
+          name: "Choose Mindful Walking",
+        }),
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Mindful Walking"),
+        ).toBeTruthy();
+      });
+
+      await fireEvent.press(
+        screen.getByRole("button", {
+          name: "Exit practice",
+        }),
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Choose your practice"),
+        ).toBeTruthy();
+      });
+
+      expect(mockedSave).not.toHaveBeenCalled();
+    },
+  );
+
+  test(
+    "opens saved writing progress in the intention mirror",
+    async () => {
+      mockedStart.mockResolvedValue(progress("writing"));
+
+      const screen = await render(
+        <WeekOneFlow
+          activityId="activity-1"
+          onExit={jest.fn()}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Intention Mirror"),
+        ).toBeTruthy();
+      });
+    },
+  );
+
+  test(
+    "saves without advancing before returning to the curriculum",
+    async () => {
+      const onExit = jest.fn();
+
+      mockedStart.mockResolvedValue(
+        progress("post_breathing_check_in", {
+          post_breathing_urge: "no",
+          post_breathing_note: "Stayed focused.",
+        }),
+      );
+
+      mockedSave.mockResolvedValue(
+        progress("post_breathing_check_in", {
+          post_breathing_urge: "no",
+          post_breathing_note: "Stayed focused.",
+        }),
+      );
+
+      const screen = await render(
+        <WeekOneFlow
+          activityId="activity-1"
+          onExit={onExit}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByLabelText("What did you notice?")
+            .props.value,
+        ).toBe("Stayed focused.");
+      });
+
+      await fireEvent.press(
+        screen.getByText("Save and return to Week 1"),
+      );
+
+      await waitFor(() => {
+        expect(onExit).toHaveBeenCalledTimes(1);
+      });
+
+      expect(mockedSave).toHaveBeenCalledWith(
+        "user-1",
+        "activity-1",
+        "post_breathing_check_in",
+        {
+          arrive_mood: "3",
+          arrive_energy: "4",
+          post_breathing_urge: "no",
+          post_breathing_note: "Stayed focused.",
+        },
+        false,
+      );
+    },
+  );
+
+  test(
+    "requires a choice, submits its note, and blocks repeated taps",
+    async () => {
+      let finishSave;
+
+      mockedStart.mockResolvedValue(
+        progress("post_breathing_check_in"),
+      );
+
+      mockedSave.mockImplementation(
+        () =>
+          new Promise(resolve => {
+            finishSave = resolve;
+          }),
+      );
+
+      const screen = await render(
+        <WeekOneFlow
+          activityId="activity-1"
+          onExit={jest.fn()}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Choose Yes or No to continue."),
+        ).toBeTruthy();
+      });
+
+      expect(
+        screen.getByRole("button", {
+          name: "Save and continue",
+        }).props.accessibilityState.disabled,
+      ).toBe(true);
+
+      await fireEvent.press(screen.getByText("Yes"));
+
+      expect(
+        screen.getByRole("radio", {
+          name: "Yes",
+        }).props.accessibilityState.checked,
+      ).toBe(true);
+
+      expect(
+        screen.getByRole("radio", {
+          name: "No",
+        }).props.accessibilityState.checked,
+      ).toBe(false);
+
+      expect(
+        screen.getByText("Your choice: Yes"),
+      ).toBeTruthy();
+
+      await fireEvent.changeText(
+        screen.getByLabelText("What did you notice?"),
+        "I reached for my phone.",
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", {
+            name: "Save and continue",
+          }).props.accessibilityState.disabled,
+        ).toBe(false);
+      });
+
+      const continueButton = screen.getByRole("button", {
         name: "Save and continue",
-      }).props.accessibilityState.disabled).toBe(false);
-    });
+      });
 
-    const continueButton = screen.getByRole("button", {
-      name: "Save and continue",
-    });
-    await fireEvent.press(continueButton);
-    await fireEvent.press(continueButton);
+      await fireEvent.press(continueButton);
+      await fireEvent.press(continueButton);
 
-    expect(mockedSave).toHaveBeenCalledTimes(1);
-    expect(mockedSave).toHaveBeenCalledWith(
-      "user-1",
-      "activity-1",
-      "post_breathing_check_in",
-      {
-        arrive_mood: "3", arrive_energy: "4",
-        post_breathing_urge: "yes",
-        post_breathing_note: "I reached for my phone.",
-      },
-      true,
-    );
+      expect(mockedSave).toHaveBeenCalledTimes(1);
 
-    await act(async () => {
-      finishSave(progress("writing"));
-      await Promise.resolve();
-    });
-  });
+      expect(mockedSave).toHaveBeenCalledWith(
+        "user-1",
+        "activity-1",
+        "post_breathing_check_in",
+        {
+          arrive_mood: "3",
+          arrive_energy: "4",
+          post_breathing_urge: "yes",
+          post_breathing_note: "I reached for my phone.",
+        },
+        true,
+      );
+
+      await act(async () => {
+        finishSave(progress("writing"));
+      });
+    },
+  );
 });
 
-
 describe("Week 1 Arrive placement", () => {
-  beforeEach(() => { mockedStart.mockReset(); mockedSave.mockReset(); saveWeekOneArrival.mockReset(); });
-  afterEach(async () => { await cleanup(); });
-  test("requires both ratings, retains choices after a failed save, and saves once before Practice", async () => {
-    mockedStart.mockResolvedValue(progress("breathing", { arrive_mood: "", arrive_energy: "" }));
-    saveWeekOneArrival.mockRejectedValueOnce(new Error("Could not save ratings. Please retry."));
-    let finish;
-    const screen = await render(<WeekOneFlow activityId="activity-1" onExit={jest.fn()} />);
-    await waitFor(() => expect(screen.getByText("Arrive")).toBeTruthy());
-    const button = () => screen.getByRole("button", { name: "Continue to Practice" });
-    expect(button().props.accessibilityState.disabled).toBe(true);
-    await fireEvent.press(screen.getByRole("radio", { name: "Mood: 3 of 5" }));
-    expect(button().props.accessibilityState.disabled).toBe(true);
-    await fireEvent.press(screen.getByRole("radio", { name: "Energy: 4 of 5" }));
-    await fireEvent.press(button());
-    await waitFor(() => expect(screen.getByText("Could not save ratings. Please retry.")).toBeTruthy());
-    expect(screen.getByRole("radio", { name: "Mood: 3 of 5" }).props.accessibilityState.checked).toBe(true);
-    expect(screen.queryByText("Finish breathing")).toBeNull();
+  beforeEach(() => {
+    mockedStart.mockReset();
+    mockedSave.mockReset();
     saveWeekOneArrival.mockReset();
-    saveWeekOneArrival.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
-    const retry = button();
-    await fireEvent.press(retry);
-    await fireEvent.press(retry);
-    expect(saveWeekOneArrival).toHaveBeenCalledTimes(1);
-    expect(saveWeekOneArrival).toHaveBeenCalledWith("user-1", "activity-1", { arrive_mood: "3", arrive_energy: "4" });
-    await act(async () => { finish(progress("breathing")); });
-    await waitFor(() => expect(screen.getByText("Finish breathing")).toBeTruthy());
   });
-  test("restores a partial Arrive rating without showing Practice", async () => {
-    mockedStart.mockResolvedValue(progress("breathing", { arrive_mood: "2", arrive_energy: "" }));
-    const screen = await render(<WeekOneFlow activityId="activity-1" onExit={jest.fn()} />);
-    await waitFor(() => expect(screen.getByRole("radio", { name: "Mood: 2 of 5" }).props.accessibilityState.checked).toBe(true));
-    expect(screen.getByRole("button", { name: "Continue to Practice" }).props.accessibilityState.disabled).toBe(true);
-    expect(screen.queryByText("Finish breathing")).toBeNull();
+
+  afterEach(async () => {
+    await cleanup();
   });
+
+  test(
+    "requires both ratings, retains choices after a failed save, and saves once before Practice",
+    async () => {
+      mockedStart.mockResolvedValue(
+        progress("breathing", {
+          arrive_mood: "",
+          arrive_energy: "",
+        }),
+      );
+
+      saveWeekOneArrival
+        .mockRejectedValueOnce(
+          new Error("Could not save ratings. Please retry."),
+        );
+
+      let finish;
+
+      const screen = await render(
+        <WeekOneFlow
+          activityId="activity-1"
+          onExit={jest.fn()}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText("Arrive")).toBeTruthy();
+      });
+
+      const button = () =>
+        screen.getByRole("button", {
+          name: "Continue to Practice",
+        });
+
+      expect(
+        button().props.accessibilityState.disabled,
+      ).toBe(true);
+
+      await fireEvent.press(
+        screen.getByRole("radio", {
+          name: "Mood: 3 of 5",
+        }),
+      );
+
+      expect(
+        button().props.accessibilityState.disabled,
+      ).toBe(true);
+
+      await fireEvent.press(
+        screen.getByRole("radio", {
+          name: "Energy: 4 of 5",
+        }),
+      );
+
+      await fireEvent.press(button());
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(
+            "Could not save ratings. Please retry.",
+          ),
+        ).toBeTruthy();
+      });
+
+      expect(
+        screen.getByRole("radio", {
+          name: "Mood: 3 of 5",
+        }).props.accessibilityState.checked,
+      ).toBe(true);
+
+      expect(
+        screen.queryByText("Choose your practice"),
+      ).toBeNull();
+
+      saveWeekOneArrival.mockReset();
+
+      saveWeekOneArrival.mockImplementation(
+        () =>
+          new Promise(resolve => {
+            finish = resolve;
+          }),
+      );
+
+      const retry = button();
+
+      await fireEvent.press(retry);
+      await fireEvent.press(retry);
+
+      expect(
+        saveWeekOneArrival,
+      ).toHaveBeenCalledTimes(1);
+
+      expect(
+        saveWeekOneArrival,
+      ).toHaveBeenCalledWith(
+        "user-1",
+        "activity-1",
+        {
+          arrive_mood: "3",
+          arrive_energy: "4",
+        },
+      );
+
+      await act(async () => {
+        finish(progress("breathing"));
+      });
+
+      // Arrive now leads to the practice selector.
+      await waitFor(() => {
+        expect(
+          screen.getByText("Choose your practice"),
+        ).toBeTruthy();
+      });
+
+      // Entering Practice must not advance progress.
+      expect(mockedSave).not.toHaveBeenCalled();
+    },
+  );
+
+  test(
+    "restores a partial Arrive rating without showing Practice",
+    async () => {
+      mockedStart.mockResolvedValue(
+        progress("breathing", {
+          arrive_mood: "2",
+          arrive_energy: "",
+        }),
+      );
+
+      const screen = await render(
+        <WeekOneFlow
+          activityId="activity-1"
+          onExit={jest.fn()}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("radio", {
+            name: "Mood: 2 of 5",
+          }).props.accessibilityState.checked,
+        ).toBe(true);
+      });
+
+      expect(
+        screen.getByRole("button", {
+          name: "Continue to Practice",
+        }).props.accessibilityState.disabled,
+      ).toBe(true);
+
+      expect(
+        screen.queryByText("Choose your practice"),
+      ).toBeNull();
+    },
+  );
 });

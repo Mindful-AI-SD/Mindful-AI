@@ -7,7 +7,7 @@ import { ThemedText } from "./themed-text";
 import { ThemedView } from "./themed-view";
 import { IntentionMirrorScreen } from "./intention-mirror-screen";
 import { AiGapReflectionScreen } from "./ai-gap-reflection-screen";
-import { PracticeBeat } from "./practice-beat";
+import { WeekOnePracticeSelector } from "./week-one-practice-selector";
 import type { ModulePractice } from "../../lib/module-practice";
 import { useTheme } from "@/hooks/use-theme";
 import { returnToWriting, saveWeekOneArrival, saveWeekOneStep, startWeekOne } from "../../lib/week-one";
@@ -221,7 +221,8 @@ export function WeekOneFlow({ activityId, onExit, showModuleEntry = false, pract
       {needsArrival && progress && <WeekOneArrive key={`arrive:${attempt}`} savedAnswers={progress.reflection_answers}
         busy={busy} onSave={answers => change(() => saveWeekOneArrival(userId, activityId, answers))} onExit={onExit} />}
       {!needsArrival && progress?.current_step === "breathing" && (
-        <PracticeBeat activityId={activityId} weekNumber={1} config={practiceConfig} onContinue={() => save()} onExit={onExit} isSaving={busy} continueLabel="Continue to check-in" />
+        <WeekOnePracticeSelector activityId={activityId} practiceConfig={practiceConfig}
+          onContinue={() => save()} onExit={onExit} isSaving={busy} />
       )}
       {!needsArrival && progress?.current_step === "post_breathing_check_in" && (
         <PostBreathingCheckIn key={`post-breathing:${attempt}`} progress={progress}
