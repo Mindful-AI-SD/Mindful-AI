@@ -31,6 +31,9 @@ export default function AppTabs() {
 <NativeTabs.Trigger name="breathing-player">
   <NativeTabs.Trigger.Label>Breathing</NativeTabs.Trigger.Label>
 </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="instructor">
+        <NativeTabs.Trigger.Label>Instructor preview</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }

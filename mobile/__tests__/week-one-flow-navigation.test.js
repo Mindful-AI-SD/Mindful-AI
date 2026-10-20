@@ -1,5 +1,7 @@
 
 import React from "react";
+jest.mock("../src/components/practice-media", () => ({ __esModule: true, default: () => null }));
+jest.mock("@react-native-async-storage/async-storage", () => require("@react-native-async-storage/async-storage/jest/async-storage-mock"));
 import {
   act,
   cleanup,
@@ -152,6 +154,28 @@ jest.mock("../src/app/breathing-player", () => {
             "Exit practice",
           ),
         ),
+      ),
+  };
+});
+
+// The Week 1 selector now delegates to the shared practice beat used by
+// sponsor-provided media. Mock that boundary while preserving the navigation
+// behavior this suite is responsible for.
+jest.mock("../src/components/practice-beat", () => {
+  const React = require("react");
+  const { Pressable, Text, View } = require("react-native");
+  return {
+    PracticeBeat: ({ activityId, config, onContinue, onExit }) =>
+      React.createElement(View, null,
+        React.createElement(Text, null, config?.title ?? "Practice"),
+        React.createElement(Text, null, `Session ID: ${activityId}`),
+        React.createElement(Pressable, {
+          accessibilityRole: "button", accessibilityLabel: "Finish breathing",
+          onPress: () => onContinue?.(),
+        }, React.createElement(Text, null, "Finish breathing")),
+        React.createElement(Pressable, {
+          accessibilityRole: "button", accessibilityLabel: "Exit practice", onPress: onExit,
+        }, React.createElement(Text, null, "Exit practice")),
       ),
   };
 });

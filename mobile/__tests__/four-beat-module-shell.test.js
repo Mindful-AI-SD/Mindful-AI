@@ -1,6 +1,7 @@
 import React from "react";
+jest.mock("../src/components/practice-media", () => ({ __esModule: true, default: () => null }));
+jest.mock("@react-native-async-storage/async-storage", () => require("@react-native-async-storage/async-storage/jest/async-storage-mock"));
 import {
-  act,
   cleanup,
   fireEvent,
   render,
@@ -9,7 +10,6 @@ import {
 
 import { WeekOneFlow } from "../src/components/week-one-flow";
 import {
-  saveWeekOneArrival,
   saveWeekOneStep,
   startWeekOne,
 } from "../lib/week-one";
@@ -112,13 +112,13 @@ describe("four-beat module entry", () => {
     mockedStart.mockResolvedValue(progress("writing"));
     const screen = await render(<WeekOneFlow activityId="activity-1" onExit={jest.fn()} showModuleEntry />);
     await waitFor(() => expect(screen.getByText("Beat 3 of 4: Explore")).toBeTruthy());
-    for (const label of ["1. Arrive", "2. Practice", "3. Explore — selected", "4. Notice the gap"]) expect(screen.getByText(label)).toBeTruthy();
+    for (const label of ["1. Arrive", "2. Practice", "3. Explore — selected", "4. Notice"]) expect(screen.getByText(label)).toBeTruthy();
     await fireEvent.press(screen.getByRole("button", { name: "Back" }));
     await fireEvent.press(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByText("Beat 1 of 4: Arrive")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Back" }).props.accessibilityState.disabled).toBe(true);
     for (let n = 0; n < 3; n++) await fireEvent.press(screen.getByRole("button", { name: "Next" }));
-    expect(screen.getByText("Beat 4 of 4: Notice the gap")).toBeTruthy();
+    expect(screen.getByText("Beat 4 of 4: Notice")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Next" }).props.accessibilityState.disabled).toBe(true);
     expect(mockedSave).not.toHaveBeenCalled();
     await fireEvent.press(screen.getByRole("button", { name: "Resume: writing" }));
@@ -127,11 +127,11 @@ describe("four-beat module entry", () => {
   test("reopening restores the persisted step, not the last overview selection", async () => {
     mockedStart.mockResolvedValue(progress("ai_gap_reflection"));
     let screen = await render(<WeekOneFlow activityId="activity-1" onExit={jest.fn()} showModuleEntry />);
-    await waitFor(() => expect(screen.getByText("Beat 4 of 4: Notice the gap")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Beat 4 of 4: Notice")).toBeTruthy());
     await fireEvent.press(screen.getByRole("button", { name: "Back" }));
     await cleanup();
     screen = await render(<WeekOneFlow activityId="activity-1" onExit={jest.fn()} showModuleEntry />);
-    await waitFor(() => expect(screen.getByText("Beat 4 of 4: Notice the gap")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Beat 4 of 4: Notice")).toBeTruthy());
     await fireEvent.press(screen.getByRole("button", { name: "Resume: ai gap reflection" }));
     expect(screen.getByText("AI Gap Reflection")).toBeTruthy();
   });

@@ -86,13 +86,13 @@ export function deriveNextAllowedStep(progress: WeekOneProgress | null): WeekOne
 
   // Advancing beyond breathing is the persisted proof that the timer completed.
   if (savedStepIndex <= WEEK_ONE_STEPS.indexOf("breathing")) return "breathing";
-  if (!hasAnswer(progress, "post_breathing_urge")) return "post_breathing_check_in";
+  if (progress.current_step === "post_breathing_check_in" || !hasAnswer(progress, "post_breathing_urge")) return "post_breathing_check_in";
 
-  if (!validWeekOneWriting(progress.writing ?? "") || progress.generated_intentions.length !== 3) return "writing";
+  if (progress.current_step === "writing" || !validWeekOneWriting(progress.writing ?? "") || progress.generated_intentions.length !== 3) return "writing";
   // Intention Mirror is a view/acknowledgement step, so its saved step is its completion evidence.
   if (savedStepIndex <= WEEK_ONE_STEPS.indexOf("intention_mirror")) return "intention_mirror";
 
-  if (!hasAnswer(progress, "data_self_portrait_visible") ||
+  if (progress.current_step === "data_self_portrait" || !hasAnswer(progress, "data_self_portrait_visible") ||
       !hasAnswer(progress, "data_self_portrait_missing")) return "data_self_portrait";
 
   if (!hasAnswer(progress, "ai_gap_got_right") ||

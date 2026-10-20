@@ -7,20 +7,22 @@ import {
   View,
 } from "react-native";
 
-import BreathingPlayer from "../app/breathing-player";
 import {
   WEEK_ONE_PRACTICES,
   type WeekOnePracticeId,
 } from "../../lib/week-one-practices";
+import type { ModulePractice } from "../../lib/module-practice";
 
 import { ThemedText } from "./themed-text";
 import { ThemedView } from "./themed-view";
+import { PracticeBeat } from "./practice-beat";
 
 interface WeekOnePracticeSelectorProps {
   activityId: string;
   onContinue: () => Promise<boolean>;
   onExit: () => void;
   isSaving?: boolean;
+  practiceConfig?: ModulePractice;
 }
 
 const PRACTICE_IDS: WeekOnePracticeId[] = [
@@ -33,9 +35,20 @@ export function WeekOnePracticeSelector({
   onContinue,
   onExit,
   isSaving = false,
+  practiceConfig,
 }: WeekOnePracticeSelectorProps) {
   const [selectedPractice, setSelectedPractice] =
     useState<WeekOnePracticeId | null>(null);
+
+  // Published sponsor content takes precedence over the legacy alternatives.
+  // Until that content is supplied, students may choose either approved fallback.
+  if (practiceConfig && !practiceConfig.legacyBreathing) {
+    return (
+      <PracticeBeat activityId={activityId} weekNumber={1} config={practiceConfig}
+        onContinue={onContinue} onExit={onExit} isSaving={isSaving}
+        continueLabel="Continue to check-in" />
+    );
+  }
 
   if (selectedPractice) {
     const practice = WEEK_ONE_PRACTICES[selectedPractice];
@@ -47,15 +60,20 @@ export function WeekOnePracticeSelector({
       `${activityId}:practice:${selectedPractice}`;
 
     return (
-      <BreathingPlayer
+      <PracticeBeat
         key={sessionActivityId}
         activityId={sessionActivityId}
-        practiceTitle={practice.title}
-        durationMs={practice.durationMs}
-        instructions={practice.instructions}
+        weekNumber={1}
+        config={{
+          id: selectedPractice,
+          title: practice.title,
+          durationMs: practice.durationMs,
+          instructions: practice.instructions.join(" "),
+        }}
         isSaving={isSaving}
         onContinue={onContinue}
         onExit={() => setSelectedPractice(null)}
+        continueLabel="Continue to check-in"
       />
     );
   }
