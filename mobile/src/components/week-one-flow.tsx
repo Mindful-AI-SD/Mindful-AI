@@ -264,14 +264,14 @@ export function WeekOneFlow({ activityId, onExit, showModuleEntry = false, pract
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 }, section: { gap: 12 },
+  flex: { flex: 1, backgroundColor: "#F7F6F2" }, section: { gap: 12 },
   choiceRow: { flexDirection: "row", gap: 12 },
-  choice: { minHeight: 48, minWidth: 96, padding: 12, borderWidth: 1, borderColor: "#b9cbbd", borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  choice: { minHeight: 48, minWidth: 96, padding: 12, borderWidth: 1, borderColor: "#b9cbbd", borderRadius: 18, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" },
   choiceSelected: { borderWidth: 2, borderColor: "#41644a", backgroundColor: "rgba(65, 100, 74, 0.15)" },
-  content: { width: "100%", maxWidth: 720, alignSelf: "center", padding: 24, paddingTop: Platform.OS === "web" ? 88 : 24, gap: 24 },
+  content: { width: "100%", maxWidth: 720, alignSelf: "center", padding: 22, paddingTop: Platform.OS === "web" ? 72 : 22, paddingBottom: 80, gap: 20 },
   error: { padding: 24, paddingTop: Platform.OS === "web" ? 80 : 24, gap: 12 },
-  editor: { minHeight: 160, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "#b9cbbd", fontSize: 16, lineHeight: 24 },
+  editor: { minHeight: 160, padding: 16, borderRadius: 18, borderWidth: 1, borderColor: "#CAD8CF", backgroundColor: "#FFFFFF", fontSize: 16, lineHeight: 24 },
   action: { minHeight: 48, minWidth: 48, justifyContent: "center" },
-  button: { minHeight: 48, padding: 12, borderRadius: 12, backgroundColor: "#41644a", justifyContent: "center", alignItems: "center" },
+  button: { minHeight: 48, padding: 12, borderRadius: 22, backgroundColor: "#365B48", justifyContent: "center", alignItems: "center" },
   buttonText: { color: "white", fontWeight: "700" },
 });

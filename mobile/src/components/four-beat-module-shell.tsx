@@ -64,9 +64,9 @@ export function FourBeatModuleShell({ title, beats, savedBeatId, savedStepLabel,
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  content: { maxWidth: 720, width: "100%", alignSelf: "center", padding: 24, paddingTop: Platform.OS === "web" ? 88 : 24, gap: 16 },
-  detail: { gap: 12 },
+  flex: { flex: 1, backgroundColor: "#F7F6F2" },
+  content: { maxWidth: 720, width: "100%", alignSelf: "center", padding: 22, paddingTop: Platform.OS === "web" ? 72 : 22, paddingBottom: 80, gap: 16 },
+  detail: { gap: 12, backgroundColor: "#C4C7E0", padding: 22, borderRadius: 24 },
   navigation: { flexDirection: "row", gap: 24 },
-  action: { minHeight: 48, minWidth: 48, padding: 12, justifyContent: "center" },
+  action: { minHeight: 48, minWidth: 48, padding: 14, borderRadius: 18, backgroundColor: "#EAE9E5", justifyContent: "center" },
 });

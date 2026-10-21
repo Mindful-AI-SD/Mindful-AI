@@ -209,9 +209,9 @@ export function WeekTwoFlow({ activityId, onExit, practiceConfig }: { activityId
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  content: { width: "100%", maxWidth: 720, alignSelf: "center", padding: 24, paddingTop: Platform.OS === "web" ? 88 : 24, gap: 20 },
+  flex: { flex: 1, backgroundColor: "#F7F6F2" },
+  content: { width: "100%", maxWidth: 720, alignSelf: "center", padding: 22, paddingTop: Platform.OS === "web" ? 72 : 22, paddingBottom: 80, gap: 18 },
   map: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  region: { minHeight: 48, minWidth: 48, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "#b9cbbd", justifyContent: "center" },
+  region: { minHeight: 48, minWidth: 48, padding: 16, borderRadius: 18, borderWidth: 1, borderColor: "#CAD8CF", backgroundColor: "#FFFFFF", justifyContent: "center" },
   action: { minHeight: 48, minWidth: 48, padding: 12, justifyContent: "center" },
 });
