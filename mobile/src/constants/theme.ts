@@ -7,22 +7,24 @@ import '@/global.css';
 
 import { Platform } from 'react-native';
 
-export const Colors = {
-  light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
-  },
-  dark: {
-    text: '#ffffff',
-    background: '#000000',
-    backgroundElement: '#212225',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
-  },
+/** Mindful AI student-facing design tokens. */
+export const Palette = {
+  canvas: '#F7F6F2', ink: '#23252D', muted: '#686C76',
+  surface: '#FFFFFF', surfaceMuted: '#EAE9E5',
+  lavender: '#C4C7E0', sage: '#B9D6C3', sageInk: '#365B48',
+  border: '#CAD8CF',
 } as const;
+
+const studentTheme = {
+  text: Palette.ink,
+  background: Palette.canvas,
+  backgroundElement: Palette.surface,
+  backgroundSelected: Palette.lavender,
+  textSecondary: Palette.muted,
+};
+
+// Keep a single readable visual system regardless of the phone's OS appearance.
+export const Colors = { light: studentTheme, dark: studentTheme } as const;
 
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
