@@ -499,6 +499,13 @@ by this ticket.
   Docker Unix socket or mounted integration target was present; daemon
   reachability from this distro therefore cannot be established. This does not
   prove the Windows daemon is stopped.
+- Read-only Docker Desktop settings show integration already enabled for Ubuntu
+  (`EnableIntegrationWithDefaultWslDistro: true`,
+  `IntegratedWslDistros: [Ubuntu]`). Configuration is present, but runtime
+  integration is not mounted/usable. A bounded `docker.exe version` probe also
+  fails because the Windows `dockerDesktopLinuxEngine` named pipe does not
+  exist. The Linux engine API is currently unavailable from both entry points;
+  no reinstall or configuration change is justified by this diagnosis alone.
 - Cached Supabase CLI 2.121.0 is executable. Its `supabase status` reports
   `StatusDbInspectError: failed to inspect container health`. The repository's
   integration suite begins with `npx --yes supabase status -o json` and later
