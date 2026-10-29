@@ -39,7 +39,7 @@ answer.
 
 ## Public helper and RPC surface
 
-`mobile/lib/baseline.ts` exports typed methods:
+`mobile/lib/baseline-helpers.ts` exports typed methods:
 
 - `loadBaseline()`: current draft/submitted record or null.
 - `saveBaselineDraft({ operationId, expectedRevision, definitionId,
@@ -144,7 +144,7 @@ npm --prefix mobile run check:client-security
 git diff --check
 (cd mobile && npx tsc --ignoreConfig --noEmit --strict --skipLibCheck --types node \
   --target ES2022 --module preserve --moduleResolution bundler \
-  --lib ES2022,DOM lib/baseline.ts)
+  --lib ES2022,DOM lib/baseline-helpers.ts)
 ```
 
 The baseline suite captures local CLI credentials in memory without printing

@@ -4,7 +4,7 @@ const vm = require("node:vm");
 const ts = require("typescript");
 module.exports = function loadBaseline(supabase) {
   const source = fs.readFileSync(
-    path.join(__dirname, "../../lib/baseline.ts"),
+    path.join(__dirname, "../../lib/baseline-helpers.ts"),
     "utf8",
   );
   const code = ts.transpileModule(source, {
