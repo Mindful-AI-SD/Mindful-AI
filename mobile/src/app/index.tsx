@@ -11,6 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { WeekOneFlow } from "@/components/week-one-flow";
 import { WeekTwoFlow } from "@/components/week-two-flow";
+import { GuidingQuestionsCapture } from "@/components/guiding-questions-capture";
 import { useSignedInUserId } from "@/components/auth-gate";
 import { AccessibleHeading } from "@/components/accessibility";
 import { ThemedText } from "@/components/themed-text";
@@ -24,7 +25,7 @@ import {
   getActivityProgress,
 } from "../../lib/progress";
 
-type ActiveScreen = "curriculum" | "week-one";
+type ActiveScreen = "curriculum" | "week-one" | "guiding-questions";
 
 const STATUS_LABELS = {
   not_started: "Not started",
@@ -100,6 +101,10 @@ export default function HomeScreen() {
     setOpeningActivityId(null);
   }
 
+  if (activeScreen === "guiding-questions") {
+    return <GuidingQuestionsCapture userId={userId} onBack={returnToCurriculum} />;
+  }
+
   if (activeScreen === "week-one" && activeActivity) {
     if (week?.week_number === 2) {
       return <WeekTwoFlow key={activeActivity.id} activityId={activeActivity.id} onExit={returnToCurriculum} practiceConfig={week.practice} />;
@@ -142,6 +147,13 @@ export default function HomeScreen() {
               </Pressable>
             ))}
           </View>
+
+          {selectedWeek === 1 && <Pressable accessibilityRole="button"
+            accessibilityLabel="Open saved Guiding Questions"
+            accessibilityHint="Opens five answer fields with account-scoped saved fixture progress on this device."
+            style={styles.retryButton} onPress={() => setActiveScreen("guiding-questions")}>
+            <ThemedText style={styles.retryButtonText}>Guiding Questions · Saved fixture</ThemedText>
+          </Pressable>}
 
           {isLoading && (
             <View style={styles.centered}>
