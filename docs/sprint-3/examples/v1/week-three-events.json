@@ -1,0 +1,11 @@
+{
+  "contractVersion": "sprint3-storage/v1",
+  "activitySlug": "example-week-3-distraction-audit",
+  "events": [
+    {
+      "id": "example-tap-1",
+      "at": "2026-10-28T16:00:00Z",
+      "label": "Synthetic tap"
+    }
+  ]
+}
