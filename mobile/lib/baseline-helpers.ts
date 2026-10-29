@@ -1,4 +1,7 @@
 import { supabase } from "./supabase";
+import { BaselineError as CaptureBaselineError } from "./baseline";
+import type { BaselineService, BaselineWrite } from "./baseline";
+export type { BaselineWrite } from "./baseline";
 
 export const BASELINE_CONTRACT_VERSION = "sprint3-storage/v1" as const;
 export type BaselineDefinition = {
@@ -18,13 +21,6 @@ export type Baseline = {
   submittedAt: string | null;
   createdAt: string;
   updatedAt: string;
-};
-export type BaselineWrite = {
-  operationId: string;
-  expectedRevision: number;
-  definitionId: string;
-  definitionVersion: number;
-  answers: Record<string, string>;
 };
 export type BaselineReceipt = {
   contractVersion: typeof BASELINE_CONTRACT_VERSION;
@@ -50,11 +46,11 @@ const messages = {
   ACCOUNT_CHANGED: "Your account changed. Reload before retrying.",
   BASELINE_UNAVAILABLE: "Could not access your baseline. Please retry.",
 } as const;
-export type BaselineErrorCode = keyof typeof messages;
-export class BaselineError extends Error {
-  constructor(public readonly code: BaselineErrorCode) {
+export type BaselinePersistenceErrorCode = keyof typeof messages;
+export class BaselinePersistenceError extends Error {
+  constructor(public readonly code: BaselinePersistenceErrorCode) {
     super(messages[code]);
-    this.name = "BaselineError";
+    this.name = "BaselinePersistenceError";
   }
 }
 function object(value: unknown): value is Record<string, unknown> {
@@ -86,10 +82,12 @@ function baseline(value: unknown): value is Baseline {
 async function owner(): Promise<string> {
   try {
     const { data, error } = await supabase.auth.getUser();
-    if (error || !data.user?.id) throw new BaselineError("AUTH_REQUIRED");
+    if (error || !data.user?.id) {
+      throw new BaselinePersistenceError("AUTH_REQUIRED");
+    }
     return data.user.id;
   } catch {
-    throw new BaselineError("AUTH_REQUIRED");
+    throw new BaselinePersistenceError("AUTH_REQUIRED");
   }
 }
 
@@ -97,22 +95,24 @@ async function identity(): Promise<{ id: string; token: string }> {
   try {
     const { data: { session }, error } = await supabase.auth.getSession();
     if (error || !session?.access_token || !session.user?.id) {
-      throw new BaselineError("AUTH_REQUIRED");
+      throw new BaselinePersistenceError("AUTH_REQUIRED");
     }
     const { data, error: userError } = await supabase.auth.getUser(
       session.access_token,
     );
     if (userError || data.user?.id !== session.user.id) {
-      throw new BaselineError("AUTH_REQUIRED");
+      throw new BaselinePersistenceError("AUTH_REQUIRED");
     }
     return { id: data.user.id, token: session.access_token };
   } catch {
-    throw new BaselineError("AUTH_REQUIRED");
+    throw new BaselinePersistenceError("AUTH_REQUIRED");
   }
 }
 
 async function sameOwner(id: string) {
-  if (await owner() !== id) throw new BaselineError("ACCOUNT_CHANGED");
+  if (await owner() !== id) {
+    throw new BaselinePersistenceError("ACCOUNT_CHANGED");
+  }
 }
 async function call(name: string, args: Record<string, unknown> = {}) {
   try {
@@ -123,17 +123,17 @@ async function call(name: string, args: Record<string, unknown> = {}) {
       .setHeader("Authorization", `Bearer ${token}`);
     if (error) {
       const code = error.message;
-      throw new BaselineError(
+      throw new BaselinePersistenceError(
         Object.hasOwn(messages, code)
-          ? code as BaselineErrorCode
+          ? code as BaselinePersistenceErrorCode
           : "BASELINE_UNAVAILABLE",
       );
     }
     await sameOwner(id);
     return data as unknown;
   } catch (error) {
-    if (error instanceof BaselineError) throw error;
-    throw new BaselineError("BASELINE_UNAVAILABLE");
+    if (error instanceof BaselinePersistenceError) throw error;
+    throw new BaselinePersistenceError("BASELINE_UNAVAILABLE");
   }
 }
 
@@ -159,7 +159,7 @@ function request(input: BaselineWrite) {
     !positive(input.definitionVersion) ||
     input.definitionVersion > 2147483647 || !strings(input.answers)
   ) {
-    throw new BaselineError("INVALID_INPUT");
+    throw new BaselinePersistenceError("INVALID_INPUT");
   }
   // Snapshot mutable caller objects before the first asynchronous operation.
   const value = {
@@ -172,7 +172,7 @@ function request(input: BaselineWrite) {
     const code = char.codePointAt(0)!;
     bytes += code < 128 ? 1 : code < 2048 ? 2 : code < 65536 ? 3 : 4;
   }
-  if (bytes > 524288) throw new BaselineError("INVALID_INPUT");
+  if (bytes > 524288) throw new BaselinePersistenceError("INVALID_INPUT");
   return value;
 }
 async function write(
@@ -187,14 +187,14 @@ async function write(
     !((data.outcome === "draft_saved" && data.submittedAt === null) ||
       (data.outcome === "submitted" && typeof data.submittedAt === "string"))
   ) {
-    throw new BaselineError("BASELINE_UNAVAILABLE");
+    throw new BaselinePersistenceError("BASELINE_UNAVAILABLE");
   }
   return data as BaselineReceipt;
 }
 export async function loadBaseline(): Promise<Baseline | null> {
   const data = await call("load_baseline");
   if (data !== null && !baseline(data)) {
-    throw new BaselineError("BASELINE_UNAVAILABLE");
+    throw new BaselinePersistenceError("BASELINE_UNAVAILABLE");
   }
   return data;
 }
@@ -211,7 +211,7 @@ export function submitBaseline(input: BaselineWrite): Promise<BaselineReceipt> {
 export async function loadOriginalBaseline(): Promise<OriginalBaseline> {
   const data = await call("load_original_baseline");
   if (!object(data) || data.contractVersion !== BASELINE_CONTRACT_VERSION) {
-    throw new BaselineError("BASELINE_UNAVAILABLE");
+    throw new BaselinePersistenceError("BASELINE_UNAVAILABLE");
   }
   if (data.original === null && data.definition === null) {
     return data as OriginalBaseline;
@@ -220,7 +220,7 @@ export async function loadOriginalBaseline(): Promise<OriginalBaseline> {
     !baseline(data.original) || data.original.status !== "submitted" ||
     !object(data.definition)
   ) {
-    throw new BaselineError("BASELINE_UNAVAILABLE");
+    throw new BaselinePersistenceError("BASELINE_UNAVAILABLE");
   }
   const d = data.definition;
   if (
@@ -236,7 +236,40 @@ export async function loadOriginalBaseline(): Promise<OriginalBaseline> {
     new Set(d.questions.map((q: { questionId: string }) => q.questionId))
         .size !== 5
   ) {
-    throw new BaselineError("BASELINE_UNAVAILABLE");
+    throw new BaselinePersistenceError("BASELINE_UNAVAILABLE");
   }
   return data as OriginalBaseline;
 }
+
+// UI/fixture contract adapter: preserve its void-write shape and error identity.
+async function capture<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (error instanceof BaselinePersistenceError) {
+      const code = error.code;
+      if (
+        code === "STALE_REVISION" || code === "BASELINE_IMMUTABLE" ||
+        code === "OPERATION_CONFLICT" || code === "INVALID_INPUT"
+      ) {
+        throw new CaptureBaselineError(code, error.message);
+      }
+      throw new CaptureBaselineError("UNAVAILABLE", error.message);
+    }
+    throw new CaptureBaselineError(
+      "UNAVAILABLE",
+      messages.BASELINE_UNAVAILABLE,
+    );
+  }
+}
+/** Explicit injection adapter; importing the fixture model does not load this module. */
+export const baselineService: BaselineService = {
+  loadBaseline: () => capture(loadBaseline),
+  loadOriginalBaseline: () => capture(loadOriginalBaseline),
+  async saveBaselineDraft(input) {
+    await capture(() => saveBaselineDraft(input));
+  },
+  async submitBaseline(input) {
+    await capture(() => submitBaseline(input));
+  },
+};

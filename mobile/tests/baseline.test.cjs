@@ -185,3 +185,28 @@ test("request token remains bound to verified owner during a dispatch account sw
   assert.equal(s.header.value, "Bearer synthetic-token-a");
   assert.equal(s.user, "b");
 });
+
+test("shared capture adapter keeps void-write contract and controlled form errors", async () => {
+  const s = setup();
+  s.data = {
+    contractVersion: "sprint3-storage/v1",
+    outcome: "draft_saved",
+    revision: 1,
+    submittedAt: null,
+    replayed: false,
+  };
+  assert.equal(
+    await s.api.baselineService.saveBaselineDraft(input()),
+    undefined,
+  );
+  s.error = { message: "STALE_REVISION" };
+  await assert.rejects(
+    () => s.api.baselineService.submitBaseline(input()),
+    (error) => error.code === "STALE_REVISION",
+  );
+  s.user = null;
+  await assert.rejects(
+    () => s.api.baselineService.loadBaseline(),
+    (error) => error.code === "UNAVAILABLE" && /Sign in/.test(error.message),
+  );
+});

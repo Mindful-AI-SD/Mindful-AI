@@ -13,10 +13,24 @@ module.exports = function loadBaseline(supabase) {
       target: ts.ScriptTarget.ES2022,
     },
   }).outputText;
+  const model = {};
+  vm.runInNewContext(
+    ts.transpileModule(
+      fs.readFileSync(path.join(__dirname, "../../lib/baseline.ts"), "utf8"),
+      {
+        compilerOptions: {
+          module: ts.ModuleKind.CommonJS,
+          target: ts.ScriptTarget.ES2022,
+        },
+      },
+    ).outputText,
+    { exports: model },
+  );
   const exports = {};
   vm.runInNewContext(code, {
     exports,
     require(name) {
+      if (name === "./baseline") return model;
       if (name !== "./supabase") throw new Error(`Unexpected import: ${name}`);
       return { supabase };
     },

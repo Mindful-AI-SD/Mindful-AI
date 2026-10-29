@@ -1,6 +1,6 @@
 # MIN-220: Definition-driven baseline persistence
 
-Implementation base: main `7554e6fed509620cddea9f70a266c99b84d398c7`. Contract:
+Implementation base: main `e89819cef332306a59b14028c3b9c0761c4e98bd`. Contract:
 [MIN-214 PR #53](https://github.com/Mindful-AI-SD/Mindful-AI/pull/53),
 `sprint3-storage/v1`. This ticket implements generic infrastructure, not
 production curriculum seeding. MIN-219 still owns the approved five questions
@@ -64,9 +64,17 @@ Write inputs reject protected/unknown fields, invalid UUIDs/revisions/versions,
 non-string answers and oversized requests. Caller answer objects are copied
 before asynchronous authentication. The database independently validates the
 pinned question set, keys, lengths, ownership and lifecycle.
-`BaselineError.code` exposes controlled conflicts/unavailability; messages never
-echo raw database/provider errors. Write RPC wrappers also normalize unexpected
-database exceptions.
+`BaselinePersistenceError.code` exposes controlled conflicts/unavailability;
+messages never echo raw database/provider errors. Write RPC wrappers also
+normalize unexpected database exceptions.
+
+The latest main adds Christopher's fixture-only `mobile/lib/baseline.ts`
+contract. That file and its screens are preserved unchanged. Persistence lives
+separately in `baseline-helpers.ts`, reuses its `BaselineWrite` type, and
+exports a `baselineService` adapter matching `BaselineService` (void writes and
+the shared form error class). The detailed helper methods still return receipts.
+No screen is automatically wired to live storage and importing the fixture model
+does not import Supabase helpers.
 
 Receipts acknowledge the revision originally saved. A screen reloads current
 data after an acknowledgement rather than putting replayed draft text over newer
@@ -167,9 +175,9 @@ and no project database/volume is reset. Unexpected additional drift fails for
 inspection. On a clean/main-only history this staging is unnecessary. A cached
 CLI can be selected using the optional `SUPABASE_CLI` environment variable.
 
-Verified here: 24 new Docker tests including parent; 8 focused helper tests; 8
+Verified here: 24 new Docker tests including parent; 9 focused helper tests; 8
 existing progress and 9 intention-persistence Docker tests; 350 shared backend
-tests plus 33 mindfulness-response and 119 ai-activity endpoint cases; 156
+tests plus 33 mindfulness-response and 119 ai-activity endpoint cases; 157
 mobile Node regression tests including the new helpers. Focused baseline
 TypeScript, SQL lint, scoped lint, formatting, whitespace and client-security
 checks pass. Full frontend checking has existing CSS/media-dependency errors
