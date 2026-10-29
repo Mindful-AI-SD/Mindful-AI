@@ -182,6 +182,8 @@ mobile Node regression tests including the new helpers. Focused baseline
 TypeScript, SQL lint, scoped lint, formatting, whitespace and client-security
 checks pass. Full frontend checking has existing CSS/media-dependency errors
 reproduced against untouched main; no unrelated frontend changes are included.
-Component-test results and any baseline timeout are recorded in the PR evidence
-rather than disguised as new storage validation. These are local tests, not a
-shared deployment or live provider certification.
+The full component run reports 83 passes and one breathing-navigation timeout,
+reproduced on untouched main. After integrating e89819c, the new Guiding
+Questions suites report 10 passes and one capture timeout; the identical result
+reproduces on untouched e89819c. Tests and timeouts are unchanged. These are
+local checks, not a shared deployment or live provider certification.
