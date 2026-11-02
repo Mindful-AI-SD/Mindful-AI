@@ -24,7 +24,7 @@ export async function getPublishedWeekOne(): Promise<CurriculumWeek> {
   return getPublishedWeek(1);
 }
 
-export async function getPublishedWeek(weekNumber: 1 | 2): Promise<CurriculumWeek> {
+export async function getPublishedWeek(weekNumber: 1 | 2 | 3): Promise<CurriculumWeek> {
   const { data: week, error: weekError } = await supabase
     .from("weeks")
     .select("id, week_number, title, theme, description")
@@ -58,7 +58,7 @@ export async function getPublishedWeek(weekNumber: 1 | 2): Promise<CurriculumWee
   return {
     ...week,
     description: week.description?.trim().startsWith("{") ? null : week.description,
-    practice: modulePractice(weekNumber, week.description, activities?.[0]?.duration_minutes),
+    practice: weekNumber === 3 ? undefined : modulePractice(weekNumber, week.description, activities?.[0]?.duration_minutes),
     activities: activities ?? [],
   };
 }

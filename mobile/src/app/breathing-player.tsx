@@ -17,6 +17,7 @@ import {
 } from "react-native";
 
 import { useSignedInUserId } from "@/components/auth-gate";
+import { ActivityRouteGate } from "@/components/activity-route-gate";
 import { usePracticePlayer } from "@/hooks/use-practice-player";
 import type {
   PracticePlayerState,
@@ -43,7 +44,17 @@ interface BreathingPlayerProps {
   practiceTitle?: string;
 }
 
-export default function BreathingPlayer({
+export default function BreathingPlayer(props: BreathingPlayerProps = {}) {
+  const { activityId } = useLocalSearchParams<{ activityId?: string }>();
+  // Embedded players inherit their module gate; standalone URLs resolve the
+  // activity's actual week before mounting any timer or persistence effects.
+  if (props.activityId) return <BreathingPlayerContent {...props} />;
+  return <ActivityRouteGate activityId={typeof activityId === "string" ? activityId : undefined}>
+    <BreathingPlayerContent {...props} />
+  </ActivityRouteGate>;
+}
+
+function BreathingPlayerContent({
   activityId: providedActivityId,
   onContinue,
   onExit,

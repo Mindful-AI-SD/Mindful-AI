@@ -9,6 +9,8 @@ import {
 } from "@testing-library/react-native";
 
 import BreathingPlayer from "../src/app/breathing-player";
+jest.mock("../lib/week-access", () => ({ getWeekAccess: jest.fn(), getActivityWeek: jest.fn() }));
+jest.mock("@/components/activity-route-gate", () => ({ ActivityRouteGate: ({ children }) => children }));
 import {
   clearBreathingSession,
   loadBreathingSession,

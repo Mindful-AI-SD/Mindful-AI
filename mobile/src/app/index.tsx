@@ -1,7 +1,8 @@
-import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useRef, useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,6 +13,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { WeekOneFlow } from "@/components/week-one-flow";
 import { WeekTwoFlow } from "@/components/week-two-flow";
 import { GuidingQuestionsCapture } from "@/components/guiding-questions-capture";
+import { WeekAccessGate } from "@/components/week-access-gate";
+import { WeekThreeExploreNotice } from "@/components/week-three-explore-notice";
+import { getWeekAccess, type SequentialWeek, type WeekAccessResult } from "../../lib/week-access";
 import { useSignedInUserId } from "@/components/auth-gate";
 import { AccessibleHeading } from "@/components/accessibility";
 import { ThemedText } from "@/components/themed-text";
@@ -35,11 +39,14 @@ const STATUS_LABELS = {
 
 export default function HomeScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ week?: string; activityId?: string }>();
   const userId = useSignedInUserId();
   const [activeScreen, setActiveScreen] = useState<ActiveScreen>("curriculum");
   const [activeActivityId, setActiveActivityId] = useState<string | null>(null);
   const [week, setWeek] = useState<CurriculumWeek | null>(null);
-  const [selectedWeek, setSelectedWeek] = useState<1 | 2>(1);
+  const [selectedWeek, setSelectedWeek] = useState<SequentialWeek>(params.week === "2" ? 2 : params.week === "3" ? 3 : 1);
+  const [weekAccess, setWeekAccess] = useState<Partial<Record<SequentialWeek, WeekAccessResult>>>({});
+  const opening = useRef(false);
   const loadVersion = useRef(0);
   const [progressByActivityId, setProgressByActivityId] = useState<
     Record<string, ActivityProgress>
@@ -47,15 +54,36 @@ export default function HomeScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [openingActivityId, setOpeningActivityId] = useState<string | null>(null);
+  const activeScreenRef = useRef(activeScreen);
+  activeScreenRef.current = activeScreen;
+  const loadedLink = useRef<string | null>(null);
+  const linkSignature = JSON.stringify([selectedWeek, params.week, params.activityId]);
+
+  useEffect(() => {
+    if (params.week && ["1", "2", "3"].includes(params.week)) setSelectedWeek(Number(params.week) as SequentialWeek);
+    setActiveScreen("curriculum"); setActiveActivityId(null);
+  }, [params.week, params.activityId]);
 
   const loadWeek = useCallback(async () => {
+    loadedLink.current = linkSignature;
     const current = ++loadVersion.current;
     setIsLoading(true);
     setErrorMessage(null);
+    setWeek(null); setWeekAccess({}); setProgressByActivityId({});
 
     try {
+      if ((params.week !== undefined && !["1", "2", "3"].includes(params.week)) ||
+        (params.activityId !== undefined && (typeof params.activityId !== "string" || !params.week))) throw new Error("This week link is invalid. Open a week from the curriculum.");
+      const results = await Promise.all(([1, 2, 3] as const).map(async number => {
+        try { return await getWeekAccess(userId, number); }
+        catch { return { weekNumber: number, allowed: false, requiredWeek: null, message: `Could not verify Week ${number} access. Retry loading saved completion.` } satisfies WeekAccessResult; }
+      }));
+      if (loadVersion.current !== current) return;
+      const access = Object.fromEntries(results.map(result => [result.weekNumber, result]));
+      setWeekAccess(access);
+      if (!access[selectedWeek]?.allowed) return;
       const weekOne = await getPublishedWeek(selectedWeek);
-      const progress = await getActivityProgress(
+      const progress = selectedWeek === 3 ? [] : await getActivityProgress(
         userId,
         weekOne.activities.map((activity) => activity.id),
       );
@@ -64,6 +92,10 @@ export default function HomeScreen() {
       setProgressByActivityId(
         Object.fromEntries(progress.map((item) => [item.activity_id, item])),
       );
+      if (params.activityId) {
+        if (!weekOne.activities.some(activity => activity.id === params.activityId)) throw new Error("This activity does not belong to the selected published week.");
+        setActiveActivityId(params.activityId); setActiveScreen("week-one");
+      }
     } catch (error) {
       if (loadVersion.current !== current) return;
       setWeek(null);
@@ -75,14 +107,25 @@ export default function HomeScreen() {
     } finally {
       if (loadVersion.current === current) setIsLoading(false);
     }
-  }, [userId, selectedWeek]);
+  }, [userId, selectedWeek, params.week, params.activityId, linkSignature]);
 
   useFocusEffect(
     useCallback(() => {
-      if (activeScreen === "curriculum") void loadWeek();
+      // The child gate rechecks an open activity on focus without throwing away
+      // its unsaved fields. A changed resume URL still loads its own target.
+      if (activeScreenRef.current === "curriculum" || loadedLink.current !== linkSignature) void loadWeek();
       return () => { loadVersion.current++; };
-    }, [activeScreen, loadWeek]),
+    }, [loadWeek, linkSignature]),
   );
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", state => {
+      if (activeScreen !== "curriculum") return;
+      if (state === "active") void loadWeek();
+      else { loadVersion.current++; setIsLoading(true); setWeekAccess({}); }
+    });
+    return () => subscription.remove();
+  }, [activeScreen, loadWeek]);
 
   const activeActivity = week?.activities.find(
     (activity) => activity.id === activeActivityId,
@@ -91,14 +134,24 @@ export default function HomeScreen() {
   function returnToCurriculum() {
     setActiveScreen("curriculum");
     setActiveActivityId(null);
+    if (params.activityId) router.setParams({ activityId: undefined });
+    else void loadWeek();
   }
 
-  function openActivity(activityId: string) {
-    if (openingActivityId) return;
+  async function openActivity(activityId: string) {
+    if (opening.current || isLoading) return;
+    opening.current = true;
     setOpeningActivityId(activityId);
-    setActiveActivityId(activityId);
-    setActiveScreen("week-one");
-    setOpeningActivityId(null);
+    const request = loadVersion.current;
+    try {
+      const access = await getWeekAccess(userId, selectedWeek);
+      if (loadVersion.current !== request) return;
+      setWeekAccess(current => ({ ...current, [selectedWeek]: access }));
+      if (!access.allowed) { setWeek(null); return; }
+      // Resume links are checked again after URL restoration, not trusted as grants.
+      router.setParams({ week: String(selectedWeek), activityId });
+    } catch { if (loadVersion.current === request) { setWeek(null); setErrorMessage("Could not verify saved completion. Retry before opening this activity."); } }
+    finally { opening.current = false; setOpeningActivityId(null); }
   }
 
   if (activeScreen === "guiding-questions") {
@@ -106,8 +159,13 @@ export default function HomeScreen() {
   }
 
   if (activeScreen === "week-one" && activeActivity) {
+    if (week?.week_number === 3) {
+      return <WeekAccessGate key={`${userId}:3`} weekNumber={3} onBack={returnToCurriculum}>
+        <WeekThreeExploreNotice userId={userId} activityId={activeActivity.id} onExit={returnToCurriculum} showModuleEntry />
+      </WeekAccessGate>;
+    }
     if (week?.week_number === 2) {
-      return <WeekTwoFlow key={activeActivity.id} activityId={activeActivity.id} onExit={returnToCurriculum} practiceConfig={week.practice} />;
+      return <WeekAccessGate key={`${userId}:2:${activeActivity.id}`} weekNumber={2} onBack={returnToCurriculum}><WeekTwoFlow activityId={activeActivity.id} onExit={returnToCurriculum} practiceConfig={week.practice} /></WeekAccessGate>;
     }
     return (
       <WeekOneFlow
@@ -131,9 +189,10 @@ export default function HomeScreen() {
           </View>
 
           <View accessibilityRole="radiogroup" accessibilityLabel="Curriculum week" style={styles.weekSelector}>
-            {([1, 2] as const).map(number => (
+            {([1, 2, 3] as const).map(number => (
               <Pressable key={number} accessibilityRole="radio" accessibilityLabel={`Week ${number}`}
                 accessibilityState={{ checked: selectedWeek === number }} aria-checked={selectedWeek === number}
+                accessibilityHint={isLoading ? "Checking saved prerequisites." : weekAccess[number]?.message}
                 style={[styles.weekChoice, selectedWeek === number && styles.weekChoiceActive]} onPress={() => {
                   if (selectedWeek === number) return;
                   loadVersion.current++;
@@ -142,11 +201,21 @@ export default function HomeScreen() {
                   setIsLoading(true);
                   setErrorMessage(null);
                   setSelectedWeek(number);
+                  router.setParams({ week: String(number), activityId: undefined });
                 }}>
                 <ThemedText style={[styles.weekChoiceText, selectedWeek === number && styles.weekChoiceTextActive]}>{`Week ${number}`}</ThemedText>
               </Pressable>
             ))}
           </View>
+
+          <View style={styles.section}>
+            {([1, 2, 3] as const).map(number => <ThemedText key={number}>{isLoading ? `Week ${number}: Checking prerequisites…` : `Week ${number}: ${weekAccess[number]?.allowed ? "Available" : "Locked"}. ${weekAccess[number]?.message ?? "Access has not been verified."}`}</ThemedText>)}
+          </View>
+          {!isLoading && !errorMessage && !weekAccess[selectedWeek]?.allowed && <ThemedView style={styles.messageCard}>
+            <AccessibleHeading>{`Week ${selectedWeek} locked`}</AccessibleHeading>
+            <ThemedText>{weekAccess[selectedWeek]?.message ?? "Could not verify saved completion."}</ThemedText>
+            <Pressable accessibilityRole="button" style={styles.retryButton} onPress={() => void loadWeek()}><ThemedText style={styles.retryButtonText}>Check prerequisites again</ThemedText></Pressable>
+          </ThemedView>}
 
           {selectedWeek === 1 && <Pressable accessibilityRole="button"
             accessibilityLabel="Open saved Guiding Questions"
@@ -180,6 +249,9 @@ export default function HomeScreen() {
                 <ThemedText style={styles.retryButtonText}>
                   Try again
                 </ThemedText>
+              </Pressable>
+              <Pressable accessibilityRole="button" style={styles.retryButton} onPress={() => router.replace("/")}>
+                <ThemedText style={styles.retryButtonText}>Back to curriculum</ThemedText>
               </Pressable>
             </ThemedView>
           )}
@@ -221,7 +293,7 @@ export default function HomeScreen() {
                       accessibilityLabel={`${activity.title}. ${STATUS_LABELS[status]}`}
                       disabled={openingActivityId !== null}
                       key={activity.id}
-                      onPress={() => openActivity(activity.id)}
+                      onPress={() => void openActivity(activity.id)}
                       style={({ pressed }) => [
                         styles.activityCard,
                         pressed && styles.buttonPressed,

@@ -27,6 +27,7 @@ export default function AppTabs() {
           <TabTrigger name="explore" href="/explore" asChild>
             <TabButton>Explore</TabButton>
           </TabTrigger>
+          <TabTrigger name="breathing-player" href="/breathing-player" style={{ display: 'none' }} />
         </CustomTabList>
       </TabList>
     </Tabs>
