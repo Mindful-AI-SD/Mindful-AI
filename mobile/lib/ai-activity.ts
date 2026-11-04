@@ -1,4 +1,14 @@
 import type { Intention } from "./intention";
+import {
+  isContentVersion,
+  isPrewrittenLabels,
+  isWeekOnePrewritten,
+  isWeekTwoPrewritten,
+  type PrewrittenLabels,
+  readPrewrittenRecord,
+  type WeekOnePrewritten,
+  type WeekTwoPrewritten,
+} from "./prewritten-content";
 import { supabase } from "./supabase";
 
 // Client for the general `ai-activity` Edge Function: one authenticated
@@ -31,6 +41,20 @@ export type AiActivityRequest<K extends AiActivityKind> = {
 
 export type SupportResource = { name: string; contact: string };
 
+// Fixed non-AI content, per activity. It is a separate outcome so it can never be
+// shown as a generated answer.
+export type PrewrittenResults = {
+  intention_mirror: WeekOnePrewritten;
+  sensation_lexicon: WeekTwoPrewritten;
+};
+
+export type ActivityMode = {
+  mode: string | null;
+  available: boolean;
+  contentVersion: string | null;
+  labels: PrewrittenLabels | null;
+};
+
 // "result" is the normal answer. "support" is the server's fixed response to
 // crisis language: show its message and resources and do not continue the lab.
 export type AiActivityData<K extends AiActivityKind> =
@@ -39,6 +63,14 @@ export type AiActivityData<K extends AiActivityKind> =
     kind: K;
     provider: string;
     result: AiActivityResults[K];
+  }
+  | {
+    outcome: "prewritten";
+    kind: K;
+    provider: "prewritten";
+    contentVersion: string;
+    labels: PrewrittenLabels;
+    result: PrewrittenResults[K];
   }
   | { outcome: "support"; message: string; resources: SupportResource[] };
 
@@ -195,6 +227,26 @@ function readSupport(value: Fields): AiActivityData<never> | null {
   return { outcome: "support", message: value.message, resources };
 }
 
+const prewrittenReaders: {
+  [K in AiActivityKind]: (value: unknown) => value is PrewrittenResults[K];
+} = {
+  intention_mirror: isWeekOnePrewritten,
+  sensation_lexicon: isWeekTwoPrewritten,
+};
+
+function readPrewritten<K extends AiActivityKind>(
+  kind: K,
+  value: Fields,
+): AiActivityData<K> | null {
+  if (value.kind !== kind) return null;
+  const { kind: _kind, ...record } = value;
+  const read = readPrewrittenRecord<PrewrittenResults[K]>(
+    record,
+    prewrittenReaders[kind],
+  );
+  return read && { outcome: "prewritten", kind, ...read };
+}
+
 function readResponse<K extends AiActivityKind>(
   kind: K,
   input: AiActivityInputs[K],
@@ -202,6 +254,7 @@ function readResponse<K extends AiActivityKind>(
 ): AiActivityData<K> | null {
   if (!isFields(value)) return null;
   if ("outcome" in value) return readSupport(value);
+  if (value.provider === "prewritten") return readPrewritten(kind, value);
   if (
     !hasOnlyKeys(value, ["kind", "provider", "result"]) ||
     value.kind !== kind || !isText(value.provider, 50) ||
@@ -333,4 +386,60 @@ export function getAiActivity<K extends AiActivityKind>(
       finish(transportFailure(error));
     });
   });
+}
+
+export type ActivityModeResult =
+  | { data: ActivityMode; error: null }
+  | { data: null; error: AiActivityError };
+
+function readActivityMode(value: unknown): ActivityMode | null {
+  if (
+    !isFields(value) ||
+    !hasOnlyKeys(value, ["mode", "available", "contentVersion", "labels"]) ||
+    !(value.mode === null || isText(value.mode, 50)) ||
+    typeof value.available !== "boolean" ||
+    !(value.contentVersion === null || isContentVersion(value.contentVersion)) ||
+    !(value.labels === null || isPrewrittenLabels(value.labels))
+  ) return null;
+  return {
+    mode: value.mode as string | null,
+    available: value.available,
+    contentVersion: value.contentVersion as string | null,
+    labels: value.labels as PrewrittenLabels | null,
+  };
+}
+
+// Reads which mode the server is using, so a screen can identify itself before a
+// student begins. Holds no credential and reveals no model name.
+export async function getActivityMode(
+  options: { signal?: AbortSignal; timeoutMs?: number } = {},
+): Promise<ActivityModeResult> {
+  const controller = new AbortController();
+  const cancel = () => controller.abort();
+  options.signal?.addEventListener("abort", cancel, { once: true });
+  const timer = setTimeout(cancel, options.timeoutMs ?? 15_000);
+  try {
+    const { data: auth, error: authError } = await supabase.auth.getSession();
+    if (authError || !auth.session) throw new AiActivityTransportError(401);
+    const { data, error } = await supabase.functions.invoke("ai-activity", {
+      method: "GET",
+      signal: controller.signal,
+    });
+    if (error) {
+      const status = (error as { context?: { status?: unknown } }).context
+        ?.status;
+      throw new AiActivityTransportError(
+        typeof status === "number" ? status : null,
+      );
+    }
+    const mode = readActivityMode(data);
+    return mode
+      ? { data: mode, error: null }
+      : failure("INVALID_RESPONSE", unavailable);
+  } catch (error) {
+    return transportFailure(error);
+  } finally {
+    clearTimeout(timer);
+    options.signal?.removeEventListener("abort", cancel);
+  }
 }

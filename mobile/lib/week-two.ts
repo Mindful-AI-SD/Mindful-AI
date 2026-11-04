@@ -1,3 +1,4 @@
+import { isWeekTwoPrewritten, readPrewrittenRecord } from "./prewritten-content";
 import { supabase } from "./supabase";
 import { isBodyRegion, readWeekTwoRecord, requireWeekTwoOwner, type BodyRegion, type WeekTwoRecord } from "./week-two-arrival";
 import type { ReflectionAnswers } from "./progress";
@@ -6,16 +7,29 @@ import type { SensationLexiconData } from "./sensation-lexicon";
 export const WEEK_TWO_BEATS = ["Arrive", "Practice", "Explore", "Notice"] as const;
 export type WeekTwoStep = "week_two_arrive" | "week_two_practice" | "week_two_explore" | "week_two_notice" | "completed";
 export type LexiconWords = Extract<SensationLexiconData, { kind: "words" }>;
+export type WeekTwoPrewrittenRecord = Extract<SensationLexiconData, { kind: "prewritten" }>;
+export type WeekTwoResult = LexiconWords | WeekTwoPrewrittenRecord;
+// Separate keys, so a student's chosen words and answers survive any change of mode.
+export const WEEK_TWO_PREWRITTEN_WORDS_KEY = "week_two_prewritten_words";
+export const WEEK_TWO_PREWRITTEN_PROMPT_KEYS = ["week_two_prewritten_prompt_2", "week_two_prewritten_prompt_3", "week_two_prewritten_prompt_4"] as const;
 export type WeekTwoProgress = {
   region: BodyRegion | null;
   step: WeekTwoStep;
   answers: ReflectionAnswers;
-  lexicon: LexiconWords | null;
+  lexicon: WeekTwoResult | null;
   status: "not_started" | "in_progress" | "completed";
   completedAt: string | null;
 };
 export const SENSATION_KEYS = ["week_two_sensation_1", "week_two_sensation_2", "week_two_sensation_3"] as const;
-const editableKeys = new Set<string>([...SENSATION_KEYS, "week_two_lexicon", "week_two_practice_complete", "week_two_tracker_reflection", "week_two_closing_reflection"]);
+const editableKeys = new Set<string>([...SENSATION_KEYS, "week_two_lexicon", "week_two_practice_complete", "week_two_tracker_reflection", "week_two_closing_reflection", WEEK_TWO_PREWRITTEN_WORDS_KEY, ...WEEK_TWO_PREWRITTEN_PROMPT_KEYS]);
+
+export function selectedWeekTwoWords(answers: ReflectionAnswers): string[] {
+  return (answers[WEEK_TWO_PREWRITTEN_WORDS_KEY] ?? "").split("\n").filter(Boolean);
+}
+export function toggleWeekTwoWord(answers: ReflectionAnswers, word: string): string {
+  const selected = selectedWeekTwoWords(answers);
+  return (selected.includes(word) ? selected.filter(item => item !== word) : [...selected, word]).join("\n");
+}
 export function weekTwoAnswerPatch(answers: ReflectionAnswers): ReflectionAnswers {
   return Object.fromEntries(Object.entries(answers).filter(([key]) => editableKeys.has(key)));
 }
@@ -27,10 +41,15 @@ export function validSensations(answers: ReflectionAnswers): boolean {
   return sensationsFrom(answers).every(value => value.length >= 2 && value.length <= 80);
 }
 
-function lexiconFrom(answers: ReflectionAnswers): LexiconWords | null {
+function lexiconFrom(answers: ReflectionAnswers): WeekTwoResult | null {
   if (!answers.week_two_lexicon || !validSensations(answers)) return null;
   try {
     const value = JSON.parse(answers.week_two_lexicon);
+    if (value.kind === "prewritten") {
+      const { kind: _kind, ...saved } = value;
+      const record = readPrewrittenRecord(saved, isWeekTwoPrewritten);
+      return record && { kind: "prewritten", ...record };
+    }
     const sensations = sensationsFrom(answers);
     if (value.kind !== "words" || typeof value.provider !== "string" || !value.provider.trim() ||
         !Array.isArray(value.items) || value.items.length !== 3 ||

@@ -6,8 +6,9 @@ import { AccessibleHeading, AccessibleStatus } from "./accessibility";
 import { ThemedText } from "./themed-text";
 import { ThemedView } from "./themed-view";
 import { BODY_REGIONS, saveWeekTwoArrival, type BodyRegion } from "../../lib/week-two-arrival";
-import { loadWeekTwoProgress, saveWeekTwoAnswers, sensationsFrom, SENSATION_KEYS, validSensations, weekTwoAnswerPatch, WEEK_TWO_BEATS, type LexiconWords, type WeekTwoProgress, type WeekTwoStep } from "../../lib/week-two";
+import { loadWeekTwoProgress, saveWeekTwoAnswers, sensationsFrom, SENSATION_KEYS, validSensations, weekTwoAnswerPatch, WEEK_TWO_BEATS, type WeekTwoResult, type WeekTwoProgress, type WeekTwoStep } from "../../lib/week-two";
 import { getSensationWords, type SensationLexiconData } from "../../lib/sensation-lexicon";
+import { useActivityMode } from "@/hooks/use-activity-mode";
 import type { ReflectionAnswers } from "../../lib/progress";
 import { WeekTwoExplore, WeekTwoNotice } from "./week-two-explore-notice";
 import { PracticeBeat } from "./practice-beat";
@@ -17,7 +18,8 @@ export function WeekTwoFlow({ activityId, onExit, practiceConfig }: { activityId
   const userId = useSignedInUserId();
   const [saved, setSaved] = useState<WeekTwoProgress | null>(null);
   const [answers, setAnswers] = useState<ReflectionAnswers>({});
-  const [lexicon, setLexicon] = useState<LexiconWords | null>(null);
+  const [lexicon, setLexicon] = useState<WeekTwoResult | null>(null);
+  const mode = useActivityMode(userId);
   const [support, setSupport] = useState<Extract<SensationLexiconData, { kind: "support" }> | null>(null);
   const [region, setRegion] = useState<BodyRegion | null>(null);
   const [busy, setBusy] = useState(false);
@@ -166,7 +168,7 @@ export function WeekTwoFlow({ activityId, onExit, practiceConfig }: { activityId
                 onContinue={() => persist("week_two_explore", { ...answers, week_two_practice_complete: "yes" })} onExit={onExit} />
             </>
           )}
-          {saved?.step === "week_two_explore" && <WeekTwoExplore answers={answers} data={lexicon} support={support}
+          {saved?.step === "week_two_explore" && <WeekTwoExplore mode={mode} answers={answers} data={lexicon} support={support}
             busy={busy} retry={!!error} onChange={edit} onGenerate={() => void generate()}
             onContinue={() => void persist("week_two_notice")} />}
           {saved?.step === "week_two_notice" && lexicon && <WeekTwoNotice answers={answers} data={lexicon}

@@ -20,6 +20,8 @@ jest.mock("../lib/week-two", () => ({
   saveWeekTwoAnswers: jest.fn(),
 }));
 jest.mock("../lib/sensation-lexicon", () => ({ getSensationWords: jest.fn() }));
+let mockActivityMode = { status: "ready", mode: { mode: "mock", available: true, contentVersion: null, labels: null } };
+jest.mock("@/hooks/use-activity-mode", () => ({ useActivityMode: () => mockActivityMode }));
 jest.mock("@/hooks/use-theme", () => ({ useTheme: () => ({ text: "#000", backgroundElement: "#fff" }) }));
 jest.mock("../src/components/auth-gate", () => ({ useSignedInUserId: () => "user-a" }));
 jest.mock("react-native-safe-area-context", () => ({

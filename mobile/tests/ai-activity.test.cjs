@@ -241,7 +241,7 @@ test("cancellation stops the request, clears timers, and skips the endpoint when
 
 test("the client holds no provider key, model SDK, or server-only import", () => {
   const source = fs.readFileSync(path.join(__dirname, "../lib/ai-activity.ts"), "utf8");
-  assert.deepEqual([...source.matchAll(/from\s+"([^"]+)"/g)].map(match => match[1]), ["./intention", "./supabase"]);
+  assert.deepEqual([...source.matchAll(/from\s+"([^"]+)"/g)].map(match => match[1]), ["./intention", "./prewritten-content", "./supabase"]);
   assert.match(source, /import type \{ Intention \} from "\.\/intention"/);
   assert.doesNotMatch(source, /process\.env|api[_-]?key|service[_-]?role|sb_secret_|Authorization/i);
 });

@@ -1,3 +1,4 @@
+const { MOCK_MODE } = require("./helpers/ai-activity-stub.cjs");
 const { test, expect } = require("@playwright/test");
 const { simulateAuthBackend, accounts, activityId } = require("./helpers/auth-backend.cjs");
 
@@ -5,8 +6,10 @@ test("Week 2 restores all four beats, Sensation Lexicon results, ethics answers,
   await simulateAuthBackend(context);
   let progress = null, failSave = false, revision = 0;
   const aiRequests = [];
+  const weekOneActivityId = "33333333-3333-4333-8333-333333333333";
   await context.route("**/functions/v1/ai-activity", async route => {
     if (route.request().method() === "OPTIONS") return route.fulfill({ status: 200, headers: { "access-control-allow-origin": "*" } });
+    if (route.request().method() === "GET") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_MODE), headers: { "access-control-allow-origin": "*" } });
     const body = route.request().postDataJSON();
     aiRequests.push(body);
     const items = body.input.sensations.map(original => ({ original, isVague: original === "weird", suggestions: original === "weird" ? ["tingling", "fluttering"] : [] }));
@@ -23,9 +26,13 @@ test("Week 2 restores all four beats, Sensation Lexicon results, ethics answers,
     }
     if (url.pathname.endsWith("/activities")) {
       if (url.searchParams.has("id")) return record({ id: activityId, weeks: { week_number: 2, is_published: true } });
+      if (url.searchParams.get("week_id") === "eq.1") return respond([{ id: weekOneActivityId, title: "Notice and Reflect", activity_type: "reflection", content: "Pause.", sequence_number: 1, duration_minutes: null }]);
       return respond(url.searchParams.get("week_id") === "eq.2" ? [{ id: activityId, title: "Body-map check-in", activity_type: "reflection", content: "Choose a location.", sequence_number: 1, duration_minutes: null }] : []);
     }
     if (url.pathname.endsWith("/progress")) {
+      if (request.method() === "GET" && url.searchParams.get("activity_id")?.includes(weekOneActivityId)) {
+        return record({ user_id: accounts.a.id, activity_id: weekOneActivityId, status: "completed", current_step: "completed", completed_at: "2026-10-01T00:00:00Z", started_at: "2026-10-01T00:00:00Z", reflection_answers: {}, generated_intentions: [], writing: null, updated_at: "1" });
+      }
       if (request.method() === "GET") return record(progress);
       if (failSave) { failSave = false; return respond({ message: "Save unavailable" }, 503); }
       const values = request.postDataJSON();
@@ -56,7 +63,6 @@ test("Week 2 restores all four beats, Sensation Lexicon results, ethics answers,
   expect(progress.status).toBe("in_progress");
 
   await page.reload();
-  await openWeekTwo();
   await expect(page.getByRole("heading", { name: "Practice", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Revise location", exact: true }).click();
   await expect(page.getByRole("radio", { name: "Chest", exact: true })).toBeChecked();
@@ -80,7 +86,6 @@ test("Week 2 restores all four beats, Sensation Lexicon results, ethics answers,
   await page.getByRole("button", { name: "Save answers", exact: true }).click();
   await expect.poll(() => progress.reflection_answers.week_two_sensation_3).toBe("tight");
   await page.reload();
-  await openWeekTwo();
   await expect(page.getByRole("textbox", { name: "Sensation 1", exact: true })).toHaveValue("weird");
   await expect(page.getByRole("textbox", { name: "Sensation 2", exact: true })).toHaveValue("warm");
   await expect(page.getByRole("textbox", { name: "Sensation 3", exact: true })).toHaveValue("tight");
@@ -95,7 +100,6 @@ test("Week 2 restores all four beats, Sensation Lexicon results, ethics answers,
   expect(aiRequests[1].input).toEqual({ sensations: ["weird", "warm", "tight"] });
   await expect.poll(() => progress.reflection_answers.week_two_lexicon).toBeTruthy();
   await page.reload();
-  await openWeekTwo();
   await expect(page.getByText("Suggested words: tingling, fluttering", { exact: true })).toBeVisible();
   expect(aiRequests).toHaveLength(2);
   await page.getByRole("button", { name: "Continue to Notice", exact: true }).click();
@@ -106,7 +110,6 @@ test("Week 2 restores all four beats, Sensation Lexicon results, ethics answers,
   await page.getByRole("button", { name: "Save answers", exact: true }).click();
   await expect.poll(() => progress.reflection_answers.week_two_closing_reflection).toBe("The words captured warmth but missed my experience.");
   await page.reload();
-  await openWeekTwo();
   await expect(page.getByRole("heading", { name: "Notice", exact: true })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "What could a tracker show, and what might it miss?", exact: true })).toHaveValue("Numbers can miss context.");
   await expect(page.getByRole("textbox", { name: "What did you notice, and what did the suggested words capture or miss?", exact: true })).toHaveValue("The words captured warmth but missed my experience.");
@@ -119,7 +122,6 @@ test("Week 2 restores all four beats, Sensation Lexicon results, ethics answers,
   expect(progress.status).toBe("completed");
   expect(progress.completed_at).toBeTruthy();
   await page.reload();
-  await openWeekTwo();
   await expect(page.getByRole("heading", { name: "Week 2 complete", exact: true })).toBeVisible();
   await expect(page.getByText("Numbers can miss context.", { exact: true })).toBeVisible();
   expect(aiRequests).toHaveLength(2);
