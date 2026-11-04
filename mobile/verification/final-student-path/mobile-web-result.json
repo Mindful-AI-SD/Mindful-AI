@@ -1,0 +1,30 @@
+{
+  "executedAt": "2026-11-04T09:27:54.000Z",
+  "layout": "mobile-web",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "result": "CHECKS EXECUTED; REMAINING DEFECTS",
+  "source": "Synthetic auth/curriculum/completion; app's labeled local baseline/Week 3 fixtures",
+  "restart": "New browser context with same-device storage copied in memory",
+  "accountSwitch": "Fixture-only draft storage retained; synthetic session reset; NOT a UI sign-out pass",
+  "defects": [
+    "No reachable Sign out control on the student dashboard; account switching cannot be verified through the UI."
+  ],
+  "nativeMobile": "NOT RUN",
+  "screenshots": [
+    "mobile-web-01-fresh-locked-route.png",
+    "mobile-web-02-fresh-baseline-source.png",
+    "mobile-web-03-baseline-validation.png",
+    "mobile-web-04-returning-original-baseline.png",
+    "mobile-web-05-week-two-unlocked-card.png",
+    "mobile-web-06-week-three-unlocked-card.png",
+    "mobile-web-07-explore-source-and-log.png",
+    "mobile-web-08-returning-notice-answer.png",
+    "mobile-web-09-dashboard-missing-sign-out.png",
+    "mobile-web-10-other-account-empty-baseline.png"
+  ],
+  "backendWrites": 0,
+  "providerCalls": 0
+}
