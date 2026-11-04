@@ -1059,17 +1059,14 @@ Deno.test("AI activity endpoint with real Supabase authentication middleware", a
         },
       );
       await t.step(
-        `${body.kind}: an unrecognized provider name falls back to the mock`,
+        `${body.kind}: an unrecognized mode fails instead of serving the mock`,
         async () => {
           Deno.env.set("GUIDED_REFLECTION_PROVIDER", "not-a-real-provider");
-          const warn = console.warn;
-          console.warn = () => {};
           try {
             const response = await request(JSON.stringify(body), validToken);
-            assert.equal(response.status, 200);
-            assert.equal((await response.json()).provider, "mock");
+            assert.equal(response.status, 501);
+            assert.deepEqual(await response.json(), notConfigured);
           } finally {
-            console.warn = warn;
             Deno.env.set("GUIDED_REFLECTION_PROVIDER", "mock");
           }
         },
