@@ -54,13 +54,21 @@ Deno.test("selects the configured provider by name", async () => {
   });
 });
 
-Deno.test("falls back to mock for an unrecognized provider name", async () => {
-  await withEnv("not-a-real-provider", () => {
-    assert(
-      resolveProviderName() === "mock",
-      "must fall back to mock for an unrecognized value",
-    );
-  });
+Deno.test("an unrecognized mode fails instead of serving test data", async () => {
+  for (const typo of ["not-a-real-provider", "cluade", "Claude", ""]) {
+    await withEnv(typo, () => {
+      let thrown: unknown;
+      try {
+        resolveProviderName();
+      } catch (error) {
+        thrown = error;
+      }
+      assert(
+        thrown instanceof ProviderNotConfiguredError,
+        `must not fall back to another mode for "${typo}"`,
+      );
+    });
+  }
 });
 
 Deno.test("isProviderName recognizes valid and invalid names", () => {

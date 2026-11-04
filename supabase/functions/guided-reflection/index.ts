@@ -128,11 +128,11 @@ export default {
       );
     }
 
-    const providerName = resolveProviderName();
-
     let providerResponse;
 
     try {
+      const providerName = resolveProviderName();
+
       if (providerName === "mock") {
         // The scenario/timing fixtures only make sense for the mock
         // provider; other providers use the plain two-argument interface.

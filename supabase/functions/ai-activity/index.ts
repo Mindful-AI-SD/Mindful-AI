@@ -6,6 +6,7 @@ import {
   aiActivityResponseSchema,
 } from "../../schema/aiActivitySchema.ts";
 import {
+  describeActivityMode,
   resolveActivityDeadlineMs,
   runAiActivity,
 } from "../_shared/providers/providerSelector.ts";
@@ -74,13 +75,15 @@ export function createAiActivityEndpoint(
 ) {
   const authenticated = withSupabase({ auth: "user" }, async (req, ctx) => {
     if (!ctx.userClaims?.id) return failure(401);
+    // Lets the app identify the mode before a student begins.
+    if (req.method === "GET") return Response.json(describeActivityMode());
     if (req.method !== "POST") {
       return Response.json({
         error: "METHOD_NOT_ALLOWED",
-        message: "Use POST.",
+        message: "Use GET or POST.",
       }, {
         status: 405,
-        headers: { Allow: "POST" },
+        headers: { Allow: "GET, POST" },
       });
     }
     let body: unknown;
