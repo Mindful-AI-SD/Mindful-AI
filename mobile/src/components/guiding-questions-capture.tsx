@@ -8,7 +8,7 @@ import { GuidingQuestionsPreview } from "./guiding-questions-preview";
 import { BASELINE_DEFINITION_FIXTURE, WEEK_ACCESS_FIXTURE, type BaselineDefinitionInput, type BaselineRecordInput } from "./guiding-questions-preview.fixtures";
 
 type Props = { userId: string; onBack: () => void; service?: BaselineService; definition?: BaselineDefinitionInput };
-type Pending = { kind: "draft" | "submit"; request: BaselineWrite };
+type Pending = { kind: "draft" | "submit"; request: BaselineWrite; exit?: boolean };
 
 export function GuidingQuestionsCapture(props: Props) {
   return <CaptureSession key={props.userId} {...props} />;
@@ -58,6 +58,7 @@ function CaptureSession({ userId, onBack, service, definition = BASELINE_DEFINIT
       if (!current) throw new Error();
       setRecord(current); setFormVersion(value => value + 1); pending.current = null;
       setMessage(current.status === "submitted" ? "Original baseline submitted. Your five answers are read-only." : "Baseline draft saved on this device.");
+      if (operation.exit) onBack();
     } catch (cause) {
       if (alive.current) setError(cause instanceof BaselineError ? cause.message : "Could not save your baseline. Retry the same save; your input has not been cleared.");
     } finally {
@@ -66,13 +67,13 @@ function CaptureSession({ userId, onBack, service, definition = BASELINE_DEFINIT
     }
   }
 
-  function begin(kind: Pending["kind"], answers: Record<string, string>) {
+  function begin(kind: Pending["kind"], answers: Record<string, string>, exit = false) {
     if (active.current || record?.status === "submitted") return;
     const previous = pending.current;
-    if (previous && previous.kind === kind && JSON.stringify(previous.request.answers) === JSON.stringify(answers)) {
+    if (previous && previous.kind === kind && previous.exit === exit && JSON.stringify(previous.request.answers) === JSON.stringify(answers)) {
       void write(previous); return;
     }
-    void write({ kind, request: {
+    void write({ kind, exit, request: {
       operationId: baselineOperationId(), expectedRevision: record?.revision ?? 0,
       definitionId: record?.definitionId ?? definition.definitionId,
       definitionVersion: record?.definitionVersion ?? definition.definitionVersion, answers: { ...answers },
@@ -88,6 +89,7 @@ function CaptureSession({ userId, onBack, service, definition = BASELINE_DEFINIT
   return <GuidingQuestionsPreview key={formVersion} definition={definition} record={record} weeks={WEEK_ACCESS_FIXTURE} onBack={onBack}
     persistence={{ busy, error, message,
       onSave: answers => begin("draft", answers), onSubmit: answers => begin("submit", answers),
+      onLeave: answers => begin("draft", answers, true),
       onRetry: () => { if (pending.current) void write(pending.current); },
       onReload: () => { setMessage(null); setAttempt(value => value + 1); },
       onDirty: () => { pending.current = null; setError(null); setMessage("Unsaved baseline changes. Save your draft before leaving."); },

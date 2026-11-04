@@ -3,7 +3,9 @@ const { simulateAuthBackend, accounts } = require("./helpers/auth-backend.cjs");
 const ids = { 1: "22222222-2222-4222-8222-222222222222", 2: "44444444-4444-4444-8444-444444444444", 3: "55555555-5555-4555-8555-555555555555" };
 
 test("Week 3 fixture log and both response beats restore through restart, backward navigation, and storage errors without AI calls", async ({ page, context }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
   const db = await simulateAuthBackend(context);
+  let failAccessReads = false;
   const providerCalls = [], writes = [];
   context.on("request", request => { if (request.url().includes("/functions/v1/")) providerCalls.push(request.url()); });
   await context.route("**/rest/v1/**", async route => {
@@ -21,6 +23,7 @@ test("Week 3 fixture log and both response beats restore through restart, backwa
       return respond([{ id: ids[n], title: `Week ${n} activity`, activity_type: "reflection", content: null, sequence_number: 1, duration_minutes: null }]);
     }
     if (url.pathname.endsWith("/progress")) {
+      if (failAccessReads) return respond({ message: "Unavailable" }, 400);
       const target = url.searchParams.get("activity_id");
       const rows = [1, 2].filter(n => target?.includes(ids[n])).map(n => ({ activity_id: ids[n], status: "completed", current_step: "completed", completed_at: "2026-11-02T10:00:00Z", started_at: "2026-11-02T09:00:00Z" }));
       return respond(single ? rows[0] ?? null : rows);
@@ -39,6 +42,18 @@ test("Week 3 fixture log and both response beats restore through restart, backwa
   const notice = page.getByRole("textbox", { name: "Notice response (example field)", exact: true });
   await expect(page.getByRole("button", { name: "Continue to Notice", exact: true })).toBeDisabled();
   await explore.fill("My Explore response 😀");
+  failAccessReads = true;
+  await page.evaluate(() => {
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+    document.dispatchEvent(new Event("visibilitychange"));
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await expect(page.getByText(/Could not verify saved completion/)).toBeVisible();
+  await expect(explore).not.toBeVisible();
+  failAccessReads = false;
+  await page.getByRole("button", { name: "Check week access again", exact: true }).click();
+  await expect(explore).toHaveValue("My Explore response 😀");
   await page.getByRole("button", { name: "Continue to Notice", exact: true }).click();
   await notice.fill("My Notice response");
   await page.getByRole("button", { name: "Save reflection", exact: true }).click();

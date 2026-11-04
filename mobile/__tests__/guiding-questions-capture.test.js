@@ -16,6 +16,35 @@ jest.mock("../src/components/accessibility", () => ({
 }));
 beforeEach(async () => { await AsyncStorage.clear(); });
 afterEach(cleanup);
+test("over-limit baseline input stays editable and cannot be discarded by either Back action", async () => {
+  const onBack = jest.fn();
+  const screen = await render(<GuidingQuestionsCapture userId="limit-student" onBack={onBack} />);
+  await fireEvent.changeText((await fields(screen))[0], "x".repeat(2001));
+  expect(screen.getByRole("button", { name: "Back to curriculum" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Return to curriculum for Week 1" })).toBeDisabled();
+  expect(screen.getByText(/Correct character-limit errors before saving or returning/)).toBeTruthy();
+  expect((await fields(screen))[0].props.value).toHaveLength(2001);
+  await fireEvent.changeText((await fields(screen))[0], "Corrected answer");
+  expect(screen.getByRole("button", { name: "Back to curriculum" })).toBeEnabled();
+  expect(onBack).not.toHaveBeenCalled();
+});
+test("Back saves a partial baseline before leaving and a failed Back save keeps input until retry", async () => {
+  const real = createBaselineFixtureService("back-student", definition);
+  const save = jest.fn().mockRejectedValueOnce(new Error("Offline")).mockImplementation(real.saveBaselineDraft);
+  const onBack = jest.fn();
+  let screen = await render(<GuidingQuestionsCapture userId="back-student" service={{ ...real, saveBaselineDraft: save }} onBack={onBack} />);
+  await fireEvent.changeText((await fields(screen))[0], "Keep my partial answer");
+  await fireEvent.press(screen.getByText("Back to curriculum"));
+  await waitFor(() => expect(screen.getByText("Retry baseline save")).toBeTruthy());
+  expect(onBack).not.toHaveBeenCalled();
+  expect((await fields(screen))[0].props.value).toBe("Keep my partial answer");
+  await fireEvent.press(screen.getByText("Retry baseline save"));
+  await waitFor(() => expect(onBack).toHaveBeenCalledTimes(1));
+  expect(save.mock.calls[0][0]).toEqual(save.mock.calls[1][0]);
+  await cleanup();
+  screen = await render(<GuidingQuestionsCapture userId="back-student" onBack={jest.fn()} />);
+  expect((await fields(screen))[0].props.value).toBe("Keep my partial answer");
+});
 async function fields(screen) { return await waitFor(() => screen.getAllByLabelText(/^Guiding Question \d:/)); }
 async function fill(screen) {
   for (const [index, field] of (await fields(screen)).entries()) await fireEvent.changeText(field, `Exact answer ${index + 1} 😀`);

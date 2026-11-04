@@ -17,6 +17,7 @@ export type BaselinePersistenceInput = {
   onRetry: () => void;
   onReload: () => void;
   onDirty: () => void;
+  onLeave?: (answers: Record<string, string>) => void;
 };
 
 export type GuidingQuestionsScreenInput = {
@@ -48,10 +49,18 @@ function QuestionFields({ definition, record, weeks, onBack, persistence }: Guid
     const value = answers[question.questionId] ?? "";
     return !!value.trim() && Array.from(value).length <= question.maxCharacters;
   });
+  const savesOnBack = !!persistence?.onLeave && !!editable;
+  const backDisabled = !!persistence?.busy || (savesOnBack && !draftValid);
+  const leave = () => {
+    if (backDisabled) return;
+    if (savesOnBack) persistence?.onLeave?.(answers);
+    else onBack();
+  };
 
   return <ThemedView style={styles.flex}><SafeAreaView style={styles.flex}>
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <Pressable accessibilityRole="button" style={styles.action} disabled={persistence?.busy} onPress={onBack}><ThemedText>Back to curriculum</ThemedText></Pressable>
+      <Pressable accessibilityRole="button" style={styles.action} disabled={backDisabled} accessibilityState={{ disabled: backDisabled, busy: !!persistence?.busy }}
+        accessibilityHint={savesOnBack ? "Saves your draft before returning. Correct any character-limit errors first." : undefined} onPress={leave}><ThemedText>Back to curriculum</ThemedText></Pressable>
       <AccessibleHeading>Guiding Questions</AccessibleHeading>
       <ThemedText>{persistence ? "Week 1 · Saved baseline fixture" : "Week 1 · Fixture preview"}</ThemedText>
       <ThemedText>{persistence ? "Example question wording. Saved answers stay on this device for your signed-in account; backend storage is not connected. Save your draft before leaving. Submission freezes the original fixture baseline." : "Example questions and answers only. Changes stay in this preview and are not saved. Existing Week 1/2 access is unchanged."}</ThemedText>
@@ -65,6 +74,7 @@ function QuestionFields({ definition, record, weeks, onBack, persistence }: Guid
           onPress={persistence.onReload}><ThemedText>Reload saved baseline (replaces unsaved answers)</ThemedText></Pressable>
       </View>}
       {!!persistence?.message && <AccessibleStatus>{persistence.message}</AccessibleStatus>}
+      {savesOnBack && !draftValid && <AccessibleStatus error>Correct character-limit errors before saving or returning to the curriculum. Your input is still here.</AccessibleStatus>}
       {!available ? <AccessibleStatus error>The five-question definition is missing or does not match this record. Return to the curriculum and reopen the preview.</AccessibleStatus> : <>
         <ThemedText>{`Question set: ${definition.definitionId} · Version ${definition.definitionVersion}`}</ThemedText>
         {submitted && <AccessibleStatus>Original submitted answers. These answers are read-only.</AccessibleStatus>}
@@ -113,7 +123,7 @@ function QuestionFields({ definition, record, weeks, onBack, persistence }: Guid
         {week.locked && week.prerequisiteMessages.length === 0 && <ThemedText>Prerequisite details are not available yet.</ThemedText>}
         <Pressable accessibilityRole="button" style={styles.action}
           accessibilityLabel={`Return to curriculum for Week ${week.weekNumber}`}
-          accessibilityState={{ disabled: week.locked || !!persistence?.busy }} disabled={week.locked || persistence?.busy} onPress={onBack}>
+          accessibilityState={{ disabled: week.locked || backDisabled }} disabled={week.locked || backDisabled} onPress={leave}>
           <ThemedText>{week.locked ? `Week ${week.weekNumber} locked` : "Return to curriculum"}</ThemedText>
         </Pressable>
       </View>)}

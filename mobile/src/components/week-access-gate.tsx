@@ -10,6 +10,12 @@ export function WeekAccessGate({ weekNumber, onBack, children }: {
   weekNumber: SequentialWeek; onBack: () => void; children: ReactNode;
 }) {
   const userId = useSignedInUserId();
+  return <AccessSession key={`${userId}:${weekNumber}`} userId={userId} weekNumber={weekNumber} onBack={onBack}>{children}</AccessSession>;
+}
+
+function AccessSession({ userId, weekNumber, onBack, children }: {
+  userId: string; weekNumber: SequentialWeek; onBack: () => void; children: ReactNode;
+}) {
   const [access, setAccess] = useState<WeekAccessResult | null>(null);
   const [checking, setChecking] = useState(true);
   const [error, setError] = useState(false);
@@ -20,7 +26,7 @@ export function WeekAccessGate({ weekNumber, onBack, children }: {
     try {
       const result = await getWeekAccess(userId, weekNumber);
       if (request === version.current) setAccess(result);
-    } catch { if (request === version.current) { setAccess(null); setError(true); } }
+    } catch { if (request === version.current) setError(true); }
     finally { if (request === version.current) setChecking(false); }
   }, [userId, weekNumber]);
   useFocusEffect(useCallback(() => {
