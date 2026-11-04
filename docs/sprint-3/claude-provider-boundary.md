@@ -1,8 +1,8 @@
 # Claude provider boundary
 
 Status: implemented against a fake Anthropic server. **No live Claude call has
-been made yet** (see [Dependencies](#dependencies)). Live results are recorded in
-[claude-live-verification.md](claude-live-verification.md).
+been made yet** (see [Dependencies](#dependencies)). Live results are recorded
+in [claude-live-verification.md](claude-live-verification.md).
 
 ## The boundary
 
@@ -52,8 +52,8 @@ that names the setting only.
   inject instructions through it. Week 3 timestamps are not sent either.
 - **One deadline covers every attempt**, including retries and backoff. When it
   passes, the call is cancelled, so it stops spending.
-- **Malformed output is not retried.** Each attempt costs money. The student gets
-  an error and can retry.
+- **Malformed output is not retried.** Each attempt costs money. The student
+  gets an error and can retry.
 
 ## Response validation
 
@@ -117,5 +117,5 @@ Live use cannot start until each of these is met. Code is not the blocker.
 | Crisis wording approval                         | Dr. Haberlin                          | Open; blocks real students   |
 
 The in-app bounds above limit the cost of one request but not the total number
-of requests. **The account's spending limit is the only total cap**, and there is
-no per-student rate limit yet. Set the limit before enabling Claude.
+of requests. **The account's spending limit is the only total cap**, and there
+is no per-student rate limit yet. Set the limit before enabling Claude.
