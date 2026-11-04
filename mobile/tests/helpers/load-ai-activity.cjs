@@ -37,8 +37,8 @@ module.exports = function environment(
       clearTimeout(id) { timers.delete(id); },
       require(target) {
         if (target === "./supabase") return { supabase };
-        assert.equal(target, "./ai-activity", `Unexpected import: ${target}`);
-        return load("ai-activity");
+        assert.ok(["./ai-activity", "./prewritten-content"].includes(target), `Unexpected import: ${target}`);
+        return load(target.slice(2));
       },
     });
     return exports;

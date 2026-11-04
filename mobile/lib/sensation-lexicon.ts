@@ -6,12 +6,15 @@ import {
   type SupportResource,
 } from "./ai-activity";
 
+import type { PrewrittenRecord, WeekTwoPrewritten } from "./prewritten-content";
+
 export type { SensationItem, SupportResource };
 
 export type SensationLexiconRequest = {
   activityId: string;
   activityContext: string;
   sensations: [string, string, string];
+  expectedMode?: string;
 };
 
 // "words" is the normal result. "support" is the server's fixed response to
@@ -22,6 +25,7 @@ export type SensationLexiconData =
     items: [SensationItem, SensationItem, SensationItem];
     provider: string;
   }
+  | ({ kind: "prewritten" } & PrewrittenRecord<WeekTwoPrewritten>)
   | { kind: "support"; message: string; resources: SupportResource[] };
 
 export type SensationLexiconResult =
@@ -41,6 +45,7 @@ export async function getSensationWords(
     activityId: request.activityId,
     activityContext: request.activityContext,
     input: { sensations: request.sensations },
+    expectedMode: request.expectedMode,
   }, options);
 
   if (error) return { data: null, error };
@@ -50,6 +55,18 @@ export async function getSensationWords(
         kind: "support",
         message: data.message,
         resources: data.resources,
+      },
+      error: null,
+    };
+  }
+  if (data.outcome === "prewritten") {
+    return {
+      data: {
+        kind: "prewritten",
+        provider: data.provider,
+        contentVersion: data.contentVersion,
+        labels: data.labels,
+        result: data.result,
       },
       error: null,
     };

@@ -20,6 +20,19 @@ function deferred() {
 function environment(overrides = {}) {
   let now = 0, next = 0;
   const timers = new Map(), cache = new Map();
+  // Stands in for the ai-activity client: answers after 800ms, stops if cancelled.
+  const server = {
+    getAiActivity: (kind, sent, options) => new Promise(resolve => {
+      const id = ++next;
+      timers.set(id, { at: now + 800, fn: () => resolve({
+        data: { outcome: "result", kind, provider: fixture.provider, result: { intentions: fixture.intentions } },
+        error: null,
+      }) });
+      options.signal.addEventListener("abort", () => timers.delete(id));
+      server.calls.push({ kind, sent });
+    }),
+    calls: [],
+  };
   function load(file) {
     if (cache.has(file)) return cache.get(file);
     if (file.endsWith(".json")) return JSON.parse(fs.readFileSync(file, "utf8"));
@@ -36,6 +49,7 @@ function environment(overrides = {}) {
       clearTimeout(id) { timers.delete(id); },
       require(name) {
         if (name in overrides) return overrides[name];
+        if (name === "./ai-activity") return server;
         assert.ok(name.startsWith("."), `Unexpected import: ${name}`);
         const target = path.resolve(path.dirname(file), name);
         return load(path.extname(target) ? target : target + ".ts");
@@ -45,7 +59,7 @@ function environment(overrides = {}) {
   }
   return {
     load: file => load(path.join(root, file)),
-    timers,
+    timers, server,
     async advance(ms) {
       now += ms;
       for (const [id, timer] of [...timers]) {
@@ -56,7 +70,7 @@ function environment(overrides = {}) {
   };
 }
 
-test("default mock returns exactly three structured intentions after a delay", async () => {
+test("the default route is the ai-activity endpoint and returns three structured intentions", async () => {
   const env = environment();
   const service = env.load("lib/intention.ts");
   let completed = false;
@@ -69,6 +83,49 @@ test("default mock returns exactly three structured intentions after a delay", a
   assert.equal(result.error, null);
   assert.deepEqual(JSON.parse(JSON.stringify(result.data)), fixture);
   assert.equal(env.timers.size, 0);
+  assert.equal(env.server.calls[0].kind, "intention_mirror");
+  assert.deepEqual(JSON.parse(JSON.stringify(env.server.calls[0].sent)), {
+    activityId: request.activityId, activityContext: request.activityContext, input: { reflection: request.userReflection },
+  });
+});
+
+function serverReturning(answer) {
+  return { "./ai-activity": { getAiActivity: async () => answer } };
+}
+
+test("a provider other than the mock is accepted and reported", async () => {
+  const service = environment(serverReturning({
+    data: { outcome: "result", kind: "intention_mirror", provider: "claude", result: { intentions: fixture.intentions } }, error: null,
+  })).load("lib/intention.ts");
+  assert.equal((await service.getIntentions(request)).data.provider, "claude");
+});
+
+test("the fixed crisis response comes back as support, never as intentions", async () => {
+  const resources = [{ name: "988", contact: "Call or text 988" }];
+  const service = environment(serverReturning({
+    data: { outcome: "support", message: "Support message", resources }, error: null,
+  })).load("lib/intention.ts");
+  const { data } = await service.getIntentions(request);
+  assert.equal(data.kind, "support");
+  assert.equal(data.message, "Support message");
+  assert.equal("intentions" in data, false);
+});
+
+test("fixed content comes back as prewritten, with its source and version", async () => {
+  const result = { instruction: "Choose one.", examples: ["Pause."], reflectionPrompts: ["Why?"] };
+  const service = environment(serverReturning({
+    data: { outcome: "prewritten", kind: "intention_mirror", provider: "prewritten", contentVersion: "1.0.0", labels: {}, result }, error: null,
+  })).load("lib/intention.ts");
+  const { data } = await service.getIntentions(request);
+  assert.equal(data.kind, "prewritten");
+  assert.equal(data.contentVersion, "1.0.0");
+  assert.equal("intentions" in data, false);
+});
+
+test("a server error reaches the screen unchanged, including the unavailable state", async () => {
+  const failure = { code: "UNAVAILABLE", message: "The selected mode is unavailable. Choose another mode or try again.", status: 501 };
+  const service = environment(serverReturning({ data: null, error: failure })).load("lib/intention.ts");
+  assert.deepEqual(JSON.parse(JSON.stringify((await service.getIntentions(request)).error)), failure);
 });
 
 test("timeout aborts provider and ignores a late successful response", async () => {
@@ -98,7 +155,7 @@ test("provider rejection, thrown errors, and malformed responses are recoverable
   }
 });
 
-test("cancellation stops the delayed mock and clears its timers", async () => {
+test("cancellation stops the server request and clears its timers", async () => {
   const env = environment();
   const service = env.load("lib/intention.ts");
   const controller = new AbortController();
@@ -111,7 +168,9 @@ test("cancellation stops the delayed mock and clears its timers", async () => {
 
 // Render the screen's JSX with native widgets replaced by inspectable elements.
 // The real API service runs; only React hooks and persistence are isolated here.
-function screen(provider, saveIntentions = async () => {}) {
+const READY_MODE = { status: "ready", refresh() {}, mode: { mode: "mock", available: true, contentVersion: null, labels: null } };
+
+function screen(provider, saveIntentions = async () => {}, activityMode = READY_MODE, forcedError = null) {
   let cursor = 0, writing = originalDraft, draftStatus = "saved";
   const slots = [], effects = [], calls = [], writingChanges = [];
   const react = {
@@ -136,6 +195,9 @@ function screen(provider, saveIntentions = async () => {}) {
     "@/components/themed-view": { ThemedView: "ThemedView" },
     "@/components/accessibility": { AccessibleHeading: "Heading", AccessibleStatus: "Status" },
     "@/hooks/use-theme": { useTheme: () => ({}) },
+    "@/hooks/use-activity-mode": { useActivityMode: () => activityMode },
+    "./activity-mode-notice": { ActivityModeNotice: "ModeNotice" },
+    "./week-one-prewritten": { WeekOnePrewrittenChoice: "PrewrittenChoice" },
     "@/components/auth-gate": { useSignedInUserId: () => "user-a" },
     "../../lib/progress": { saveProgressIntentions: saveIntentions },
     "@/hooks/use-writing-draft": { useWritingDraft: () => ({
@@ -149,6 +211,7 @@ function screen(provider, saveIntentions = async () => {}) {
   const service = env.load("lib/intention.ts");
   overrides["../../lib/intention"] = { getIntentions: (payload, options) => {
     calls.push(payload);
+    if (forcedError) return Promise.resolve({ data: null, error: forcedError });
     return service.getIntentions(payload, { ...options, provider });
   } };
   const component = env.load("src/components/intention-mirror-screen.tsx");
@@ -217,7 +280,7 @@ function assertThreeReturnedIntentions(ui, expected) {
   ))), expected.intentions.map(item => [item.title, item.explanation]));
 }
 
-test("frontend uses the default service mock, keeps loading until completion, and preserves the draft", async () => {
+test("frontend uses the server route by default, keeps loading until completion, and preserves the draft", async () => {
   const ui = screen();
   const draft = originalDraft;
   ui.acknowledge();
@@ -454,7 +517,7 @@ test("the Explore request carries only the activity, its context, and the writin
   ui.button("Submit").props.onPress();
   await turn();
   assert.equal(ui.calls.length, 1);
-  assert.deepEqual(Object.keys(ui.calls[0]).sort(), ["activityContext", "activityId", "userReflection"]);
+  assert.deepEqual(Object.keys(ui.calls[0]).sort(), ["activityContext", "activityId", "expectedMode", "userReflection"]);
   // Fields of PersistedBreathingSession, the state the timed Practice player keeps.
   const sent = JSON.stringify(ui.calls[0]);
   for (const field of ["startedAt", "accumulatedActiveMs", "savedAt", "completed", "elapsed", "paused", "running"]) {
@@ -506,4 +569,95 @@ test("Explore submission requires 150 words and acknowledgement within the API c
   await turn();
   assert.equal(ui.calls.length, 1);
   assertThreeReturnedIntentions(ui, fixture);
+});
+
+const PREWRITTEN_MODE = { status: "ready", refresh() {}, mode: { mode: "prewritten", available: true, contentVersion: "1.0.0", labels: { modeTitle: "Prewritten activity" } } };
+
+test("prewritten mode drops the untrue AI acknowledgement and identifies itself before submission", () => {
+  const ui = screen(undefined, undefined, PREWRITTEN_MODE);
+  assert.equal(ui.nodes().some(node => node.props.accessibilityRole === "checkbox"), false);
+  assert.doesNotMatch(ui.text(), /AI processing/);
+  assert.equal(ui.nodes().filter(node => node.type === "ModeNotice").length, 1);
+  assert.equal(ui.button("Submit").props.disabled, false);
+});
+
+for (const [name, mode] of [
+  ["still loading", { status: "loading" }],
+  ["unavailable", { status: "unavailable", message: "unavailable", retry() {} }],
+  ["failed to load", { status: "error", message: "failed", retry() {} }],
+]) {
+  test(`writing stays editable but cannot be submitted while the mode is ${name}`, () => {
+    const ui = screen(undefined, undefined, mode);
+    ui.acknowledge();
+    assert.equal(ui.button("Submit").props.disabled, true);
+    assert.equal(ui.input().props.editable, true);
+    assert.equal(ui.input().props.value, originalDraft);
+  });
+}
+
+test("a crisis response shows support and saves nothing", async () => {
+  let saved = 0;
+  const ui = screen(async () => ({ kind: "support", message: "Support message", resources: [{ name: "988", contact: "Call or text 988" }] }), async () => { saved++; });
+  ui.acknowledge();
+  ui.button("Submit").props.onPress();
+  await turn();
+  assert.match(ui.text(), /Support message/);
+  assert.match(ui.text(), /988: Call or text 988/);
+  assert.equal(saved, 0);
+  assert.equal(ui.button("Continue"), undefined);
+});
+
+test("fixed content opens the choice screen and generates or saves no intentions", async () => {
+  let saved = 0;
+  const record = { kind: "prewritten", provider: "prewritten", contentVersion: "1.0.0", labels: {}, result: {} };
+  const ui = screen(async () => record, async () => { saved++; }, PREWRITTEN_MODE);
+  ui.button("Submit").props.onPress();
+  await turn();
+  assert.equal(ui.nodes().filter(node => node.type === "PrewrittenChoice").length, 1);
+  assert.equal(saved, 0);
+});
+
+test("generated intentions from Claude say so, and test data says it is not AI", async () => {
+  for (const [provider, pattern] of [["claude", /AI-generated with Claude/], ["mock", /Test data, not AI output/]]) {
+    const ui = screen(async () => ({ provider, intentions: fixture.intentions }));
+    ui.acknowledge();
+    ui.button("Submit").props.onPress();
+    await turn();
+    assert.match(ui.text(), pattern);
+  }
+});
+
+test("the request names the mode the student was told about", async () => {
+  const ui = screen(async () => ({ provider: "mock", intentions: fixture.intentions }));
+  ui.acknowledge();
+  ui.button("Submit").props.onPress();
+  await turn();
+  assert.equal(ui.calls[0].expectedMode, "mock");
+});
+
+test("a changed mode refreshes the notice, requires a new acknowledgement, and keeps the writing", async () => {
+  let refreshed = 0;
+  const mode = { ...READY_MODE, refresh() { refreshed++; } };
+  const failure = { code: "MODE_CHANGED", message: "This activity changed. Please review it and try again.", status: 409 };
+  const ui = screen(undefined, undefined, mode, failure);
+  ui.acknowledge();
+  assert.equal(ui.button("Submit").props.disabled, false);
+  ui.button("Submit").props.onPress();
+  await turn();
+  assert.equal(refreshed, 1);
+  assert.match(ui.text(), /This activity changed/);
+  assert.equal(ui.input().props.value, originalDraft);
+  assert.equal(ui.nodes().filter(node => node.type === "ModeNotice").length, 1, "the current notice is shown");
+  assert.equal(ui.button("Submit").props.disabled, true, "the old acknowledgement no longer counts");
+  ui.acknowledge();
+  assert.equal(ui.button("Submit").props.disabled, false);
+});
+
+test("an acknowledgement given under one mode does not carry over to another", () => {
+  let mode = READY_MODE;
+  const ui = screen(undefined, undefined, { get status() { return mode.status; }, get mode() { return mode.mode; }, refresh() {} });
+  ui.acknowledge();
+  assert.equal(ui.button("Submit").props.disabled, false);
+  mode = { ...READY_MODE, mode: { ...READY_MODE.mode, mode: "claude" } };
+  assert.equal(ui.button("Submit").props.disabled, true);
 });

@@ -247,7 +247,8 @@ The user comes from the session. A client-supplied provider, user ID, result, `d
 | 400 | `INVALID_INPUT` | Invalid JSON, unknown kind, or input that does not fit the kind |
 | 401 | `AUTH_REQUIRED` | Missing or invalid user authentication |
 | 404 | `ACTIVITY_NOT_FOUND` | Activity missing or not published |
-| 408 | `PROVIDER_TIMEOUT` | Five-second deadline or adapter timeout |
+| 408 | `PROVIDER_TIMEOUT` | The deadline for the mode, or an adapter timeout |
+| 409 | `MODE_CHANGED` | The request's `expectedMode` no longer matches the server's mode. Nothing was sent |
 | 501 | `PROVIDER_NOT_CONFIGURED` | The selected provider is not implemented |
 | 502 | `PROVIDER_ERROR` | Provider failure, or output that fails the schema or does not match the request |
 | 503 | `ACTIVITY_CHECK_UNAVAILABLE` | The activity lookup failed |
@@ -256,7 +257,7 @@ For the Week 3 Distraction Audit, the provider only assigns each event a categor
 
 To add a lab: add its kind, input, and result to `types.ts`; implement it in the mock and the real adapter; add its schema and its entry in the routing table and `aiActivitySchema.ts`; add tests.
 
-The app calls the endpoint through `getAiActivity(kind, request)` in `mobile/lib/ai-activity.ts`, which uses the signed-in session and holds no provider key. Week 2 Explore uses `getSensationWords` in `mobile/lib/sensation-lexicon.ts` and displays its three returned items. Arrive, Practice, Explore, and Notice save their current step and answers in the student's progress record; the Sensation Lexicon result is saved as a JSON string in `reflection_answers.week_two_lexicon`. Notice includes a tracker ethics question and closing reflection before completion. The Week 1 screen still reads its local mock fixture, and the older `guided-reflection` and `mindfulness-response` endpoints are unchanged.
+The app calls the endpoint through `getAiActivity(kind, request)` in `mobile/lib/ai-activity.ts`, which uses the signed-in session and holds no provider key. Week 1 Explore reaches it through `getIntentions` in `mobile/lib/intention.ts`, and Week 2 Explore uses `getSensationWords` in `mobile/lib/sensation-lexicon.ts`. Arrive, Practice, Explore, and Notice save their current step and answers in the student's progress record; the Sensation Lexicon result is saved as a JSON string in `reflection_answers.week_two_lexicon`. Notice includes a tracker ethics question and closing reflection before completion. Screens call `GET /functions/v1/ai-activity` first, which returns `{ mode, available, contentVersion, labels }`, so a prewritten activity can identify itself before a student begins. The older `mindfulness-response` endpoint still uses the mock only.
 
 ### Endpoint Integration Suite
 
@@ -276,13 +277,15 @@ The resources are the 988 Suicide & Crisis Lifeline, UCF Counseling and Psycholo
 
 ### Provider Selection
 
-Which guided-reflection provider runs is chosen server-side by the `GUIDED_REFLECTION_PROVIDER` environment variable, defined in:
+For choosing between Claude, prewritten, and mock, see the [provider comparison and configuration guide](docs/sprint-3/provider-comparison-and-configuration.md). The Claude adapter's settings and limits are in the [provider boundary](docs/sprint-3/claude-provider-boundary.md), and **live Claude calls are not yet verified** ([status and runbook](docs/sprint-3/claude-live-verification.md)).
+
+Which provider runs is chosen server-side by the `GUIDED_REFLECTION_PROVIDER` environment variable, defined in:
 
 ```text
 supabase/functions/_shared/providers/providerSelector.ts
 ```
 
-It defaults to `mock`, and an unset or unrecognized value always falls back to `mock` (with a logged warning for the latter) so the endpoint can never be left without a working provider. Every provider — mock included — implements the shared `GuidedReflectionProvider` interface in `supabase/functions/_shared/providers/types.ts`: `(activityContext, userReflection) => Promise<ProviderResponse>`.
+An unset value means `mock`. An unrecognized value returns HTTP 501 rather than serving test data, and the values `claude` and `prewritten` select the Claude adapter and the fixed non-AI content. A failure in one mode never switches to another. Every provider — mock included — implements the shared `GuidedReflectionProvider` interface in `supabase/functions/_shared/providers/types.ts`: `(activityContext, userReflection) => Promise<ProviderResponse>`.
 
 `supabase/functions/_shared/providers/futureProviderAdapter.ts` is an unimplemented stub for the next real provider (a candidate is UCF Copilot, pending API access; not yet final). Selecting it via `GUIDED_REFLECTION_PROVIDER=future` fails every call with a `ProviderNotConfiguredError` (HTTP 501) until it's implemented. Because it satisfies the same interface, implementing it later requires no changes to the endpoint, the response schema, or the frontend — only filling in that one file. None of these provider modules are imported anywhere under `mobile/`.
 

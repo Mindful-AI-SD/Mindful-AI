@@ -17,7 +17,12 @@ import { ThemedView } from "@/components/themed-view";
 import { useTheme } from "@/hooks/use-theme";
 import { useSignedInUserId } from "@/components/auth-gate";
 import { useWritingDraft } from "@/hooks/use-writing-draft";
-import { getIntentions, type IntentionResponse } from "../../lib/intention";
+import { useActivityMode } from "@/hooks/use-activity-mode";
+import { ActivityModeNotice } from "./activity-mode-notice";
+import { WeekOnePrewrittenChoice } from "./week-one-prewritten";
+import { getIntentions, type IntentionPrewritten, type IntentionResponse, type IntentionSupport } from "../../lib/intention";
+import { generatedSourceLabel } from "../../lib/prewritten-content";
+import type { ReflectionAnswers } from "../../lib/progress";
 import { saveProgressIntentions } from "../../lib/progress";
 import { WEEK_ONE_ETHICS_CARD } from "../../lib/ethics-cards";
 
@@ -35,7 +40,15 @@ type SubmissionState =
   | { status: "writing" }
   | { status: "loading" }
   | { status: "success"; data: IntentionResponse }
+  | { status: "support"; data: IntentionSupport }
+  | { status: "prewritten"; data: IntentionPrewritten }
   | { status: "error"; message: string; timedOut: boolean };
+
+// Restored intentions have no saved source, so they claim none.
+function intentionsHeading(provider: string): string {
+  if (provider === "mock") return "Mock intentions";
+  return provider === "saved" ? "Your saved intentions" : "Your intentions";
+}
 
 export function IntentionMirrorScreen({
   activityId,
@@ -43,6 +56,9 @@ export function IntentionMirrorScreen({
   onIntentionsReady,
   onOpenGap,
   initialIntentions,
+  initialPrewritten,
+  initialPrewrittenIntention = "",
+  onSavePrewritten,
   onGenerated,
   onEditWriting,
   continueLabel = "Reflect on the AI gap",
@@ -52,6 +68,9 @@ export function IntentionMirrorScreen({
   onIntentionsReady: () => Promise<void> | void;
   onOpenGap: () => void;
   initialIntentions?: IntentionResponse;
+  initialPrewritten?: IntentionPrewritten;
+  initialPrewrittenIntention?: string;
+  onSavePrewritten?: (answers: ReflectionAnswers) => Promise<boolean>;
   onGenerated?: () => Promise<void>;
   onEditWriting?: () => Promise<boolean>;
   continueLabel?: string;
@@ -63,9 +82,18 @@ export function IntentionMirrorScreen({
     activityId,
   );
   const draftReady = status !== "loading" && status !== "load-error";
-  const [acknowledged, setAcknowledged] = useState(false);
+  // An acknowledgement counts only for the mode it was given under.
+  const [acknowledgedMode, setAcknowledgedMode] = useState<string | null>(null);
+  const [modeChangedMessage, setModeChangedMessage] = useState<string | null>(null);
   const [submission, setSubmission] = useState<SubmissionState>(initialIntentions
-    ? { status: "success", data: initialIntentions } : { status: "writing" });
+    ? { status: "success", data: initialIntentions }
+    : initialPrewritten ? { status: "prewritten", data: initialPrewritten } : { status: "writing" });
+  // Asked again on returning to writing, so the disclosure reflects the current mode.
+  const mode = useActivityMode(userId, submission.status !== "success" && submission.status !== "prewritten");
+  const modeReady = mode.status === "ready";
+  const prewrittenMode = mode.status === "ready" && !!mode.mode.labels;
+  const currentMode = mode.status === "ready" ? mode.mode.mode : null;
+  const acknowledged = currentMode !== null && acknowledgedMode === currentMode;
   const activeRequest = useRef<AbortController | null>(null);
   const isSubmitting = submission.status === "loading";
 
@@ -77,7 +105,8 @@ export function IntentionMirrorScreen({
   const reflection = writing.trim();
   const wordCount = countWritingWords(writing);
   const validLength = validWeekOneWriting(writing);
-  const canSubmit = draftReady && acknowledged && validLength && !isSubmitting;
+  // The AI-processing acknowledgement would be untrue in the prewritten mode.
+  const canSubmit = draftReady && modeReady && (acknowledged || prewrittenMode) && validLength && !isSubmitting;
 
   async function handleSubmit() {
     if (!canSubmit || activeRequest.current) return;
@@ -93,23 +122,36 @@ export function IntentionMirrorScreen({
         activityId,
         activityContext: `Week 1: Mindful Attention. Intention Mirror. ${INSTRUCTIONS}`,
         userReflection: reflection,
+        expectedMode: mode.status === "ready" && mode.mode.mode ? mode.mode.mode : undefined,
       }, { signal: controller.signal });
 
       if (activeRequest.current !== controller) return;
 
       if (result.error) {
+        if (result.error.code === "MODE_CHANGED" && mode.status === "ready") {
+          // Back to the writing view, which shows the current notice and requires
+          // a new acknowledgement before anything can be sent.
+          setAcknowledgedMode(null);
+          setModeChangedMessage(result.error.message);
+          setSubmission({ status: "writing" });
+          mode.refresh();
+          return;
+        }
         setSubmission({
           status: "error",
           message: result.error.message,
           timedOut: result.error.code === "TIMEOUT",
         });
+      } else if ("kind" in result.data) {
+        if (result.data.kind === "support") setSubmission({ status: "support", data: result.data });
+        else setSubmission({ status: "prewritten", data: result.data });
       } else {
         await saveProgressIntentions(userId, activityId, result.data.intentions);
         await onIntentionsReady();
         if (activeRequest.current !== controller) return;
         await onGenerated?.();
         if (activeRequest.current !== controller) return;
-        setSubmission({ status: "success", data: result.data });
+        setSubmission({ status: "success", data: result.data as IntentionResponse });
       }
     } catch (error) {
       if (activeRequest.current === controller) {
@@ -180,6 +222,8 @@ export function IntentionMirrorScreen({
 
             {submission.status === "writing" && (
               <>
+                {modeChangedMessage && <AccessibleStatus error>{modeChangedMessage}</AccessibleStatus>}
+                <ActivityModeNotice mode={mode} />
                 <View style={styles.section}>
                   <View style={styles.ethicsCard}>
                     <ThemedText type="smallBold">{WEEK_ONE_ETHICS_CARD.title}</ThemedText>
@@ -187,8 +231,8 @@ export function IntentionMirrorScreen({
                   </View>
                   <ThemedText type="smallBold">Your writing</ThemedText>
                   <ThemedText>
-                    Write at least {MIN_WRITING_WORDS} words, up to 2,000 characters. Only share what you feel
-                    comfortable sending for AI processing.
+                    Write at least {MIN_WRITING_WORDS} words, up to 2,000 characters.
+                    {prewrittenMode ? "" : " Only share what you feel comfortable sending for AI processing."}
                   </ThemedText>
                   <TextInput
                     accessibilityLabel="Your writing"
@@ -224,7 +268,7 @@ export function IntentionMirrorScreen({
                   )}
                 </View>
 
-                <Pressable
+                {!prewrittenMode && <Pressable
                   accessibilityRole="checkbox"
                   accessibilityLabel={PRIVACY_ACKNOWLEDGEMENT}
                   accessibilityHint="Required before submission. Activate to check or uncheck."
@@ -232,7 +276,7 @@ export function IntentionMirrorScreen({
                   aria-checked={acknowledged}
                   aria-disabled={isSubmitting}
                   disabled={isSubmitting}
-                  onPress={() => setAcknowledged((value) => !value)}
+                  onPress={() => setAcknowledgedMode(acknowledged ? null : currentMode)}
                   style={styles.acknowledgement}
                 >
                   <ThemedText style={styles.checkbox} accessible={false} aria-hidden>
@@ -241,16 +285,18 @@ export function IntentionMirrorScreen({
                   <ThemedText style={styles.acknowledgementText}>
                     {PRIVACY_ACKNOWLEDGEMENT}
                   </ThemedText>
-                </Pressable>
+                </Pressable>}
 
                 {!canSubmit && (
-                  <ThemedText>To submit, write at least 150 words, up to 2,000 characters and check the privacy acknowledgement.</ThemedText>
+                  <ThemedText>{prewrittenMode
+                    ? "To submit, write at least 150 words, up to 2,000 characters."
+                    : "To submit, write at least 150 words, up to 2,000 characters and check the privacy acknowledgement."}</ThemedText>
                 )}
 
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Submit writing"
-                  accessibilityHint="Creates three mock intentions from the API service."
+                  accessibilityHint={prewrittenMode ? "Saves your writing and shows the prewritten examples." : "Sends your writing to create three intentions."}
                   accessibilityState={{ disabled: !canSubmit, busy: isSubmitting }}
                   disabled={!canSubmit}
                   onPress={() => void handleSubmit()}
@@ -298,7 +344,10 @@ export function IntentionMirrorScreen({
 
             {submission.status === "success" && (
               <View style={styles.section} accessibilityLiveRegion="polite">
-                <AccessibleHeading>Mock intentions</AccessibleHeading>
+                <AccessibleHeading>{intentionsHeading(submission.data.provider)}</AccessibleHeading>
+                {generatedSourceLabel(submission.data.provider) && (
+                  <ThemedText type="small">{generatedSourceLabel(submission.data.provider)}</ThemedText>
+                )}
                 {submission.data.intentions.map((intention, index) => (
                   <ThemedView key={index} style={styles.intentionCard} accessible
                     accessibilityLabel={`Intention ${index + 1} of 3. ${intention.title}. ${intention.explanation}`}>
@@ -319,7 +368,28 @@ export function IntentionMirrorScreen({
               </View>
             )}
 
-            {(submission.status === "error" || submission.status === "success") && (
+            {submission.status === "support" && (
+              <View style={styles.section}>
+                <AccessibleStatus>{submission.data.message}</AccessibleStatus>
+                {submission.data.resources.map((resource, index) => (
+                  <ThemedText key={index}>{`${resource.name}: ${resource.contact}`}</ThemedText>
+                ))}
+                <ThemedText>Your writing has been kept intact.</ThemedText>
+              </View>
+            )}
+
+            {submission.status === "prewritten" && (
+              <WeekOnePrewrittenChoice
+                record={submission.data}
+                initialIntention={initialPrewrittenIntention}
+                alreadySaved={submission.data === initialPrewritten}
+                continueLabel={continueLabel}
+                onSave={onSavePrewritten ?? (() => Promise.resolve(false))}
+                onContinue={() => void flush().then((saved) => { if (saved) onOpenGap(); })}
+              />
+            )}
+
+            {submission.status !== "writing" && submission.status !== "loading" && (
               <Pressable
                 accessibilityRole="button"
                 accessibilityHint="Returns to your writing without changing it."

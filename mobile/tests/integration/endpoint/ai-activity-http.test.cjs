@@ -20,7 +20,7 @@ const errors = {
   400: { error: "INVALID_INPUT", message: "The AI activity request is invalid." },
   401: { error: "AUTH_REQUIRED", message: "Sign in to use this activity." },
   404: { error: "ACTIVITY_NOT_FOUND", message: "This activity is not available." },
-  405: { error: "METHOD_NOT_ALLOWED", message: "Use POST." },
+  405: { error: "METHOD_NOT_ALLOWED", message: "Use GET or POST." },
   408: {
     error: "PROVIDER_TIMEOUT",
     message: "The provider timed out. Please try again.",
@@ -327,10 +327,13 @@ test(
         }
       });
 
-      await t.test("non-POST returns 405 with Allow and preflight succeeds without a token", async () => {
-        const get = await call(null, { method: "GET" });
+      await t.test("GET reports the mode, other methods return 405, and preflight succeeds without a token", async () => {
+        const mode = await call(null, { method: "GET" });
+        assert.equal(mode.status, 200);
+        assert.deepEqual(mode.body, { mode: "mock", available: true, contentVersion: null, labels: null });
+        const get = await call(null, { method: "PUT" });
         assert.equal(get.status, 405);
-        assert.equal(get.headers.get("allow"), "POST");
+        assert.equal(get.headers.get("allow"), "GET, POST");
         const preflight = await call(null, { method: "OPTIONS", authorization: null });
         assert.ok(preflight.status >= 200 && preflight.status < 300);
         assert.ok(preflight.headers.get("access-control-allow-origin"));
@@ -366,6 +369,44 @@ test(
       });
 
       await scenario("success", { GUIDED_REFLECTION_PROVIDER: "not-a-real-provider" });
+      await t.test("an unrecognized mode fails with 501 and never serves the mock", async () => {
+        for (const request of Object.values(requests)) {
+          const result = await call(request);
+          assert.equal(result.status, 501);
+          assert.deepEqual(result.body, errors[501]);
+        }
+        assert.deepEqual((await call(null, { method: "GET" })).body, { mode: null, available: false, contentVersion: null, labels: null });
+      });
+
+      await scenario("success", { GUIDED_REFLECTION_PROVIDER: "claude", ANTHROPIC_API_KEY: "" });
+      await t.test("Claude without a key is reported unavailable, in the real runtime, with no result", async () => {
+        const mode = await call(null, { method: "GET" });
+        assert.equal(mode.body.mode, "claude");
+        assert.equal(mode.body.available, false);
+        for (const request of Object.values(requests)) {
+          const result = await call(request);
+          assert.equal(result.status, 501);
+          assert.deepEqual(result.body, errors[501]);
+        }
+      });
+
+      await scenario("success", { GUIDED_REFLECTION_PROVIDER: "prewritten" });
+      await t.test("the prewritten mode returns fixed versioned content in the real runtime", async () => {
+        const mode = await call(null, { method: "GET" });
+        assert.equal(mode.body.mode, "prewritten");
+        assert.equal(mode.body.contentVersion, "1.0.0");
+        assert.equal(mode.body.labels.modeTitle, "Prewritten activity");
+        for (const [kind, request] of Object.entries(requests)) {
+          const result = await call(request);
+          assert.equal(result.status, 200);
+          assert.equal(result.body.kind, kind);
+          assert.equal(result.body.provider, "prewritten");
+          assert.equal(result.body.contentVersion, "1.0.0");
+          assert.equal(result.body.labels.resultFooter, "Source: Prewritten content, version 1.0");
+        }
+      });
+
+      await scenario("success", { GUIDED_REFLECTION_PROVIDER: "mock" });
       await t.test("after failures, the same requests succeed again with identical results (mock default)", async () => {
         for (const [kind, request] of Object.entries(requests)) {
           const result = await call(request);

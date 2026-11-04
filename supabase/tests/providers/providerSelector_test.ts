@@ -3,6 +3,7 @@ import {
   getGuidedReflectionProvider,
   getSensationLexiconProvider,
   isProviderName,
+  resolveActivityDeadlineMs,
   resolveProviderName,
 } from "../../functions/_shared/providers/providerSelector.ts";
 import { ProviderNotConfiguredError } from "../../functions/_shared/providers/types.ts";
@@ -53,18 +54,27 @@ Deno.test("selects the configured provider by name", async () => {
   });
 });
 
-Deno.test("falls back to mock for an unrecognized provider name", async () => {
-  await withEnv("not-a-real-provider", () => {
-    assert(
-      resolveProviderName() === "mock",
-      "must fall back to mock for an unrecognized value",
-    );
-  });
+Deno.test("an unrecognized mode fails instead of serving test data", async () => {
+  for (const typo of ["not-a-real-provider", "cluade", "Claude", ""]) {
+    await withEnv(typo, () => {
+      let thrown: unknown;
+      try {
+        resolveProviderName();
+      } catch (error) {
+        thrown = error;
+      }
+      assert(
+        thrown instanceof ProviderNotConfiguredError,
+        `must not fall back to another mode for "${typo}"`,
+      );
+    });
+  }
 });
 
 Deno.test("isProviderName recognizes valid and invalid names", () => {
   assert(isProviderName("mock"), "mock must be a valid provider name");
   assert(isProviderName("future"), "future must be a valid provider name");
+  assert(isProviderName("claude"), "claude must be a valid provider name");
   assert(!isProviderName("openai"), "unregistered names must be invalid");
   assert(!isProviderName(42), "non-string values must be invalid");
 });
@@ -161,4 +171,20 @@ Deno.test("getSensationLexiconProvider defaults to the resolved provider name", 
       "omitting the name must use the environment-resolved provider",
     );
   });
+});
+Deno.test("activity deadlines: Claude outlasts its own timeout, inside the app's 15 seconds", () => {
+  const previous = Deno.env.get("CLAUDE_TIMEOUT_MS");
+  try {
+    Deno.env.delete("CLAUDE_TIMEOUT_MS");
+    assert(resolveActivityDeadlineMs("mock") === 5_000, "mock keeps 5 seconds");
+    assert(resolveActivityDeadlineMs("claude") === 12_500, "default is 12.5s");
+    Deno.env.set("CLAUDE_TIMEOUT_MS", "14000");
+    assert(
+      resolveActivityDeadlineMs("claude") < 15_000,
+      "must finish before the app stops waiting",
+    );
+  } finally {
+    if (previous === undefined) Deno.env.delete("CLAUDE_TIMEOUT_MS");
+    else Deno.env.set("CLAUDE_TIMEOUT_MS", previous);
+  }
 });

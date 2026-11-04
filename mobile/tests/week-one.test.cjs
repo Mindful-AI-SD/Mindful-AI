@@ -41,10 +41,10 @@ function setup() {
   function loadHelper(name) {
     const helperExports = {};
     const helperCode = ts.transpileModule(fs.readFileSync(path.join(__dirname, "../lib", name + ".ts"), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-    vm.runInNewContext(helperCode, { exports: helperExports });
+    vm.runInNewContext(helperCode, { exports: helperExports, require: inner => loadHelper(inner.slice(2)) });
     return helperExports;
   }
-  vm.runInNewContext(code, { exports, require: name => name === "./supabase" ? { supabase } : name === "./progress" ? { WEEK_ONE_STEPS: steps } : loadHelper(name) });
+  vm.runInNewContext(code, { exports, require: name => name === "./supabase" ? { supabase } : name === "./progress" ? { WEEK_ONE_STEPS: steps } : loadHelper(name.slice(2)) });
   return { api: exports, get record() { return record; }, set record(value) { record = value; },
     setUser(value) { user = value; }, fail(value) { fail = value; }, conflict(value) { conflict = value; } };
 }

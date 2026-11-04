@@ -30,7 +30,7 @@ function database() {
   } };
   const exports = {};
   const code = ts.transpileModule(fs.readFileSync(path.join(__dirname, "../lib/week-two.ts"), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-  vm.runInNewContext(code, { exports, require: name => name === "./supabase" ? { supabase } : {
+  vm.runInNewContext(code, { exports, require: name => name === "./supabase" ? { supabase } : name === "./prewritten-content" ? loadPrewritten() : {
     isBodyRegion: value => value === "chest",
     readWeekTwoRecord: async expected => { await owner(expected); return structuredClone(record); },
     requireWeekTwoOwner: owner,
@@ -43,6 +43,43 @@ async function explore(db) {
   await db.api.saveWeekTwoAnswers("a", "activity", "week_two_explore", sensations);
   await db.api.saveWeekTwoAnswers("a", "activity", "week_two_explore", { week_two_lexicon: JSON.stringify(words) });
 }
+
+function loadPrewritten() {
+  const exports = {};
+  const code = ts.transpileModule(fs.readFileSync(path.join(__dirname, "../lib/prewritten-content.ts"), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  vm.runInNewContext(code, { exports });
+  return exports;
+}
+
+const prewritten = {
+  kind: "prewritten", provider: "prewritten", contentVersion: "1.0.0",
+  labels: { modeTitle: "Prewritten activity", modeDescription: "Written in advance.", disclosure: "Prewritten activity.", responseScreen: "Saved as entered.", resultFooter: "Source: Prewritten content, version 1.0" },
+  result: { vocabulary: [{ area: "Breath", words: ["steady"] }], reflectionPrompts: ["Choose words."] },
+};
+
+test("a prewritten result is saved with its version, restored, and passes the same gate to Notice", async () => {
+  const db = database();
+  await db.api.saveWeekTwoAnswers("a", "activity", "week_two_practice", { week_two_practice_complete: "yes" }, "week_two_explore");
+  await db.api.saveWeekTwoAnswers("a", "activity", "week_two_explore", sensations);
+  await assert.rejects(db.api.saveWeekTwoAnswers("a", "activity", "week_two_explore", {}, "week_two_notice"), /Generate and save words/);
+  await db.api.saveWeekTwoAnswers("a", "activity", "week_two_explore", { week_two_lexicon: JSON.stringify(prewritten), week_two_prewritten_words: "steady" });
+  const restored = await db.api.loadWeekTwoProgress("a", "activity");
+  assert.equal(restored.lexicon.kind, "prewritten");
+  assert.equal(restored.lexicon.contentVersion, "1.0.0");
+  assert.equal(restored.answers.week_two_prewritten_words, "steady");
+  assert.equal((await db.api.saveWeekTwoAnswers("a", "activity", "week_two_explore", {}, "week_two_notice")).step, "week_two_notice");
+  await assert.rejects(db.api.saveWeekTwoAnswers("a", "activity", "week_two_notice", {}, "completed"), /tracker question/);
+});
+
+test("a changed mode does not erase chosen words, and altered saved content is not trusted", async () => {
+  const db = database();
+  await db.api.saveWeekTwoAnswers("a", "activity", "week_two_practice", { week_two_practice_complete: "yes" }, "week_two_explore");
+  await db.api.saveWeekTwoAnswers("a", "activity", "week_two_explore", { ...sensations, week_two_lexicon: JSON.stringify(prewritten), week_two_prewritten_words: "steady" });
+  const later = await db.api.saveWeekTwoAnswers("a", "activity", "week_two_explore", { week_two_lexicon: JSON.stringify(words) });
+  assert.equal(later.lexicon.kind, "words");
+  assert.equal(later.answers.week_two_prewritten_words, "steady");
+  await assert.rejects(db.api.saveWeekTwoAnswers("a", "activity", "week_two_explore", { week_two_lexicon: JSON.stringify({ ...prewritten, contentVersion: "x" }) }), /does not match/);
+});
 
 test("all four beats restore descriptions, returned words, ethics answers, and completion", async () => {
   const db = database();

@@ -1,5 +1,6 @@
 import { hasArrivalRatings } from "./week-one-arrival";
 import { validWeekOneWriting } from "./week-one-writing";
+import { hasWeekOnePrewrittenIntention, hasWeekOnePrewrittenReflection, isWeekOnePrewrittenPath } from "./week-one-prewritten";
 import { supabase } from "./supabase";
 import { WEEK_ONE_STEPS, type ReflectionAnswers, type WeekOneProgress, type WeekOneStep } from "./progress";
 
@@ -10,6 +11,24 @@ async function requireOwner(userId: string) {
 
 function hasAnswer(progress: WeekOneProgress, key: string): boolean {
   return Boolean(progress.reflection_answers?.[key]?.trim());
+}
+
+// Three generated intentions, or a saved choice in the prewritten mode. Both can
+// exist after a mode change, and neither ever replaces the other.
+function hasExploreResult(progress: WeekOneProgress): boolean {
+  return progress.generated_intentions.length === 3 ||
+    hasWeekOnePrewrittenIntention(progress.reflection_answers);
+}
+
+// Generated intentions lead to the AI gap questions. The prewritten path has no
+// AI output to compare, so its own fixed prompts apply instead.
+function hasGapReflection(progress: WeekOneProgress): boolean {
+  if (isWeekOnePrewrittenPath(progress.reflection_answers, progress.generated_intentions.length)) {
+    return hasWeekOnePrewrittenReflection(progress.reflection_answers);
+  }
+  return hasAnswer(progress, "ai_gap_got_right") &&
+    hasAnswer(progress, "ai_gap_missed") &&
+    hasAnswer(progress, "ai_gap_reveals");
 }
 
 export type WeekOneCompletionIssue = {
@@ -48,7 +67,7 @@ export function getWeekOneCompletionIssue(
   if (!validWeekOneWriting(progress.writing ?? "")) {
     return { missingStep: "writing", message: "Save at least 150 words (up to 2,000 characters) before finishing Week 1." };
   }
-  if (progress.generated_intentions.length !== 3) {
+  if (!hasExploreResult(progress)) {
     return { missingStep: "writing", message: "Generate and save three intentions before finishing Week 1." };
   }
   if (savedStepIndex <= WEEK_ONE_STEPS.indexOf("intention_mirror")) {
@@ -64,9 +83,7 @@ export function getWeekOneCompletionIssue(
       message: "Complete both data self-portrait reflections before finishing Week 1.",
     };
   }
-  if (!hasAnswer(progress, "ai_gap_got_right") ||
-      !hasAnswer(progress, "ai_gap_missed") ||
-      !hasAnswer(progress, "ai_gap_reveals")) {
+  if (!hasGapReflection(progress)) {
     return {
       missingStep: "ai_gap_reflection",
       message: "Complete all AI gap reflections before finishing Week 1.",
@@ -88,16 +105,14 @@ export function deriveNextAllowedStep(progress: WeekOneProgress | null): WeekOne
   if (savedStepIndex <= WEEK_ONE_STEPS.indexOf("breathing")) return "breathing";
   if (progress.current_step === "post_breathing_check_in" || !hasAnswer(progress, "post_breathing_urge")) return "post_breathing_check_in";
 
-  if (progress.current_step === "writing" || !validWeekOneWriting(progress.writing ?? "") || progress.generated_intentions.length !== 3) return "writing";
+  if (progress.current_step === "writing" || !validWeekOneWriting(progress.writing ?? "") || !hasExploreResult(progress)) return "writing";
   // Intention Mirror is a view/acknowledgement step, so its saved step is its completion evidence.
   if (savedStepIndex <= WEEK_ONE_STEPS.indexOf("intention_mirror")) return "intention_mirror";
 
   if (progress.current_step === "data_self_portrait" || !hasAnswer(progress, "data_self_portrait_visible") ||
       !hasAnswer(progress, "data_self_portrait_missing")) return "data_self_portrait";
 
-  if (!hasAnswer(progress, "ai_gap_got_right") ||
-      !hasAnswer(progress, "ai_gap_missed") ||
-      !hasAnswer(progress, "ai_gap_reveals")) return "ai_gap_reflection";
+  if (!hasGapReflection(progress)) return "ai_gap_reflection";
 
   // Saving answers does not complete the week until the user deliberately finishes.
   return "ai_gap_reflection";
@@ -120,7 +135,7 @@ export async function startWeekOne(userId: string, activityId: string): Promise<
   if (existing) {
     // Earlier frontend versions saved data without updating the default step.
     if (existing.status === "not_started" && existing.writing?.trim()) {
-      const step = validWeekOneWriting(existing.writing) && existing.generated_intentions.length === 3 ? "intention_mirror" : "writing";
+      const step = validWeekOneWriting(existing.writing) && hasExploreResult(existing) ? "intention_mirror" : "writing";
       return updateStep(existing, step, {});
     }
     const allowedStep = deriveNextAllowedStep(existing);
@@ -244,7 +259,7 @@ export async function saveWeekOneStep(
       throw new Error("Answer each question before continuing.");
     }
     if (expectedStep === "writing" &&
-      (!validWeekOneWriting(progress.writing ?? "") || progress.generated_intentions.length !== 3)) {
+      (!validWeekOneWriting(progress.writing ?? "") || !hasExploreResult({ ...progress, reflection_answers: allAnswers }))) {
       throw new Error("Save at least 150 words (up to 2,000 characters) and generate three intentions before continuing.");
     }
   }

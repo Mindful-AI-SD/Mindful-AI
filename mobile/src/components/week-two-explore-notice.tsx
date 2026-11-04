@@ -2,14 +2,20 @@ import { Pressable, StyleSheet, TextInput, View } from "react-native";
 import { useTheme } from "@/hooks/use-theme";
 import { ThemedText } from "./themed-text";
 import { AccessibleStatus } from "./accessibility";
-import { SENSATION_KEYS, validSensations, type LexiconWords } from "../../lib/week-two";
+import { SENSATION_KEYS, validSensations, type LexiconWords, type WeekTwoResult } from "../../lib/week-two";
+import { generatedSourceLabel } from "../../lib/prewritten-content";
+import type { ActivityModeState } from "@/hooks/use-activity-mode";
+import { ActivityModeNotice } from "./activity-mode-notice";
+import { WeekTwoPrewrittenResults } from "./week-two-prewritten";
 import type { ReflectionAnswers } from "../../lib/progress";
 import type { SensationLexiconData } from "../../lib/sensation-lexicon";
 import { WEEK_TWO_ETHICS_CARD } from "../../lib/ethics-cards";
 
 export function SensationResults({ data }: { data: LexiconWords }) {
+  const source = generatedSourceLabel(data.provider);
   return <View style={styles.section}>
     <ThemedText accessibilityRole="header" type="subtitle">Sensation Lexicon results</ThemedText>
+    {source && <ThemedText type="small">{source}</ThemedText>}
     {data.items.map((item, index) => <View key={index} style={styles.card} accessible
       accessibilityLabel={`Sensation ${index + 1} of 3. ${item.original}. ${item.suggestions.length ? `Suggested words: ${item.suggestions.join(", ")}` : "No alternative words suggested."}`}>
       <ThemedText type="smallBold">{item.original}</ThemedText>
@@ -18,15 +24,21 @@ export function SensationResults({ data }: { data: LexiconWords }) {
   </View>;
 }
 
-export function WeekTwoExplore({ answers, data, support, busy, retry, onChange, onGenerate, onContinue }: {
-  answers: ReflectionAnswers; data: LexiconWords | null;
+export function WeekTwoExplore({ mode, answers, data, support, busy, retry, onChange, onGenerate, onContinue }: {
+  mode: ActivityModeState;
+  answers: ReflectionAnswers; data: WeekTwoResult | null;
   support: Extract<SensationLexiconData, { kind: "support" }> | null;
   busy: boolean; retry: boolean;
   onChange: (key: string, value: string) => void; onGenerate: () => void; onContinue: () => void;
 }) {
   const theme = useTheme();
+  const prewritten = mode.status === "ready" && !!mode.mode.labels;
+  const blocked = mode.status !== "ready";
   return <View style={styles.section}>
-    <ThemedText>Describe three sensations in your own words, using 2–80 characters for each. Only these descriptions are sent for AI processing; leave out identifying details.</ThemedText>
+    <ActivityModeNotice mode={mode} />
+    <ThemedText>{prewritten
+      ? "Describe three sensations in your own words, using 2–80 characters for each."
+      : "Describe three sensations in your own words, using 2–80 characters for each. Only these descriptions are sent for AI processing; leave out identifying details."}</ThemedText>
     {SENSATION_KEYS.map((key, index) => <View key={key} style={styles.section}>
       <ThemedText>{`Sensation ${index + 1}`}</ThemedText>
       <TextInput accessibilityLabel={`Sensation ${index + 1}`} accessibilityHint="Use 2 to 80 characters. Save answers before leaving."
@@ -35,18 +47,20 @@ export function WeekTwoExplore({ answers, data, support, busy, retry, onChange, 
         style={[styles.editor, { color: theme.text, backgroundColor: theme.backgroundElement }]} />
     </View>)}
     {!validSensations(answers) && <ThemedText>Enter three sensations of 2–80 characters each to generate words.</ThemedText>}
-    <Pressable accessibilityRole="button" disabled={busy || !validSensations(answers)} style={styles.action}
-      accessibilityState={{ disabled: busy || !validSensations(answers), busy }}
-      accessibilityHint="Saves your descriptions and requests words from the Sensation Lexicon service."
+    <Pressable accessibilityRole="button" disabled={busy || blocked || !validSensations(answers)} style={styles.action}
+      accessibilityState={{ disabled: busy || blocked || !validSensations(answers), busy }}
+      accessibilityHint={prewritten ? "Saves your descriptions and shows the prewritten word list." : "Saves your descriptions and requests words from the Sensation Lexicon service."}
       onPress={onGenerate}>
-      <ThemedText>{busy ? "Loading or saving…" : retry ? "Retry Sensation Lexicon" : "Generate sensation words"}</ThemedText>
+      <ThemedText>{busy ? "Loading or saving…" : retry ? "Retry Sensation Lexicon" : prewritten ? "Show the word list" : "Generate sensation words"}</ThemedText>
     </Pressable>
     {support && <View style={styles.card}>
       <AccessibleStatus>{support.message}</AccessibleStatus>
       {support.resources.map((resource, index) => <ThemedText key={index}>{`${resource.name}: ${resource.contact}`}</ThemedText>)}
     </View>}
     {data && !support && <>
-      <SensationResults data={data} />
+      {data.kind === "prewritten"
+        ? <WeekTwoPrewrittenResults record={data} answers={answers} busy={busy} onChange={onChange} />
+        : <SensationResults data={data} />}
       <Pressable accessibilityRole="button" disabled={busy} style={styles.action} onPress={onContinue}
         accessibilityHint="Saves your results and opens Notice.">
         <ThemedText>Continue to Notice</ThemedText>
@@ -56,14 +70,16 @@ export function WeekTwoExplore({ answers, data, support, busy, retry, onChange, 
 }
 
 export function WeekTwoNotice({ answers, data, busy, onChange, onComplete }: {
-  answers: ReflectionAnswers; data: LexiconWords;
+  answers: ReflectionAnswers; data: WeekTwoResult;
   busy: boolean; onChange: (key: string, value: string) => void; onComplete: () => void;
 }) {
   const theme = useTheme();
   const valid = ["week_two_tracker_reflection", "week_two_closing_reflection"].every(key =>
     Boolean(answers[key]?.trim()) && answers[key].length <= 2000);
   return <View style={styles.section}>
-    <SensationResults data={data} />
+    {data.kind === "prewritten"
+      ? <ThemedText type="small">{data.labels.resultFooter}</ThemedText>
+      : <SensationResults data={data} />}
     <View style={styles.card}>
       <ThemedText accessibilityRole="header" type="subtitle">{WEEK_TWO_ETHICS_CARD.title}</ThemedText>
       <ThemedText>{WEEK_TWO_ETHICS_CARD.body}</ThemedText>

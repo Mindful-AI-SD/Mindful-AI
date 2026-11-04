@@ -5,7 +5,12 @@ import {
   aiActivityResponseMatchesRequest,
   aiActivityResponseSchema,
 } from "../../schema/aiActivitySchema.ts";
-import { runAiActivity } from "../_shared/providers/providerSelector.ts";
+import {
+  describeActivityMode,
+  resolveActivityDeadlineMs,
+  resolveProviderName,
+  runAiActivity,
+} from "../_shared/providers/providerSelector.ts";
 import {
   type AiActivityCall,
   ProviderNotConfiguredError,
@@ -37,6 +42,10 @@ const errors = {
     error: "PROVIDER_TIMEOUT",
     message: "The provider timed out. Please try again.",
   },
+  409: {
+    error: "MODE_CHANGED",
+    message: "This activity changed. Please review it and try again.",
+  },
   501: {
     error: "PROVIDER_NOT_CONFIGURED",
     message: "This activity is not available yet.",
@@ -66,18 +75,20 @@ function studentTexts(input: unknown): string[] {
 // Injection is server-side only, for testing failures without replacing the adapter.
 export function createAiActivityEndpoint(
   runner: Runner = runAiActivity,
-  timeoutMs = 5000,
+  timeoutOverrideMs?: number,
   lookupOverride?: ActivityLookup,
 ) {
   const authenticated = withSupabase({ auth: "user" }, async (req, ctx) => {
     if (!ctx.userClaims?.id) return failure(401);
+    // Lets the app identify the mode before a student begins.
+    if (req.method === "GET") return Response.json(describeActivityMode());
     if (req.method !== "POST") {
       return Response.json({
         error: "METHOD_NOT_ALLOWED",
-        message: "Use POST.",
+        message: "Use GET or POST.",
       }, {
         status: 405,
-        headers: { Allow: "POST" },
+        headers: { Allow: "GET, POST" },
       });
     }
     let body: unknown;
@@ -95,6 +106,15 @@ export function createAiActivityEndpoint(
     const input = aiActivityRequestSchema.safeParse(body);
     if (!input.success) return failure(400);
     const request = input.data;
+    // A student told "this is not sent to AI" must never have it sent to AI
+    // because the server's mode changed while they were writing.
+    if (request.expectedMode !== undefined) {
+      try {
+        if (request.expectedMode !== resolveProviderName()) return failure(409);
+      } catch {
+        return failure(501);
+      }
+    }
 
     const isPublished: ActivityLookup = lookupOverride ?? (async (id) => {
       const { data, error } = await ctx.supabase
@@ -120,7 +140,7 @@ export function createAiActivityEndpoint(
         new Promise<never>((_, reject) => {
           timer = setTimeout(
             () => reject(new ProviderTimeoutError("Deadline exceeded")),
-            timeoutMs,
+            timeoutOverrideMs ?? resolveActivityDeadlineMs(),
           );
         }),
       ]);

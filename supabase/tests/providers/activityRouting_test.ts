@@ -110,18 +110,15 @@ for (const call of CALLS) {
     });
   });
 
-  Deno.test(`routing: ${call.kind} falls back to the mock for an unrecognized provider name`, async () => {
+  Deno.test(`routing: ${call.kind} fails for an unrecognized mode instead of serving the mock`, async () => {
     await withEnv(
       { GUIDED_REFLECTION_PROVIDER: "not-a-real-provider" },
       async () => {
-        const warn = console.warn;
-        console.warn = () => {};
-        try {
-          const output = await runAiActivity(call);
-          assert(output.provider === "mock", "must fall back to the mock");
-        } finally {
-          console.warn = warn;
-        }
+        const { error } = await outcome(() => runAiActivity(call));
+        assert(
+          error instanceof ProviderNotConfiguredError,
+          "must fail explicitly, not switch modes",
+        );
       },
     );
   });

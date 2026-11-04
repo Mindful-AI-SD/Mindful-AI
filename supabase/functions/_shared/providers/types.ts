@@ -1,3 +1,8 @@
+import type {
+  PREWRITTEN_LABELS,
+  PrewrittenResults,
+} from "../prewritten/prewrittenContent.ts";
+
 // Provider-agnostic shapes. Every guided-reflection provider (mock, and
 // whatever real provider replaces/joins it later) satisfies these same
 // types, so the endpoint and frontend never need to change when a provider
@@ -93,6 +98,15 @@ export type DistractionAuditSummary = {
 // and result shape; an endpoint routes a call to the provider for that kind.
 // Adding a lab means adding its kind here, then its mock and real adapter, its
 // schema, and its routing entry in providerSelector.ts.
+export const PROVIDER_NAMES = [
+  "mock",
+  "future",
+  "claude",
+  "prewritten",
+] as const;
+
+export type ProviderName = (typeof PROVIDER_NAMES)[number];
+
 export const AI_ACTIVITY_KINDS = [
   "intention_mirror",
   "sensation_lexicon",
@@ -126,13 +140,27 @@ export type AiActivityCall = {
   };
 }[AiActivityKind];
 
-export type AiActivityOutput = {
+export type GeneratedActivityOutput = {
   [K in AiActivityKind]: {
     kind: K;
     provider: string;
     result: AiActivityResults[K];
   };
 }[AiActivityKind];
+
+export type PrewrittenActivityOutput = {
+  [K in AiActivityKind]: {
+    kind: K;
+    provider: "prewritten";
+    contentVersion: string;
+    labels: typeof PREWRITTEN_LABELS;
+    result: PrewrittenResults[K];
+  };
+}[AiActivityKind];
+
+export type AiActivityOutput =
+  | GeneratedActivityOutput
+  | PrewrittenActivityOutput;
 
 export class ProviderTimeoutError extends Error {
   readonly code = "PROVIDER_TIMEOUT" as const;

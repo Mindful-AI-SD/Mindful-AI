@@ -1059,17 +1059,14 @@ Deno.test("AI activity endpoint with real Supabase authentication middleware", a
         },
       );
       await t.step(
-        `${body.kind}: an unrecognized provider name falls back to the mock`,
+        `${body.kind}: an unrecognized mode fails instead of serving the mock`,
         async () => {
           Deno.env.set("GUIDED_REFLECTION_PROVIDER", "not-a-real-provider");
-          const warn = console.warn;
-          console.warn = () => {};
           try {
             const response = await request(JSON.stringify(body), validToken);
-            assert.equal(response.status, 200);
-            assert.equal((await response.json()).provider, "mock");
+            assert.equal(response.status, 501);
+            assert.deepEqual(await response.json(), notConfigured);
           } finally {
-            console.warn = warn;
             Deno.env.set("GUIDED_REFLECTION_PROVIDER", "mock");
           }
         },
@@ -1338,10 +1335,26 @@ Deno.test("AI activity endpoint with real Supabase authentication middleware", a
         }
       },
     );
-    await t.step("authenticated GET returns 405 with Allow", async () => {
-      const response = await request("", validToken, "GET");
+    await t.step("authenticated PUT returns 405 with Allow", async () => {
+      const response = await request("", validToken, "PUT");
       assert.equal(response.status, 405);
-      assert.equal(response.headers.get("allow"), "POST");
+      assert.equal(response.headers.get("allow"), "GET, POST");
+      await response.body?.cancel();
+    });
+    await t.step("authenticated GET reports the mode", async () => {
+      const response = await request("", validToken, "GET");
+      assert.equal(response.status, 200);
+      assert.deepEqual(await response.json(), {
+        mode: "mock",
+        available: true,
+        contentVersion: null,
+        labels: null,
+      });
+    });
+    await t.step("unsigned GET is rejected", async () => {
+      const response = await request("", undefined, "GET");
+      assert.equal(response.status, 401);
+      assert.deepEqual(await response.json(), authRequired);
     });
     await t.step("unsigned browser preflight succeeds", async () => {
       const response = await request("", undefined, "OPTIONS");

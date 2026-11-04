@@ -3,6 +3,8 @@
 Maps each of the eight weekly Explore labs to the request it sends, the output
 it must get back, and what happens when the model cannot give a valid answer.
 Everything marked **proposed** is a starting point for review, not a decision.
+The server-side Claude adapter serves the built contracts; see
+`docs/sprint-3/claude-provider-boundary.md`. Live calls are not yet verified.
 Weeks 1, 2, and 3 are built; the other seven contracts are designs.
 
 Sources: _AIM-YA App Content Spec (v5.0 draft)_, _AIM-YA Four Beats Weekly Map_,
@@ -12,21 +14,21 @@ X1–X8). The curriculum is still draft v5.0, so these shapes can change with it
 ## Summary
 
 Eight labs need **ten** model contracts, because Weeks 5 and 6 each contain two
-separate AI interactions. Three of the ten are built, all against the mock
-provider only, and all are served by one general endpoint.
+separate AI interactions. Three of the ten are built and served by one general
+endpoint, against the mock and the Claude adapter (not yet verified live).
 
-| Week | Contract `kind`              | Student supplies                 | Model returns                                 | Status                             |
-| ---- | ---------------------------- | -------------------------------- | --------------------------------------------- | ---------------------------------- |
-| 1    | `intention_mirror`           | One reflection                   | Exactly 3 intentions                          | Built (mock only)                  |
-| 2    | `sensation_lexicon`          | 3 sensations                     | Optional word choices per sensation           | Built (mock only); Week 2 Explore  |
-| 3    | `distraction_audit`          | A log of time-stamped taps       | A category per event; server does the math    | Built (mock only); no screen       |
-| 4    | `trigger_sensation_reaction` | One stressful tech event         | 3 parts (each found or unknown) + 3 questions | Not built                          |
-| 5a   | `decentering_shift`          | 3 beliefs                        | 3 reframes                                    | Not built                          |
-| 5b   | `hallucination_check`        | One factual question             | An answer split into checkable claims         | Not built; may hand off to Copilot |
-| 6a   | `compassionate_voice`        | A letter to self                 | One rewritten letter                          | Not built                          |
-| 6b   | `bias_test`                  | A choice of server-held prompt   | 2 outputs, same prompt, name changed          | Blocked: sample prompts not given  |
-| 7    | `contextual_designer`        | A schedule                       | Up to 3 gaps + up to 3 habitual-use moments   | Not built                          |
-| 8    | `meta_reflection`            | Nothing (server reads 7 entries) | Up to 5 themes, growth, avoidance, with cites | Blocked: Weeks 2–7 are not stored  |
+| Week | Contract `kind`              | Student supplies                 | Model returns                                 | Status                              |
+| ---- | ---------------------------- | -------------------------------- | --------------------------------------------- | ----------------------------------- |
+| 1    | `intention_mirror`           | One reflection                   | Exactly 3 intentions                          | Built; live Claude not verified     |
+| 2    | `sensation_lexicon`          | 3 sensations                     | Optional word choices per sensation           | Built; live Claude not verified     |
+| 3    | `distraction_audit`          | A log of time-stamped taps       | A category per event; server does the math    | Built; no screen; live not verified |
+| 4    | `trigger_sensation_reaction` | One stressful tech event         | 3 parts (each found or unknown) + 3 questions | Not built                           |
+| 5a   | `decentering_shift`          | 3 beliefs                        | 3 reframes                                    | Not built                           |
+| 5b   | `hallucination_check`        | One factual question             | An answer split into checkable claims         | Not built; may hand off to Copilot  |
+| 6a   | `compassionate_voice`        | A letter to self                 | One rewritten letter                          | Not built                           |
+| 6b   | `bias_test`                  | A choice of server-held prompt   | 2 outputs, same prompt, name changed          | Blocked: sample prompts not given   |
+| 7    | `contextual_designer`        | A schedule                       | Up to 3 gaps + up to 3 habitual-use moments   | Not built                           |
+| 8    | `meta_reflection`            | Nothing (server reads 7 entries) | Up to 5 themes, growth, avoidance, with cites | Blocked: Weeks 2–7 are not stored   |
 
 ## How routing works today
 
@@ -41,10 +43,9 @@ The older Week 1 pieces still exist beside it and still carry their limits:
 
 - `GuidedReflectionProvider`, `guided-reflection`, and `mindfulness-response`
   only know the three-intentions shape.
-- **`provider` is the literal `"mock"`** in `guidedReflectionResponseSchema`,
-  the `finish_intention_submission` SQL, and `isResponse` in
-  `mobile/lib/intention.ts`. The general contract accepts any provider name, but
-  those three still fail a real provider.
+- **`provider` is the literal `"mock"`** in `guidedReflectionResponseSchema` and
+  the `finish_intention_submission` SQL, so `mindfulness-response` cannot save a
+  real provider's result. The general contract accepts any provider name.
 - Only `mindfulness-response` saves anything. The general endpoint is stateless.
 
 ## Shared envelope
@@ -101,7 +102,9 @@ Applied in this order. The first rule that matches ends the request.
 Rules that hold for every contract:
 
 - **No canned stand-in.** On rules 5 and 6 the app shows an error with a retry.
-  It never shows prewritten content presented as the AI's answer.
+  It never shows prewritten content presented as the AI's answer. The prewritten
+  mode is a separate choice made on the server, with its own response shape and
+  labels; it is never a fallback from a failed model call.
 - **Student text is never lost.** Whatever the student typed stays saved and
   editable after any failure.
 - **Retry reuses `submissionId`.** A completed submission returns the saved
@@ -165,7 +168,8 @@ type Item = {
   `kind: "sensation_lexicon"`. App service: `getSensationWords` in
   `mobile/lib/sensation-lexicon.ts`. The frontend saves the descriptions and
   returned words in the user's progress record and restores them without another
-  provider request. There is no `submissionId`, so an explicit retry generates again.
+  provider request. There is no `submissionId`, so an explicit retry generates
+  again.
 - Output checks: `original` values match the input verbatim; no suggestion
   repeats the original; no clinical or diagnostic terms; no explanation field
   exists, so the model cannot state a cause or a "correct" label.

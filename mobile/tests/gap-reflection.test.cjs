@@ -175,7 +175,7 @@ test("screen loads references above restored fields and saves all edited answers
   assert.match(ui.text(), /Loading your saved intentions/);
   await turn();
   assert.equal(ui.inputs().length, 3);
-  assert.ok(ui.text().indexOf(intentions[2].explanation) < ui.text().indexOf("What did the mock intentions get right?"));
+  assert.ok(ui.text().indexOf(intentions[2].explanation) < ui.text().indexOf("What did the intentions get right?"));
   assert.deepEqual(ui.inputs().map(input => input.props.value), Object.values(answers));
   ui.inputs().forEach((input, index) => input.props.onChangeText(`Answer ${index}`));
   const save = ui.button("Save reflection");

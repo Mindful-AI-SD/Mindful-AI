@@ -59,7 +59,7 @@ for (const kind of Object.keys(kinds)) {
   const failures = {
     "provider failure (502)": [async () => http(502), "REQUEST_FAILED"],
     "server timeout (408)": [async () => http(408), "TIMEOUT"],
-    "provider not configured (501)": [async () => http(501), "REQUEST_FAILED"],
+    "provider not configured (501)": [async () => http(501), "UNAVAILABLE"],
     "no connection": [async () => offline, "NETWORK_ERROR"],
     "malformed response": [async () => ({ data: { ...good, result: {} }, error: null }), "INVALID_RESPONSE"],
     "thrown error": [() => { throw Error("private-diagnostic"); }, "REQUEST_FAILED"],
