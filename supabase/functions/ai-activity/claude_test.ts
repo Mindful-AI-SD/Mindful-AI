@@ -124,6 +124,23 @@ Deno.test("ai-activity in Claude mode, through the real middleware", async (t) =
       assert.deepEqual(result.uncategorized, { count: 1, percent: 33 });
     });
 
+    await t.step(
+      "an empty Week 3 log makes no call and claims no model",
+      async () => {
+        anthropicCalls = 0;
+        const response = await send({
+          ...requests.distraction_audit,
+          input: { events: [] },
+        });
+        assert.equal(response.status, 200);
+        const body = await response.json();
+        assert.equal(body.provider, "server");
+        assert.equal(body.result.totalEvents, 0);
+        assert.deepEqual(body.result.categories, []);
+        assert.equal(anthropicCalls, 0);
+      },
+    );
+
     await t.step("crisis language never reaches the model", async () => {
       anthropicCalls = 0;
       replyWith(modelOutput.intention_mirror);

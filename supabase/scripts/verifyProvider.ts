@@ -154,7 +154,8 @@ export async function runVerification(
       aiActivityResponseMatchesRequest(request, parsed.data);
     const provider = typeof body?.provider === "string" ? body.provider : null;
     const rubric = parsed.success ? evaluateRubric(scenario, parsed.data) : [];
-    const expectedProvider = provider === config.expectedProvider;
+    const expectedProvider = provider === config.expectedProvider ||
+      (scenario.answeredByServer === true && provider === "server");
     scenarios.push({
       scenario: scenario.name,
       kind: scenario.kind,

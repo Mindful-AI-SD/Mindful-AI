@@ -13,6 +13,8 @@ export type Scenario = {
   kind: Kind;
   smoke: boolean;
   input: unknown;
+  // The server answers this one alone, so no provider is expected to label it.
+  answeredByServer?: boolean;
   // Lowercase phrases that must not appear in generated output.
   forbidden?: string[];
 };
@@ -119,6 +121,7 @@ export const SCENARIOS: Scenario[] = [
     week: 3,
     kind: "distraction_audit",
     smoke: false,
+    answeredByServer: true,
     input: { events: [] },
   },
 ];

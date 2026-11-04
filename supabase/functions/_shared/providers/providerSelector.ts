@@ -148,14 +148,18 @@ const ACTIVITY_PROVIDERS: {
   }),
   // The provider only assigns categories; the counts and percentages are
   // computed here. An empty log is answered without calling a provider, so
-  // nothing can be invented for it.
+  // nothing can be invented for it. Under Claude it says "server", because no
+  // model took part and the label must not claim a live response.
   distraction_audit: forEachProvider((name) =>
   async (
     activityContext,
     { events },
   ) => {
     if (events.length === 0) {
-      return { provider: name, result: summarizeDistractionAudit([], []) };
+      return {
+        provider: name === "claude" ? "server" : name,
+        result: summarizeDistractionAudit([], []),
+      };
     }
     const { assignments, provider } = await DISTRACTION_AUDIT_PROVIDERS[name](
       activityContext,
