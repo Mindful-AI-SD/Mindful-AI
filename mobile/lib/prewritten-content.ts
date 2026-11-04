@@ -32,11 +32,11 @@ export type PrewrittenRecord<Result> = {
 
 type Fields = Record<string, unknown>;
 
-function isFields(value: unknown): value is Fields {
+export function isFields(value: unknown): value is Fields {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
-function hasOnlyKeys(value: Fields, keys: string[]): boolean {
+export function hasOnlyKeys(value: Fields, keys: string[]): boolean {
   const actual = Object.keys(value);
   return actual.length === keys.length &&
     keys.every((key) => actual.includes(key));

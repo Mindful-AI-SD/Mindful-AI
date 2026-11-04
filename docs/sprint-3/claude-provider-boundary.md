@@ -54,6 +54,10 @@ that names the setting only.
   passes, the call is cancelled, so it stops spending.
 - **Malformed output is not retried.** Each attempt costs money. The student
   gets an error and can retry.
+- **Large Week 3 logs may not finish in time.** A 300-event log may need more
+  output than the deadline allows, and it would be billed each time it times
+  out. Measure this before connecting Week 3 to Claude, and cap the log size or
+  split it if needed.
 
 ## Response validation
 
@@ -78,6 +82,7 @@ student's request. The server does all Week 3 arithmetic.
 | Key missing; key rejected (401, 403); billing (402) | 501  | `PROVIDER_NOT_CONFIGURED` | Mode unavailable message         |
 | Model unavailable to the account (404)              | 501  | `PROVIDER_NOT_CONFIGURED` | Mode unavailable message         |
 | Deadline passed                                     | 408  | `PROVIDER_TIMEOUT`        | "Taking too long", retry offered |
+| Mode changed after the student read the notice      | 409  | `MODE_CHANGED`            | Notice refreshes, nothing sent   |
 | Rate limit, overload, or 5xx after retries          | 502  | `PROVIDER_ERROR`          | Error, retry offered             |
 | Refusal, truncated, or invalid output               | 502  | `PROVIDER_ERROR`          | Error, retry offered             |
 

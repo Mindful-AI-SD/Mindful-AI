@@ -247,7 +247,8 @@ The user comes from the session. A client-supplied provider, user ID, result, `d
 | 400 | `INVALID_INPUT` | Invalid JSON, unknown kind, or input that does not fit the kind |
 | 401 | `AUTH_REQUIRED` | Missing or invalid user authentication |
 | 404 | `ACTIVITY_NOT_FOUND` | Activity missing or not published |
-| 408 | `PROVIDER_TIMEOUT` | Five-second deadline or adapter timeout |
+| 408 | `PROVIDER_TIMEOUT` | The deadline for the mode, or an adapter timeout |
+| 409 | `MODE_CHANGED` | The request's `expectedMode` no longer matches the server's mode. Nothing was sent |
 | 501 | `PROVIDER_NOT_CONFIGURED` | The selected provider is not implemented |
 | 502 | `PROVIDER_ERROR` | Provider failure, or output that fails the schema or does not match the request |
 | 503 | `ACTIVITY_CHECK_UNAVAILABLE` | The activity lookup failed |

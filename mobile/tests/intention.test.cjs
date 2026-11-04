@@ -168,9 +168,9 @@ test("cancellation stops the server request and clears its timers", async () => 
 
 // Render the screen's JSX with native widgets replaced by inspectable elements.
 // The real API service runs; only React hooks and persistence are isolated here.
-const READY_MODE = { status: "ready", mode: { mode: "mock", available: true, contentVersion: null, labels: null } };
+const READY_MODE = { status: "ready", refresh() {}, mode: { mode: "mock", available: true, contentVersion: null, labels: null } };
 
-function screen(provider, saveIntentions = async () => {}, activityMode = READY_MODE) {
+function screen(provider, saveIntentions = async () => {}, activityMode = READY_MODE, forcedError = null) {
   let cursor = 0, writing = originalDraft, draftStatus = "saved";
   const slots = [], effects = [], calls = [], writingChanges = [];
   const react = {
@@ -211,6 +211,7 @@ function screen(provider, saveIntentions = async () => {}, activityMode = READY_
   const service = env.load("lib/intention.ts");
   overrides["../../lib/intention"] = { getIntentions: (payload, options) => {
     calls.push(payload);
+    if (forcedError) return Promise.resolve({ data: null, error: forcedError });
     return service.getIntentions(payload, { ...options, provider });
   } };
   const component = env.load("src/components/intention-mirror-screen.tsx");
@@ -516,7 +517,7 @@ test("the Explore request carries only the activity, its context, and the writin
   ui.button("Submit").props.onPress();
   await turn();
   assert.equal(ui.calls.length, 1);
-  assert.deepEqual(Object.keys(ui.calls[0]).sort(), ["activityContext", "activityId", "userReflection"]);
+  assert.deepEqual(Object.keys(ui.calls[0]).sort(), ["activityContext", "activityId", "expectedMode", "userReflection"]);
   // Fields of PersistedBreathingSession, the state the timed Practice player keeps.
   const sent = JSON.stringify(ui.calls[0]);
   for (const field of ["startedAt", "accumulatedActiveMs", "savedAt", "completed", "elapsed", "paused", "running"]) {
@@ -570,7 +571,7 @@ test("Explore submission requires 150 words and acknowledgement within the API c
   assertThreeReturnedIntentions(ui, fixture);
 });
 
-const PREWRITTEN_MODE = { status: "ready", mode: { mode: "prewritten", available: true, contentVersion: "1.0.0", labels: { modeTitle: "Prewritten activity" } } };
+const PREWRITTEN_MODE = { status: "ready", refresh() {}, mode: { mode: "prewritten", available: true, contentVersion: "1.0.0", labels: { modeTitle: "Prewritten activity" } } };
 
 test("prewritten mode drops the untrue AI acknowledgement and identifies itself before submission", () => {
   const ui = screen(undefined, undefined, PREWRITTEN_MODE);
@@ -624,4 +625,28 @@ test("generated intentions from Claude say so, and test data says it is not AI",
     await turn();
     assert.match(ui.text(), pattern);
   }
+});
+
+test("the request names the mode the student was told about", async () => {
+  const ui = screen(async () => ({ provider: "mock", intentions: fixture.intentions }));
+  ui.acknowledge();
+  ui.button("Submit").props.onPress();
+  await turn();
+  assert.equal(ui.calls[0].expectedMode, "mock");
+});
+
+test("a changed mode refreshes the notice, requires a new acknowledgement, and keeps the writing", async () => {
+  let refreshed = 0;
+  const mode = { ...READY_MODE, refresh() { refreshed++; } };
+  const failure = { code: "MODE_CHANGED", message: "This activity changed. Please review it and try again.", status: 409 };
+  const ui = screen(undefined, undefined, mode, failure);
+  ui.acknowledge();
+  assert.equal(ui.button("Submit").props.disabled, false);
+  ui.button("Submit").props.onPress();
+  await turn();
+  assert.equal(refreshed, 1);
+  assert.match(ui.text(), /This activity changed/);
+  assert.equal(ui.button("Retry").props.disabled, true, "the old acknowledgement no longer counts");
+  ui.button("Back to writing").props.onPress();
+  assert.equal(ui.input().props.value, originalDraft);
 });

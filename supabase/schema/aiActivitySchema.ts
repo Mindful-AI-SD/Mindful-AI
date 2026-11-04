@@ -19,6 +19,8 @@ import {
 const common = {
   activityId: z.uuid(),
   activityContext: guidedReflectionSchema.shape.activityContext,
+  // The mode the student was told about. The request is refused if it changed.
+  expectedMode: z.enum(["mock", "future", "claude", "prewritten"]).optional(),
 };
 
 export const aiActivityRequestSchema = z.discriminatedUnion("kind", [

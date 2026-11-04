@@ -9,6 +9,7 @@ export type IntentionRequest = {
   activityId: string;
   activityContext: string;
   userReflection: string;
+  expectedMode?: string;
 };
 
 export type Intention = { title: string; explanation: string };
@@ -43,6 +44,7 @@ export type IntentionError = {
     | "NETWORK_ERROR"
     | "INVALID_INPUT"
     | "UNAVAILABLE"
+    | "MODE_CHANGED"
     | "REQUEST_FAILED"
     | "INVALID_RESPONSE";
   message: string;
@@ -110,6 +112,7 @@ async function requestServerIntentions(
     activityId: request.activityId,
     activityContext: request.activityContext,
     input: { reflection: request.userReflection },
+    expectedMode: request.expectedMode,
   }, { signal });
   if (error) throw new ServiceError(error);
   if (data.outcome === "support") {

@@ -123,6 +123,39 @@ Deno.test("ai-activity mode control, through the real middleware", async (t) => 
       });
     }
 
+    await t.step(
+      "a changed mode is refused before anything is sent",
+      async () => {
+        setMode("claude");
+        Deno.env.set("ANTHROPIC_API_KEY", "sk-ant-synthetic");
+        networkCalls = 0;
+        const refused = await send("POST", {
+          ...requests.intention_mirror,
+          expectedMode: "prewritten",
+        });
+        assert.equal(refused.status, 409);
+        assert.equal((await refused.json()).error, "MODE_CHANGED");
+        assert.equal(networkCalls, 0);
+        Deno.env.delete("ANTHROPIC_API_KEY");
+        setMode("prewritten");
+        const matching = await send("POST", {
+          ...requests.intention_mirror,
+          expectedMode: "prewritten",
+        });
+        assert.equal(matching.status, 200);
+        await matching.body?.cancel();
+      },
+    );
+
+    await t.step("an unknown expected mode is invalid", async () => {
+      const response = await send("POST", {
+        ...requests.intention_mirror,
+        expectedMode: "other",
+      });
+      assert.equal(response.status, 400);
+      await response.body?.cancel();
+    });
+
     await t.step("student text is not echoed into the result", async () => {
       setMode("prewritten");
       const response = await send("POST", requests.intention_mirror);

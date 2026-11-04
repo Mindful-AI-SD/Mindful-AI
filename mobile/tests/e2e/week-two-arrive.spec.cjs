@@ -96,7 +96,8 @@ test("Week 2 restores all four beats, Sensation Lexicon results, ethics answers,
   await page.getByRole("button", { name: "Retry Sensation Lexicon", exact: true }).click();
   await expect(page.getByText("Suggested words: tingling, fluttering", { exact: true })).toBeVisible();
   expect(aiRequests).toHaveLength(2);
-  expect(Object.keys(aiRequests[1]).sort()).toEqual(["activityContext", "activityId", "input", "kind"]);
+  expect(Object.keys(aiRequests[1]).sort()).toEqual(["activityContext", "activityId", "expectedMode", "input", "kind"]);
+  expect(aiRequests[1].expectedMode).toBe("mock");
   expect(aiRequests[1].input).toEqual({ sensations: ["weird", "warm", "tight"] });
   await expect.poll(() => progress.reflection_answers.week_two_lexicon).toBeTruthy();
   await page.reload();

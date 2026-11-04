@@ -72,10 +72,23 @@ test("Week 1: an intention counts only alongside readable saved content", () => 
   assert.equal(weekOne.readWeekOnePrewritten({ [result_]: "not json" }), null);
 });
 
-test("Week 1: every reflection prompt must be answered", () => {
-  const answers = Object.fromEntries(weekOne.WEEK_ONE_PREWRITTEN_PROMPT_KEYS.map(key => [key, "An answer"]));
+test("Week 1: every prompt in the saved version must be answered, however many it has", () => {
+  const prompts = ["One?", "Two?", "Three?"];
+  const saved = JSON.stringify({ ...record, result: { ...result, reflectionPrompts: prompts } });
+  const answers = { week_one_prewritten_result: saved, week_one_prewritten_intention: "Pause." };
+  for (const [index] of prompts.entries()) answers[weekOne.weekOnePromptKey(index)] = "An answer";
   assert.equal(weekOne.hasWeekOnePrewrittenReflection(answers), true);
-  assert.equal(weekOne.hasWeekOnePrewrittenReflection({ ...answers, week_one_prewritten_prompt_4: " " }), false);
+  assert.equal(weekOne.hasWeekOnePrewrittenReflection({ ...answers, week_one_prewritten_prompt_3: " " }), false);
+  assert.equal(weekOne.hasWeekOnePrewrittenReflection({ week_one_prewritten_prompt_1: "An answer" }), false);
+});
+
+test("Week 1: the path follows the student's latest choice after a mode change", () => {
+  const answers = { week_one_prewritten_result: JSON.stringify(record), week_one_prewritten_intention: "Pause." };
+  assert.equal(weekOne.isWeekOnePrewrittenPath(answers, 0), true);
+  assert.equal(weekOne.isWeekOnePrewrittenPath(answers, 3), false);
+  assert.equal(weekOne.isWeekOnePrewrittenPath({ ...answers, week_one_explore_source: "prewritten" }, 3), true);
+  assert.equal(weekOne.isWeekOnePrewrittenPath({ ...answers, week_one_explore_source: "generated" }, 3), false);
+  assert.equal(weekOne.isWeekOnePrewrittenPath({}, 0), false);
 });
 
 const CATEGORIES = ["planning", "memory", "worry", "social_comparison", "entertainment", "other"];

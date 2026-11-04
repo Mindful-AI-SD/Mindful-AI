@@ -14,6 +14,7 @@ export type SensationLexiconRequest = {
   activityId: string;
   activityContext: string;
   sensations: [string, string, string];
+  expectedMode?: string;
 };
 
 // "words" is the normal result. "support" is the server's fixed response to
@@ -44,6 +45,7 @@ export async function getSensationWords(
     activityId: request.activityId,
     activityContext: request.activityContext,
     input: { sensations: request.sensations },
+    expectedMode: request.expectedMode,
   }, options);
 
   if (error) return { data: null, error };

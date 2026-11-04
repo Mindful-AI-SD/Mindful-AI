@@ -17,11 +17,11 @@ first.
 
 1. **Set the limit.** In the Anthropic Console, set a monthly spending limit on
    the workspace that owns the key, and record the amount below.
-2. **Set the secrets.** Enter the key at the prompt or in the dashboard, so it
-   never lands in shell history or a committed file:
+2. **Set the secrets.** Add `ANTHROPIC_API_KEY` in the Supabase dashboard's Edge
+   Function secrets, so the key never lands in shell history or a committed
+   file. The other settings are not sensitive:
 
    ```bash
-   npx supabase secrets set ANTHROPIC_API_KEY
    npx supabase secrets set GUIDED_REFLECTION_PROVIDER=claude CLAUDE_MODEL=claude-sonnet-5-5
    ```
 

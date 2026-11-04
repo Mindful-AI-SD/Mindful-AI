@@ -36,16 +36,16 @@ const weekTwo = {
     reflectionPrompts: ["Choose three to five words.", "Where in your body?", "What changed?", "What did you observe?"],
   },
 };
-const READY = { status: "ready", mode: { mode: "prewritten", available: true, contentVersion: "1.0.0", labels } };
+const READY = { status: "ready", refresh: jest.fn(), mode: { mode: "prewritten", available: true, contentVersion: "1.0.0", labels } };
 
 afterEach(async () => { await cleanup(); });
 
 describe("Week 1 choice", () => {
-  const setup = (onSave = jest.fn(async () => true), initialIntention = "") => {
+  const setup = (onSave = jest.fn(async () => true), initialIntention = "", alreadySaved = !!initialIntention) => {
     const onContinue = jest.fn();
     return {
       onSave, onContinue,
-      screen: render(<WeekOnePrewrittenChoice record={weekOne} initialIntention={initialIntention}
+      screen: render(<WeekOnePrewrittenChoice record={weekOne} initialIntention={initialIntention} alreadySaved={alreadySaved}
         continueLabel="Continue" onSave={onSave} onContinue={onContinue} />),
     };
   };
@@ -102,6 +102,16 @@ describe("Week 1 choice", () => {
     expect(ui.getByLabelText("Your intention").props.value).toBe("Keep these words.");
     await fireEvent.press(ui.getByRole("button", { name: "Save my intention" }));
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+  });
+
+  test("returning through writing prefills the words but still requires saving", async () => {
+    const { screen, onSave } = setup(undefined, "Saved words.", false);
+    const ui = await screen;
+    expect(ui.getByLabelText("Your intention").props.value).toBe("Saved words.");
+    expect(ui.queryByRole("button", { name: "Continue" })).toBeNull();
+    await fireEvent.press(ui.getByRole("button", { name: "Save my intention" }));
+    await waitFor(() => expect(onSave.mock.calls[0][0].week_one_explore_source).toBe("prewritten"));
+    await waitFor(() => expect(ui.getByRole("button", { name: "Continue" })).toBeTruthy());
   });
 
   test("a restored intention is shown and can continue without saving again", async () => {
@@ -180,7 +190,7 @@ describe("Week 2", () => {
       { original: "warm", isVague: false, suggestions: [] },
       { original: "calm", isVague: false, suggestions: [] },
     ] };
-    const ui = await explore({ status: "ready", mode: { mode: "claude", available: true, contentVersion: null, labels: null } }, words);
+    const ui = await explore({ status: "ready", refresh: jest.fn(), mode: { mode: "claude", available: true, contentVersion: null, labels: null } }, words);
     expect(ui.getByText(/AI-generated with Claude/)).toBeTruthy();
   });
 

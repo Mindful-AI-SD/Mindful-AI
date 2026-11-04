@@ -8,6 +8,7 @@ import {
 import {
   describeActivityMode,
   resolveActivityDeadlineMs,
+  resolveProviderName,
   runAiActivity,
 } from "../_shared/providers/providerSelector.ts";
 import {
@@ -40,6 +41,10 @@ const errors = {
   408: {
     error: "PROVIDER_TIMEOUT",
     message: "The provider timed out. Please try again.",
+  },
+  409: {
+    error: "MODE_CHANGED",
+    message: "This activity changed. Please review it and try again.",
   },
   501: {
     error: "PROVIDER_NOT_CONFIGURED",
@@ -101,6 +106,15 @@ export function createAiActivityEndpoint(
     const input = aiActivityRequestSchema.safeParse(body);
     if (!input.success) return failure(400);
     const request = input.data;
+    // A student told "this is not sent to AI" must never have it sent to AI
+    // because the server's mode changed while they were writing.
+    if (request.expectedMode !== undefined) {
+      try {
+        if (request.expectedMode !== resolveProviderName()) return failure(409);
+      } catch {
+        return failure(501);
+      }
+    }
 
     const isPublished: ActivityLookup = lookupOverride ?? (async (id) => {
       const { data, error } = await ctx.supabase

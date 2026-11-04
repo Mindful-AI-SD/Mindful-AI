@@ -47,6 +47,10 @@ or the unavailable message, never prewritten or mock content. Prewritten work is
 saved in its own fields, so changing the mode does not overwrite anything a
 student has written.
 
+Requests name the mode the student was told about. If the mode changed while
+they were writing, the server refuses the request with 409 and sends nothing, so
+a student told "not sent to AI" cannot have their text sent to a model.
+
 ## How each week differs
 
 | Week  | Claude                                                                                           | Prewritten                                                                                                   |

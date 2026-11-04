@@ -1,6 +1,8 @@
 import type { Intention } from "./intention";
 import {
+  hasOnlyKeys,
   isContentVersion,
+  isFields,
   isPrewrittenLabels,
   isWeekOnePrewritten,
   isWeekTwoPrewritten,
@@ -37,6 +39,8 @@ export type AiActivityRequest<K extends AiActivityKind> = {
   activityId: string;
   activityContext: string;
   input: AiActivityInputs[K];
+  // The mode the screen told the student about. The server refuses a mismatch.
+  expectedMode?: string;
 };
 
 export type SupportResource = { name: string; contact: string };
@@ -82,6 +86,7 @@ export type AiActivityError = {
     | "INVALID_INPUT"
     | "NETWORK_ERROR"
     | "UNAVAILABLE"
+    | "MODE_CHANGED"
     | "REQUEST_FAILED"
     | "INVALID_RESPONSE";
   message: string;
@@ -120,24 +125,15 @@ function failure(
 }
 
 const unavailable = "We could not load this activity. Please try again.";
-// The server has no working provider for this activity (HTTP 501). Approved copy
-// from the non-AI content pack, v1.0. Nothing here implies a result was produced.
-const modeUnavailable =
+// The server has no working provider for this activity (HTTP 501). Copy from the
+// non-AI content pack, v1.0, which is still awaiting sponsor review. Nothing here
+// implies a result was produced.
+export const MODE_UNAVAILABLE_MESSAGE =
   "The selected mode is unavailable. Choose another mode or try again.";
 
 function isText(value: unknown, max: number): value is string {
   return typeof value === "string" && value.trim().length > 0 &&
     value.trim().length <= max;
-}
-
-function isFields(value: unknown): value is Fields {
-  return !!value && typeof value === "object" && !Array.isArray(value);
-}
-
-function hasOnlyKeys(value: Fields, keys: string[]): boolean {
-  const actual = Object.keys(value);
-  return actual.length === keys.length &&
-    keys.every((key) => actual.includes(key));
 }
 
 // The server trims student text and, where it echoes it, echoes the trimmed
@@ -296,7 +292,16 @@ function transportFailure(
       status,
     );
   }
-  if (status === 501) return failure("UNAVAILABLE", modeUnavailable, status);
+  if (status === 501) {
+    return failure("UNAVAILABLE", MODE_UNAVAILABLE_MESSAGE, status);
+  }
+  if (status === 409) {
+    return failure(
+      "MODE_CHANGED",
+      "This activity changed. Please review it and try again.",
+      status,
+    );
+  }
   return failure("REQUEST_FAILED", unavailable, status);
 }
 
@@ -338,6 +343,7 @@ export function getAiActivity<K extends AiActivityKind>(
     activityId: request.activityId,
     activityContext: request.activityContext,
     input,
+    ...(request.expectedMode ? { expectedMode: request.expectedMode } : {}),
   };
 
   return new Promise((resolve) => {
@@ -414,10 +420,17 @@ function readActivityMode(value: unknown): ActivityMode | null {
 export async function getActivityMode(
   options: { signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<ActivityModeResult> {
+  if (options.signal?.aborted) {
+    return failure("CANCELLED", "Request cancelled.");
+  }
   const controller = new AbortController();
+  let timedOut = false;
   const cancel = () => controller.abort();
   options.signal?.addEventListener("abort", cancel, { once: true });
-  const timer = setTimeout(cancel, options.timeoutMs ?? 15_000);
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, options.timeoutMs ?? 15_000);
   try {
     const { data: auth, error: authError } = await supabase.auth.getSession();
     if (authError || !auth.session) throw new AiActivityTransportError(401);
@@ -437,6 +450,9 @@ export async function getActivityMode(
       ? { data: mode, error: null }
       : failure("INVALID_RESPONSE", unavailable);
   } catch (error) {
+    if (timedOut) {
+      return failure("TIMEOUT", "This is taking too long. Please try again.");
+    }
     return transportFailure(error);
   } finally {
     clearTimeout(timer);

@@ -1,6 +1,6 @@
 import { hasArrivalRatings } from "./week-one-arrival";
 import { validWeekOneWriting } from "./week-one-writing";
-import { hasWeekOnePrewrittenIntention, hasWeekOnePrewrittenReflection } from "./week-one-prewritten";
+import { hasWeekOnePrewrittenIntention, hasWeekOnePrewrittenReflection, isWeekOnePrewrittenPath } from "./week-one-prewritten";
 import { supabase } from "./supabase";
 import { WEEK_ONE_STEPS, type ReflectionAnswers, type WeekOneProgress, type WeekOneStep } from "./progress";
 
@@ -23,7 +23,7 @@ function hasExploreResult(progress: WeekOneProgress): boolean {
 // Generated intentions lead to the AI gap questions. The prewritten path has no
 // AI output to compare, so its own fixed prompts apply instead.
 function hasGapReflection(progress: WeekOneProgress): boolean {
-  if (progress.generated_intentions.length !== 3) {
+  if (isWeekOnePrewrittenPath(progress.reflection_answers, progress.generated_intentions.length)) {
     return hasWeekOnePrewrittenReflection(progress.reflection_answers);
   }
   return hasAnswer(progress, "ai_gap_got_right") &&

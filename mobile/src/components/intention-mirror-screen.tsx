@@ -83,12 +83,13 @@ export function IntentionMirrorScreen({
   );
   const draftReady = status !== "loading" && status !== "load-error";
   const [acknowledged, setAcknowledged] = useState(false);
-  const mode = useActivityMode(userId);
-  const modeReady = mode.status === "ready";
-  const prewrittenMode = mode.status === "ready" && !!mode.mode.labels;
   const [submission, setSubmission] = useState<SubmissionState>(initialIntentions
     ? { status: "success", data: initialIntentions }
     : initialPrewritten ? { status: "prewritten", data: initialPrewritten } : { status: "writing" });
+  // Asked again on returning to writing, so the disclosure reflects the current mode.
+  const mode = useActivityMode(userId, submission.status !== "success" && submission.status !== "prewritten");
+  const modeReady = mode.status === "ready";
+  const prewrittenMode = mode.status === "ready" && !!mode.mode.labels;
   const activeRequest = useRef<AbortController | null>(null);
   const isSubmitting = submission.status === "loading";
 
@@ -117,11 +118,17 @@ export function IntentionMirrorScreen({
         activityId,
         activityContext: `Week 1: Mindful Attention. Intention Mirror. ${INSTRUCTIONS}`,
         userReflection: reflection,
+        expectedMode: mode.status === "ready" && mode.mode.mode ? mode.mode.mode : undefined,
       }, { signal: controller.signal });
 
       if (activeRequest.current !== controller) return;
 
       if (result.error) {
+        if (result.error.code === "MODE_CHANGED" && mode.status === "ready") {
+          // Requires the student to see the current notice before sending again.
+          setAcknowledged(false);
+          mode.refresh();
+        }
         setSubmission({
           status: "error",
           message: result.error.message,
@@ -366,6 +373,7 @@ export function IntentionMirrorScreen({
               <WeekOnePrewrittenChoice
                 record={submission.data}
                 initialIntention={initialPrewrittenIntention}
+                alreadySaved={submission.data === initialPrewritten}
                 continueLabel={continueLabel}
                 onSave={onSavePrewritten ?? (() => Promise.resolve(false))}
                 onContinue={() => void flush().then((saved) => { if (saved) onOpenGap(); })}

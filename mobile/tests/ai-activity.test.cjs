@@ -95,7 +95,7 @@ for (const [kind, sample] of Object.entries(kinds)) {
 test("endpoint failures map to stable codes and never expose server text", async () => {
   const cases = [
     [400, "INVALID_INPUT"], [401, "AUTH_REQUIRED"], [404, "REQUEST_FAILED"],
-    [408, "TIMEOUT"], [501, "UNAVAILABLE"], [502, "REQUEST_FAILED"], [503, "REQUEST_FAILED"],
+    [408, "TIMEOUT"], [409, "MODE_CHANGED"], [501, "UNAVAILABLE"], [502, "REQUEST_FAILED"], [503, "REQUEST_FAILED"],
   ];
   for (const [status, code] of cases) {
     const env = client("sensation_lexicon", {
@@ -244,4 +244,40 @@ test("the client holds no provider key, model SDK, or server-only import", () =>
   assert.deepEqual([...source.matchAll(/from\s+"([^"]+)"/g)].map(match => match[1]), ["./intention", "./prewritten-content", "./supabase"]);
   assert.match(source, /import type \{ Intention \} from "\.\/intention"/);
   assert.doesNotMatch(source, /process\.env|api[_-]?key|service[_-]?role|sb_secret_|Authorization/i);
+});
+
+test("the expected mode is sent only when a screen supplies it", async () => {
+  const sent = [];
+  const env = client("sensation_lexicon", {
+    invoke: async (_, options) => { sent.push(options.body); return { data: null, error: { context: { status: 502 } } }; },
+  });
+  await env.service.getAiActivity("sensation_lexicon", kinds.sensation_lexicon.request);
+  await env.service.getAiActivity("sensation_lexicon", { ...kinds.sensation_lexicon.request, expectedMode: "prewritten" });
+  assert.equal("expectedMode" in sent[0], false);
+  assert.equal(sent[1].expectedMode, "prewritten");
+});
+
+test("the mode check reads a valid answer and rejects anything else", async () => {
+  const good = { mode: "prewritten", available: true, contentVersion: "1.0.0", labels: { modeTitle: "a", modeDescription: "b", disclosure: "c", responseScreen: "d", resultFooter: "e" } };
+  const env = client("sensation_lexicon", { invoke: async (_, options) => { assert.equal(options.method, "GET"); return { data: good, error: null }; } });
+  assert.deepEqual(JSON.parse(JSON.stringify((await env.service.getActivityMode()).data)), good);
+  for (const bad of [null, { ...good, extra: 1 }, { ...good, available: "yes" }, { ...good, contentVersion: "one" }, { ...good, labels: {} }]) {
+    const invalid = client("sensation_lexicon", { invoke: async () => ({ data: bad, error: null }) });
+    assert.equal((await invalid.service.getActivityMode()).error.code, "INVALID_RESPONSE");
+  }
+});
+
+test("the mode check reports a timeout as a timeout, and honors an earlier cancel", async () => {
+  const env = client("sensation_lexicon", {
+    invoke: (_, options) => new Promise((_resolve, reject) => {
+      options.signal.addEventListener("abort", () => reject(new Error("private-diagnostic")));
+    }),
+  });
+  const pending = env.service.getActivityMode({ timeoutMs: 50 });
+  await turn();
+  await env.advance(50);
+  assert.equal((await pending).error.code, "TIMEOUT");
+  const controller = new AbortController();
+  controller.abort();
+  assert.equal((await env.service.getActivityMode({ signal: controller.signal })).error.code, "CANCELLED");
 });

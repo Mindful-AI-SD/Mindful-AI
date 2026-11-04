@@ -11,12 +11,11 @@ import {
 // result carries the content version it came from.
 export const WEEK_ONE_PREWRITTEN_RESULT_KEY = "week_one_prewritten_result";
 export const WEEK_ONE_PREWRITTEN_INTENTION_KEY = "week_one_prewritten_intention";
-export const WEEK_ONE_PREWRITTEN_PROMPT_KEYS = [
-  "week_one_prewritten_prompt_1",
-  "week_one_prewritten_prompt_2",
-  "week_one_prewritten_prompt_3",
-  "week_one_prewritten_prompt_4",
-] as const;
+// Which path the student took most recently, when both exist after a mode change.
+export const WEEK_ONE_EXPLORE_SOURCE_KEY = "week_one_explore_source";
+export function weekOnePromptKey(index: number): string {
+  return `week_one_prewritten_prompt_${index + 1}`;
+}
 export const MAX_PREWRITTEN_INTENTION_CHARACTERS = 500;
 
 type Answers = Record<string, string> | null | undefined;
@@ -38,8 +37,21 @@ export function hasWeekOnePrewrittenIntention(answers: Answers): boolean {
     Boolean(answers?.[WEEK_ONE_PREWRITTEN_INTENTION_KEY]?.trim());
 }
 
+// True when the student's latest Explore result is a prewritten choice. Generated
+// intentions from an earlier mode stay saved but do not decide the path.
+export function isWeekOnePrewrittenPath(
+  answers: Answers,
+  generatedIntentionCount: number,
+): boolean {
+  if (!hasWeekOnePrewrittenIntention(answers)) return false;
+  return generatedIntentionCount !== 3 ||
+    answers?.[WEEK_ONE_EXPLORE_SOURCE_KEY] === "prewritten";
+}
+
+// Every prompt in the saved content version must be answered.
 export function hasWeekOnePrewrittenReflection(answers: Answers): boolean {
-  return WEEK_ONE_PREWRITTEN_PROMPT_KEYS.every((key) =>
-    Boolean(answers?.[key]?.trim())
+  const record = readWeekOnePrewritten(answers);
+  return record !== null && record.result.reflectionPrompts.every((_, index) =>
+    Boolean(answers?.[weekOnePromptKey(index)]?.trim())
   );
 }

@@ -20,7 +20,7 @@ jest.mock("../lib/week-two", () => ({
   saveWeekTwoAnswers: jest.fn(),
 }));
 jest.mock("../lib/sensation-lexicon", () => ({ getSensationWords: jest.fn() }));
-let mockActivityMode = { status: "ready", mode: { mode: "mock", available: true, contentVersion: null, labels: null } };
+let mockActivityMode = { status: "ready", refresh: jest.fn(), mode: { mode: "mock", available: true, contentVersion: null, labels: null } };
 jest.mock("@/hooks/use-activity-mode", () => ({ useActivityMode: () => mockActivityMode }));
 jest.mock("@/hooks/use-theme", () => ({ useTheme: () => ({ text: "#000", backgroundElement: "#fff" }) }));
 jest.mock("../src/components/auth-gate", () => ({ useSignedInUserId: () => "user-a" }));
@@ -138,7 +138,7 @@ test("Explore sends only three descriptions, blocks duplicate taps while waiting
   await fireEvent.press(generate);
   await fireEvent.press(generate);
   await waitFor(() => expect(getSensationWords).toHaveBeenCalledTimes(1));
-  expect(getSensationWords.mock.calls[0][0]).toEqual({ activityId: "activity", activityContext: expect.any(String), sensations: ["weird", "warm", "tight"] });
+  expect(getSensationWords.mock.calls[0][0]).toEqual({ activityId: "activity", activityContext: expect.any(String), expectedMode: "mock", sensations: ["weird", "warm", "tight"] });
   expect(screen.getByText("Loading or saving Week 2…")).toBeTruthy();
   expect(screen.queryByText("Continue to Notice")).toBeNull();
   await act(async () => { finish({ data: { kind: "words", provider: "mock", items: [

@@ -7,25 +7,29 @@ import type { PrewrittenRecord, WeekOnePrewritten } from "../../lib/prewritten-c
 import type { ReflectionAnswers } from "../../lib/progress";
 import {
   MAX_PREWRITTEN_INTENTION_CHARACTERS,
+  WEEK_ONE_EXPLORE_SOURCE_KEY,
   WEEK_ONE_PREWRITTEN_INTENTION_KEY,
-  WEEK_ONE_PREWRITTEN_PROMPT_KEYS,
   WEEK_ONE_PREWRITTEN_RESULT_KEY,
+  weekOnePromptKey,
 } from "../../lib/week-one-prewritten";
 
 type Record = PrewrittenRecord<WeekOnePrewritten>;
 
 // Choosing an example is the student's choice, not a recommendation. What they
 // keep is saved word for word, apart from the fixed examples.
-export function WeekOnePrewrittenChoice({ record, initialIntention, continueLabel, onSave, onContinue }: {
+export function WeekOnePrewrittenChoice({ record, initialIntention, alreadySaved, continueLabel, onSave, onContinue }: {
   record: Record;
   initialIntention: string;
+  // False when returning through writing: the words prefill but still need saving
+  // to reach the next step.
+  alreadySaved: boolean;
   continueLabel: string;
   onSave: (answers: ReflectionAnswers) => Promise<boolean>;
   onContinue: () => void;
 }) {
   const theme = useTheme();
   const [intention, setIntention] = useState(initialIntention);
-  const [savedIntention, setSavedIntention] = useState(initialIntention);
+  const [savedIntention, setSavedIntention] = useState<string | null>(alreadySaved ? initialIntention : null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const valid = intention.trim().length > 0 && intention.length <= MAX_PREWRITTEN_INTENTION_CHARACTERS;
@@ -39,6 +43,7 @@ export function WeekOnePrewrittenChoice({ record, initialIntention, continueLabe
     const saved = await onSave({
       [WEEK_ONE_PREWRITTEN_RESULT_KEY]: JSON.stringify({ provider, contentVersion, labels, result }),
       [WEEK_ONE_PREWRITTEN_INTENTION_KEY]: intention,
+      [WEEK_ONE_EXPLORE_SOURCE_KEY]: "prewritten",
     });
     setSaving(false);
     if (saved) setSavedIntention(intention);
@@ -113,11 +118,11 @@ export function WeekOnePrewrittenReflection({ record, savedAnswers, busy, onSave
   onExit: () => void;
 }) {
   const theme = useTheme();
+  const prompts = record.result.reflectionPrompts;
   const [answers, setAnswers] = useState<ReflectionAnswers>(() =>
-    Object.fromEntries(WEEK_ONE_PREWRITTEN_PROMPT_KEYS.map((key) => [key, savedAnswers[key] ?? ""]))
+    Object.fromEntries(prompts.map((_, index) => [weekOnePromptKey(index), savedAnswers[weekOnePromptKey(index)] ?? ""]))
   );
-  const prompts = record.result.reflectionPrompts.slice(0, WEEK_ONE_PREWRITTEN_PROMPT_KEYS.length);
-  const complete = WEEK_ONE_PREWRITTEN_PROMPT_KEYS.every((key) => answers[key]?.trim());
+  const complete = prompts.every((_, index) => answers[weekOnePromptKey(index)]?.trim());
   return (
     <View style={styles.section}>
       <AccessibleHeading>{record.labels.modeTitle}</AccessibleHeading>
@@ -125,7 +130,7 @@ export function WeekOnePrewrittenReflection({ record, savedAnswers, busy, onSave
       <ThemedText type="smallBold">Your intention</ThemedText>
       <ThemedText>{savedAnswers[WEEK_ONE_PREWRITTEN_INTENTION_KEY]}</ThemedText>
       {prompts.map((prompt, index) => {
-        const key = WEEK_ONE_PREWRITTEN_PROMPT_KEYS[index];
+        const key = weekOnePromptKey(index);
         return (
           <View key={key} style={styles.section}>
             <ThemedText>{prompt}</ThemedText>

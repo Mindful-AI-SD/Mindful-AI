@@ -19,7 +19,8 @@ export function WeekTwoFlow({ activityId, onExit, practiceConfig }: { activityId
   const [saved, setSaved] = useState<WeekTwoProgress | null>(null);
   const [answers, setAnswers] = useState<ReflectionAnswers>({});
   const [lexicon, setLexicon] = useState<WeekTwoResult | null>(null);
-  const mode = useActivityMode(userId);
+  const [modeNeeded, setModeNeeded] = useState(false);
+  const mode = useActivityMode(userId, modeNeeded);
   const [support, setSupport] = useState<Extract<SensationLexiconData, { kind: "support" }> | null>(null);
   const [region, setRegion] = useState<BodyRegion | null>(null);
   const [busy, setBusy] = useState(false);
@@ -103,9 +104,12 @@ export function WeekTwoFlow({ activityId, onExit, practiceConfig }: { activityId
       const draft = await saveWeekTwoAnswers(userId, activityId, saved.step, weekTwoAnswerPatch(answers));
       if (request.current !== controller) throw new Error("Request cancelled.");
       setSaved(draft);
-      const response = await getSensationWords({ activityId, activityContext: "Week 2: Body Awareness. Sensation Lexicon. Suggest optional sensory words for three sensations.", sensations: sensationsFrom(answers) }, { signal: controller.signal });
+      const response = await getSensationWords({ activityId, activityContext: "Week 2: Body Awareness. Sensation Lexicon. Suggest optional sensory words for three sensations.", sensations: sensationsFrom(answers), expectedMode: mode.status === "ready" && mode.mode.mode ? mode.mode.mode : undefined }, { signal: controller.signal });
       if (request.current !== controller) throw new Error("Request cancelled.");
-      if (response.error) throw new Error(response.error.message);
+      if (response.error) {
+        if (response.error.code === "MODE_CHANGED" && mode.status === "ready") mode.refresh();
+        throw new Error(response.error.message);
+      }
       if (response.data.kind === "support") {
         setSupport(response.data);
         return saveWeekTwoAnswers(userId, activityId, saved.step, { week_two_lexicon: "" });
@@ -114,6 +118,8 @@ export function WeekTwoFlow({ activityId, onExit, practiceConfig }: { activityId
     });
     if (request.current === controller) request.current = null;
   }
+
+  useEffect(() => { setModeNeeded(saved?.step === "week_two_explore"); }, [saved?.step]);
 
   const label = BODY_REGIONS.find(item => item.id === region)?.label;
   const practice = saved?.step === "week_two_practice";
