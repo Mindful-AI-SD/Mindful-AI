@@ -5,7 +5,10 @@ import {
   aiActivityResponseMatchesRequest,
   aiActivityResponseSchema,
 } from "../../schema/aiActivitySchema.ts";
-import { runAiActivity } from "../_shared/providers/providerSelector.ts";
+import {
+  resolveActivityDeadlineMs,
+  runAiActivity,
+} from "../_shared/providers/providerSelector.ts";
 import {
   type AiActivityCall,
   ProviderNotConfiguredError,
@@ -66,7 +69,7 @@ function studentTexts(input: unknown): string[] {
 // Injection is server-side only, for testing failures without replacing the adapter.
 export function createAiActivityEndpoint(
   runner: Runner = runAiActivity,
-  timeoutMs = 5000,
+  timeoutOverrideMs?: number,
   lookupOverride?: ActivityLookup,
 ) {
   const authenticated = withSupabase({ auth: "user" }, async (req, ctx) => {
@@ -120,7 +123,7 @@ export function createAiActivityEndpoint(
         new Promise<never>((_, reject) => {
           timer = setTimeout(
             () => reject(new ProviderTimeoutError("Deadline exceeded")),
-            timeoutMs,
+            timeoutOverrideMs ?? resolveActivityDeadlineMs(),
           );
         }),
       ]);

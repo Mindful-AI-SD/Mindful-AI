@@ -49,6 +49,7 @@ export type AiActivityError = {
     | "AUTH_REQUIRED"
     | "INVALID_INPUT"
     | "NETWORK_ERROR"
+    | "UNAVAILABLE"
     | "REQUEST_FAILED"
     | "INVALID_RESPONSE";
   message: string;
@@ -87,6 +88,10 @@ function failure(
 }
 
 const unavailable = "We could not load this activity. Please try again.";
+// The server has no working provider for this activity (HTTP 501). Approved copy
+// from the non-AI content pack, v1.0. Nothing here implies a result was produced.
+const modeUnavailable =
+  "The selected mode is unavailable. Choose another mode or try again.";
 
 function isText(value: unknown, max: number): value is string {
   return typeof value === "string" && value.trim().length > 0 &&
@@ -238,6 +243,7 @@ function transportFailure(
       status,
     );
   }
+  if (status === 501) return failure("UNAVAILABLE", modeUnavailable, status);
   return failure("REQUEST_FAILED", unavailable, status);
 }
 

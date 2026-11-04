@@ -18,18 +18,26 @@ import {
   resolveMockTimingConfig,
 } from "./mockProviderAdapter.ts";
 import {
+  CLAUDE_MAX_TIMEOUT_MS,
+  generateClaudeDistractionAudit,
+  generateClaudeGuidedReflection,
+  generateClaudeSensationLexicon,
+  resolveClaudeConfig,
+} from "./claudeAdapter.ts";
+import {
   generateFutureDistractionAudit,
   generateFutureGuidedReflection,
   generateFutureSensationLexicon,
 } from "./futureProviderAdapter.ts";
 
-export type ProviderName = "mock" | "future";
+export type ProviderName = "mock" | "future" | "claude";
 
 export const DEFAULT_PROVIDER_NAME: ProviderName = "mock";
 
 const PROVIDERS: Record<ProviderName, GuidedReflectionProvider> = {
   mock: generateMockGuidedReflection,
   future: generateFutureGuidedReflection,
+  claude: generateClaudeGuidedReflection,
 };
 
 const SENSATION_LEXICON_PROVIDERS: Record<
@@ -46,6 +54,7 @@ const SENSATION_LEXICON_PROVIDERS: Record<
       resolveMockTimingConfig(),
     ),
   future: generateFutureSensationLexicon,
+  claude: generateClaudeSensationLexicon,
 };
 
 // Intention Mirror through the general route. Unlike PROVIDERS.mock above,
@@ -62,6 +71,7 @@ const INTENTION_MIRROR_PROVIDERS: Record<
       resolveMockTimingConfig(),
     ),
   future: generateFutureGuidedReflection,
+  claude: generateClaudeGuidedReflection,
 };
 
 const DISTRACTION_AUDIT_PROVIDERS: Record<
@@ -76,12 +86,17 @@ const DISTRACTION_AUDIT_PROVIDERS: Record<
       resolveMockTimingConfig(),
     ),
   future: generateFutureDistractionAudit,
+  claude: generateClaudeDistractionAudit,
 };
 
 function forEachProvider<K extends AiActivityKind>(
   build: (name: ProviderName) => AiActivityProvider<K>,
 ): Record<ProviderName, AiActivityProvider<K>> {
-  return { mock: build("mock"), future: build("future") };
+  return {
+    mock: build("mock"),
+    future: build("future"),
+    claude: build("claude"),
+  };
 }
 
 // The routing table: activity kind -> provider name -> implementation.
@@ -177,6 +192,21 @@ export function getActivityProvider<K extends AiActivityKind>(
   return ACTIVITY_PROVIDERS[kind][name];
 }
 
+const DEFAULT_ACTIVITY_DEADLINE_MS = 5_000;
+
+/**
+ * How long an endpoint waits for one activity. A real model needs longer than
+ * the mock's five seconds, and the endpoint's deadline must outlast the
+ * provider's own, so the provider cancels its call and reports the timeout. The
+ * app stops waiting at 15 seconds, which is why CLAUDE_MAX_TIMEOUT_MS is 14.
+ */
+export function resolveActivityDeadlineMs(
+  name: ProviderName = resolveProviderName(),
+): number {
+  if (name !== "claude") return DEFAULT_ACTIVITY_DEADLINE_MS;
+  return Math.min(resolveClaudeConfig().timeoutMs, CLAUDE_MAX_TIMEOUT_MS) + 500;
+}
+
 function assertValidAiActivityOutput(
   kind: AiActivityKind,
   output: unknown,
@@ -186,7 +216,9 @@ function assertValidAiActivityOutput(
     : {};
   const parsed = aiActivityResponseSchema.safeParse({ kind, ...payload });
   if (!parsed.success) {
-    throw new ProviderError("The provider returned an invalid response for this activity.");
+    throw new ProviderError(
+      "The provider returned an invalid response for this activity.",
+    );
   }
   return parsed.data as AiActivityOutput;
 }
@@ -199,28 +231,37 @@ export async function runAiActivity(
 ): Promise<AiActivityOutput> {
   switch (call.kind) {
     case "intention_mirror":
-      return assertValidAiActivityOutput(call.kind, await getActivityProvider(
+      return assertValidAiActivityOutput(
         call.kind,
-        name,
-      )(
-        call.activityContext,
-        call.input,
-      ));
+        await getActivityProvider(
+          call.kind,
+          name,
+        )(
+          call.activityContext,
+          call.input,
+        ),
+      );
     case "sensation_lexicon":
-      return assertValidAiActivityOutput(call.kind, await getActivityProvider(
+      return assertValidAiActivityOutput(
         call.kind,
-        name,
-      )(
-        call.activityContext,
-        call.input,
-      ));
+        await getActivityProvider(
+          call.kind,
+          name,
+        )(
+          call.activityContext,
+          call.input,
+        ),
+      );
     case "distraction_audit":
-      return assertValidAiActivityOutput(call.kind, await getActivityProvider(
+      return assertValidAiActivityOutput(
         call.kind,
-        name,
-      )(
-        call.activityContext,
-        call.input,
-      ));
+        await getActivityProvider(
+          call.kind,
+          name,
+        )(
+          call.activityContext,
+          call.input,
+        ),
+      );
   }
 }

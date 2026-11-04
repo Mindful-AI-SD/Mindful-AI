@@ -95,7 +95,7 @@ for (const [kind, sample] of Object.entries(kinds)) {
 test("endpoint failures map to stable codes and never expose server text", async () => {
   const cases = [
     [400, "INVALID_INPUT"], [401, "AUTH_REQUIRED"], [404, "REQUEST_FAILED"],
-    [408, "TIMEOUT"], [501, "REQUEST_FAILED"], [502, "REQUEST_FAILED"], [503, "REQUEST_FAILED"],
+    [408, "TIMEOUT"], [501, "UNAVAILABLE"], [502, "REQUEST_FAILED"], [503, "REQUEST_FAILED"],
   ];
   for (const [status, code] of cases) {
     const env = client("sensation_lexicon", {
