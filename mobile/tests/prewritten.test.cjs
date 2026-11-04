@@ -76,10 +76,21 @@ test("Week 1: every prompt in the saved version must be answered, however many i
   const prompts = ["One?", "Two?", "Three?"];
   const saved = JSON.stringify({ ...record, result: { ...result, reflectionPrompts: prompts } });
   const answers = { week_one_prewritten_result: saved, week_one_prewritten_intention: "Pause." };
-  for (const [index] of prompts.entries()) answers[weekOne.weekOnePromptKey(index)] = "An answer";
+  for (const [index] of prompts.entries()) answers[weekOne.weekOnePromptKey("1.0.0", index)] = "An answer";
   assert.equal(weekOne.hasWeekOnePrewrittenReflection(answers), true);
-  assert.equal(weekOne.hasWeekOnePrewrittenReflection({ ...answers, week_one_prewritten_prompt_3: " " }), false);
-  assert.equal(weekOne.hasWeekOnePrewrittenReflection({ week_one_prewritten_prompt_1: "An answer" }), false);
+  assert.equal(weekOne.hasWeekOnePrewrittenReflection({ ...answers, [weekOne.weekOnePromptKey("1.0.0", 2)]: " " }), false);
+  assert.equal(weekOne.hasWeekOnePrewrittenReflection({ [weekOne.weekOnePromptKey("1.0.0", 0)]: "An answer" }), false);
+});
+
+test("Week 1: answers written for one content version do not satisfy another", () => {
+  const prompts = ["One?"];
+  const newer = { ...record, contentVersion: "2.0.0", result: { ...result, reflectionPrompts: prompts } };
+  const answers = {
+    week_one_prewritten_result: JSON.stringify(newer),
+    week_one_prewritten_intention: "Pause.",
+    [weekOne.weekOnePromptKey("1.0.0", 0)]: "An old answer",
+  };
+  assert.equal(weekOne.hasWeekOnePrewrittenReflection(answers), false);
 });
 
 test("Week 1: the path follows the student's latest choice after a mode change", () => {

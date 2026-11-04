@@ -19,8 +19,7 @@ export function WeekTwoFlow({ activityId, onExit, practiceConfig }: { activityId
   const [saved, setSaved] = useState<WeekTwoProgress | null>(null);
   const [answers, setAnswers] = useState<ReflectionAnswers>({});
   const [lexicon, setLexicon] = useState<WeekTwoResult | null>(null);
-  const [modeNeeded, setModeNeeded] = useState(false);
-  const mode = useActivityMode(userId, modeNeeded);
+  const mode = useActivityMode(userId, saved?.step === "week_two_explore");
   const [support, setSupport] = useState<Extract<SensationLexiconData, { kind: "support" }> | null>(null);
   const [region, setRegion] = useState<BodyRegion | null>(null);
   const [busy, setBusy] = useState(false);
@@ -118,8 +117,6 @@ export function WeekTwoFlow({ activityId, onExit, practiceConfig }: { activityId
     });
     if (request.current === controller) request.current = null;
   }
-
-  useEffect(() => { setModeNeeded(saved?.step === "week_two_explore"); }, [saved?.step]);
 
   const label = BODY_REGIONS.find(item => item.id === region)?.label;
   const practice = saved?.step === "week_two_practice";

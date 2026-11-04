@@ -49,7 +49,10 @@ student has written.
 
 Requests name the mode the student was told about. If the mode changed while
 they were writing, the server refuses the request with 409 and sends nothing, so
-a student told "not sent to AI" cannot have their text sent to a model.
+a student told "not sent to AI" cannot have their text sent to a model without
+first seeing the new notice. Week 1 also requires a new acknowledgement. Week 2
+has no acknowledgement step, so there the updated wording and error are the
+safeguard.
 
 ## How each week differs
 

@@ -5,6 +5,7 @@ import type {
   AiActivityProvider,
   DistractionAuditProvider,
   GuidedReflectionProvider,
+  ProviderName,
   SensationLexiconProvider,
 } from "./types.ts";
 import { ProviderError, ProviderNotConfiguredError } from "./types.ts";
@@ -35,7 +36,7 @@ import {
   generateFutureSensationLexicon,
 } from "./futureProviderAdapter.ts";
 
-export type ProviderName = "mock" | "future" | "claude" | "prewritten";
+export type { ProviderName };
 
 // The prewritten mode generates nothing, so it has no provider for the older
 // endpoints that only know how to return generated intentions. Asking for one is

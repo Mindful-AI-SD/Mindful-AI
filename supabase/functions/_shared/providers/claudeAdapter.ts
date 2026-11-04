@@ -204,7 +204,7 @@ const auditOutputSchema = z.object({
 // the free text in intentions, on top of the prompt, not a replacement for
 // reviewing output.
 const CLINICAL_LANGUAGE =
-  /\b(?:diagnos\w*|disorders?|(?<!non-)clinical|symptoms?|treatments?|therap(?:y|ies|ists?)|medications?|medicines?|depress(?:ed|ion)|adhd|ptsd)\b/i;
+  /\b(?:diagnos\w*|disorders?|(?<!non-)clinical(?:ly)?|symptoms?|treatments?|therap(?:y|ies|ists?|eutic)|medications?|depress(?:ed|ive|ion)|adhd|ptsd)\b/i;
 
 function parseOutput<T>(
   text: string,

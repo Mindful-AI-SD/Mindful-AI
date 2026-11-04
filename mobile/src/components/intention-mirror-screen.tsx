@@ -82,7 +82,9 @@ export function IntentionMirrorScreen({
     activityId,
   );
   const draftReady = status !== "loading" && status !== "load-error";
-  const [acknowledged, setAcknowledged] = useState(false);
+  // An acknowledgement counts only for the mode it was given under.
+  const [acknowledgedMode, setAcknowledgedMode] = useState<string | null>(null);
+  const [modeChangedMessage, setModeChangedMessage] = useState<string | null>(null);
   const [submission, setSubmission] = useState<SubmissionState>(initialIntentions
     ? { status: "success", data: initialIntentions }
     : initialPrewritten ? { status: "prewritten", data: initialPrewritten } : { status: "writing" });
@@ -90,6 +92,8 @@ export function IntentionMirrorScreen({
   const mode = useActivityMode(userId, submission.status !== "success" && submission.status !== "prewritten");
   const modeReady = mode.status === "ready";
   const prewrittenMode = mode.status === "ready" && !!mode.mode.labels;
+  const currentMode = mode.status === "ready" ? mode.mode.mode : null;
+  const acknowledged = currentMode !== null && acknowledgedMode === currentMode;
   const activeRequest = useRef<AbortController | null>(null);
   const isSubmitting = submission.status === "loading";
 
@@ -125,9 +129,13 @@ export function IntentionMirrorScreen({
 
       if (result.error) {
         if (result.error.code === "MODE_CHANGED" && mode.status === "ready") {
-          // Requires the student to see the current notice before sending again.
-          setAcknowledged(false);
+          // Back to the writing view, which shows the current notice and requires
+          // a new acknowledgement before anything can be sent.
+          setAcknowledgedMode(null);
+          setModeChangedMessage(result.error.message);
+          setSubmission({ status: "writing" });
           mode.refresh();
+          return;
         }
         setSubmission({
           status: "error",
@@ -214,6 +222,7 @@ export function IntentionMirrorScreen({
 
             {submission.status === "writing" && (
               <>
+                {modeChangedMessage && <AccessibleStatus error>{modeChangedMessage}</AccessibleStatus>}
                 <ActivityModeNotice mode={mode} />
                 <View style={styles.section}>
                   <View style={styles.ethicsCard}>
@@ -267,7 +276,7 @@ export function IntentionMirrorScreen({
                   aria-checked={acknowledged}
                   aria-disabled={isSubmitting}
                   disabled={isSubmitting}
-                  onPress={() => setAcknowledged((value) => !value)}
+                  onPress={() => setAcknowledgedMode(acknowledged ? null : currentMode)}
                   style={styles.acknowledgement}
                 >
                   <ThemedText style={styles.checkbox} accessible={false} aria-hidden>

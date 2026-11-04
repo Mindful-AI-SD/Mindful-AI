@@ -120,9 +120,12 @@ export function WeekOnePrewrittenReflection({ record, savedAnswers, busy, onSave
   const theme = useTheme();
   const prompts = record.result.reflectionPrompts;
   const [answers, setAnswers] = useState<ReflectionAnswers>(() =>
-    Object.fromEntries(prompts.map((_, index) => [weekOnePromptKey(index), savedAnswers[weekOnePromptKey(index)] ?? ""]))
+    Object.fromEntries(prompts.map((_, index) => {
+      const key = weekOnePromptKey(record.contentVersion, index);
+      return [key, savedAnswers[key] ?? ""];
+    }))
   );
-  const complete = prompts.every((_, index) => answers[weekOnePromptKey(index)]?.trim());
+  const complete = prompts.every((_, index) => answers[weekOnePromptKey(record.contentVersion, index)]?.trim());
   return (
     <View style={styles.section}>
       <AccessibleHeading>{record.labels.modeTitle}</AccessibleHeading>
@@ -130,7 +133,7 @@ export function WeekOnePrewrittenReflection({ record, savedAnswers, busy, onSave
       <ThemedText type="smallBold">Your intention</ThemedText>
       <ThemedText>{savedAnswers[WEEK_ONE_PREWRITTEN_INTENTION_KEY]}</ThemedText>
       {prompts.map((prompt, index) => {
-        const key = weekOnePromptKey(index);
+        const key = weekOnePromptKey(record.contentVersion, index);
         return (
           <View key={key} style={styles.section}>
             <ThemedText>{prompt}</ThemedText>

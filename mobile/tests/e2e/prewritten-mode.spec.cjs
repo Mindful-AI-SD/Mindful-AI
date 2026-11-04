@@ -144,7 +144,7 @@ test("Week 1 prewritten mode identifies itself, saves the student's own words, a
   await expect(page.getByText(labels.resultFooter, { exact: true })).toBeVisible();
 
   expect(db.progress.status).toBe("completed");
-  expect(db.progress.reflection_answers.week_one_prewritten_prompt_4).toBe("Answer 4");
+  expect(db.progress.reflection_answers["week_one_prewritten_1.0.0_prompt_4"]).toBe("Answer 4");
   expect(JSON.parse(db.progress.reflection_answers.week_one_prewritten_result).contentVersion).toBe("1.0.0");
   expect(db.errors).toEqual([]);
 });

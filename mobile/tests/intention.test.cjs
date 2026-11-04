@@ -646,7 +646,18 @@ test("a changed mode refreshes the notice, requires a new acknowledgement, and k
   await turn();
   assert.equal(refreshed, 1);
   assert.match(ui.text(), /This activity changed/);
-  assert.equal(ui.button("Retry").props.disabled, true, "the old acknowledgement no longer counts");
-  ui.button("Back to writing").props.onPress();
   assert.equal(ui.input().props.value, originalDraft);
+  assert.equal(ui.nodes().filter(node => node.type === "ModeNotice").length, 1, "the current notice is shown");
+  assert.equal(ui.button("Submit").props.disabled, true, "the old acknowledgement no longer counts");
+  ui.acknowledge();
+  assert.equal(ui.button("Submit").props.disabled, false);
+});
+
+test("an acknowledgement given under one mode does not carry over to another", () => {
+  let mode = READY_MODE;
+  const ui = screen(undefined, undefined, { get status() { return mode.status; }, get mode() { return mode.mode; }, refresh() {} });
+  ui.acknowledge();
+  assert.equal(ui.button("Submit").props.disabled, false);
+  mode = { ...READY_MODE, mode: { ...READY_MODE.mode, mode: "claude" } };
+  assert.equal(ui.button("Submit").props.disabled, true);
 });

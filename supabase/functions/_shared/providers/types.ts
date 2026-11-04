@@ -98,6 +98,15 @@ export type DistractionAuditSummary = {
 // and result shape; an endpoint routes a call to the provider for that kind.
 // Adding a lab means adding its kind here, then its mock and real adapter, its
 // schema, and its routing entry in providerSelector.ts.
+export const PROVIDER_NAMES = [
+  "mock",
+  "future",
+  "claude",
+  "prewritten",
+] as const;
+
+export type ProviderName = (typeof PROVIDER_NAMES)[number];
+
 export const AI_ACTIVITY_KINDS = [
   "intention_mirror",
   "sensation_lexicon",

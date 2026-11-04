@@ -206,7 +206,8 @@ export function WeekOneFlow({ activityId, onExit, showModuleEntry = false, pract
 
   const needsArrival = progress && progress.current_step !== "completed" && !hasArrivalRatings(progress.reflection_answers);
   const savedPrewritten = readWeekOnePrewritten(progress?.reflection_answers);
-  const prewrittenPath = !!progress && isWeekOnePrewrittenPath(progress.reflection_answers, progress.generated_intentions.length);
+  const prewrittenRecord = progress && isWeekOnePrewrittenPath(progress.reflection_answers, progress.generated_intentions.length)
+    ? savedPrewritten : null;
 
   return (
     <ThemedView style={styles.flex}>
@@ -237,10 +238,10 @@ export function WeekOneFlow({ activityId, onExit, showModuleEntry = false, pract
           activityId={activityId}
           onBack={onExit}
           onIntentionsReady={() => undefined}
-          initialIntentions={progress.current_step === "intention_mirror" && progress.generated_intentions.length === 3 && !prewrittenPath
+          initialIntentions={progress.current_step === "intention_mirror" && progress.generated_intentions.length === 3 && !prewrittenRecord
             ? { intentions: progress.generated_intentions as IntentionResponse["intentions"], provider: "saved" } : undefined}
-          initialPrewritten={savedPrewritten && progress.current_step === "intention_mirror" && prewrittenPath
-            ? { kind: "prewritten", ...savedPrewritten } : undefined}
+          initialPrewritten={prewrittenRecord && progress.current_step === "intention_mirror"
+            ? { kind: "prewritten", ...prewrittenRecord } : undefined}
           initialPrewrittenIntention={progress.reflection_answers?.[WEEK_ONE_PREWRITTEN_INTENTION_KEY] ?? ""}
           onSavePrewritten={answers => save(answers, progress.current_step === "writing")}
           onGenerated={async () => {
@@ -255,13 +256,13 @@ export function WeekOneFlow({ activityId, onExit, showModuleEntry = false, pract
       {!needsArrival && progress && progress.current_step in FORMS && (
         <Questions key={`${progress.current_step}:${attempt}`} progress={progress} busy={busy} onSave={save} onExit={onExit} />
       )}
-      {!needsArrival && progress?.current_step === "ai_gap_reflection" && savedPrewritten && prewrittenPath && (
+      {!needsArrival && progress?.current_step === "ai_gap_reflection" && prewrittenRecord && (
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
-          <WeekOnePrewrittenReflection key={`prewritten-reflection:${attempt}`} record={savedPrewritten}
+          <WeekOnePrewrittenReflection key={`prewritten-reflection:${attempt}`} record={prewrittenRecord}
             savedAnswers={progress.reflection_answers} busy={busy} onSave={save} onExit={onExit} />
         </ScrollView>
       )}
-      {!needsArrival && progress?.current_step === "ai_gap_reflection" && !(savedPrewritten && prewrittenPath) && (
+      {!needsArrival && progress?.current_step === "ai_gap_reflection" && !prewrittenRecord && (
         <AiGapReflectionScreen activityId={activityId} onBack={onExit}
           onOpenIntention={() => void change(() => returnToWriting(userId, activityId))}
           onContinue={() => save()} />
@@ -270,7 +271,7 @@ export function WeekOneFlow({ activityId, onExit, showModuleEntry = false, pract
         <ScrollView contentContainerStyle={styles.content}>
           <AccessibleHeading>Week 1 complete</AccessibleHeading>
           <ThemedText>Your mood and energy ratings, writing, intentions, and reflections are saved.</ThemedText>
-          {savedPrewritten && prewrittenPath && <ThemedText type="small">{savedPrewritten.labels.resultFooter}</ThemedText>}
+          {prewrittenRecord && <ThemedText type="small">{prewrittenRecord.labels.resultFooter}</ThemedText>}
           <Pressable accessibilityRole="button" style={styles.button} onPress={onExit}>
             <ThemedText style={styles.buttonText}>Back to Week 1</ThemedText>
           </Pressable>

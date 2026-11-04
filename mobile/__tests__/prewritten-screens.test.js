@@ -138,7 +138,7 @@ describe("Week 1 reflection", () => {
     expect(complete().props.accessibilityState.disabled).toBe(false);
     await fireEvent.press(complete());
     expect(onSave.mock.calls[0][1]).toBe(true);
-    expect(onSave.mock.calls[0][0].week_one_prewritten_prompt_4).toBe("Answer to Fourth prompt?");
+    expect(onSave.mock.calls[0][0]["week_one_prewritten_1.0.0_prompt_4"]).toBe("Answer to Fourth prompt?");
   });
 });
 

@@ -13,8 +13,9 @@ export const WEEK_ONE_PREWRITTEN_RESULT_KEY = "week_one_prewritten_result";
 export const WEEK_ONE_PREWRITTEN_INTENTION_KEY = "week_one_prewritten_intention";
 // Which path the student took most recently, when both exist after a mode change.
 export const WEEK_ONE_EXPLORE_SOURCE_KEY = "week_one_explore_source";
-export function weekOnePromptKey(index: number): string {
-  return `week_one_prewritten_prompt_${index + 1}`;
+// Includes the version, so answers never attach to different wording in a new pack.
+export function weekOnePromptKey(contentVersion: string, index: number): string {
+  return `week_one_prewritten_${contentVersion}_prompt_${index + 1}`;
 }
 export const MAX_PREWRITTEN_INTENTION_CHARACTERS = 500;
 
@@ -52,6 +53,6 @@ export function isWeekOnePrewrittenPath(
 export function hasWeekOnePrewrittenReflection(answers: Answers): boolean {
   const record = readWeekOnePrewritten(answers);
   return record !== null && record.result.reflectionPrompts.every((_, index) =>
-    Boolean(answers?.[weekOnePromptKey(index)]?.trim())
+    Boolean(answers?.[weekOnePromptKey(record.contentVersion, index)]?.trim())
   );
 }

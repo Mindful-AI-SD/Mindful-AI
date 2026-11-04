@@ -17,18 +17,18 @@ Eight labs need **ten** model contracts, because Weeks 5 and 6 each contain two
 separate AI interactions. Three of the ten are built and served by one general
 endpoint, against the mock and the Claude adapter (not yet verified live).
 
-| Week | Contract `kind`              | Student supplies                 | Model returns                                 | Status                             |
-| ---- | ---------------------------- | -------------------------------- | --------------------------------------------- | ---------------------------------- |
-| 1    | `intention_mirror`           | One reflection                   | Exactly 3 intentions                          | Built; live Claude not verified    |
-| 2    | `sensation_lexicon`          | 3 sensations                     | Optional word choices per sensation           | Built; live Claude not verified    |
+| Week | Contract `kind`              | Student supplies                 | Model returns                                 | Status                              |
+| ---- | ---------------------------- | -------------------------------- | --------------------------------------------- | ----------------------------------- |
+| 1    | `intention_mirror`           | One reflection                   | Exactly 3 intentions                          | Built; live Claude not verified     |
+| 2    | `sensation_lexicon`          | 3 sensations                     | Optional word choices per sensation           | Built; live Claude not verified     |
 | 3    | `distraction_audit`          | A log of time-stamped taps       | A category per event; server does the math    | Built; no screen; live not verified |
-| 4    | `trigger_sensation_reaction` | One stressful tech event         | 3 parts (each found or unknown) + 3 questions | Not built                          |
-| 5a   | `decentering_shift`          | 3 beliefs                        | 3 reframes                                    | Not built                          |
-| 5b   | `hallucination_check`        | One factual question             | An answer split into checkable claims         | Not built; may hand off to Copilot |
-| 6a   | `compassionate_voice`        | A letter to self                 | One rewritten letter                          | Not built                          |
-| 6b   | `bias_test`                  | A choice of server-held prompt   | 2 outputs, same prompt, name changed          | Blocked: sample prompts not given  |
-| 7    | `contextual_designer`        | A schedule                       | Up to 3 gaps + up to 3 habitual-use moments   | Not built                          |
-| 8    | `meta_reflection`            | Nothing (server reads 7 entries) | Up to 5 themes, growth, avoidance, with cites | Blocked: Weeks 2–7 are not stored  |
+| 4    | `trigger_sensation_reaction` | One stressful tech event         | 3 parts (each found or unknown) + 3 questions | Not built                           |
+| 5a   | `decentering_shift`          | 3 beliefs                        | 3 reframes                                    | Not built                           |
+| 5b   | `hallucination_check`        | One factual question             | An answer split into checkable claims         | Not built; may hand off to Copilot  |
+| 6a   | `compassionate_voice`        | A letter to self                 | One rewritten letter                          | Not built                           |
+| 6b   | `bias_test`                  | A choice of server-held prompt   | 2 outputs, same prompt, name changed          | Blocked: sample prompts not given   |
+| 7    | `contextual_designer`        | A schedule                       | Up to 3 gaps + up to 3 habitual-use moments   | Not built                           |
+| 8    | `meta_reflection`            | Nothing (server reads 7 entries) | Up to 5 themes, growth, avoidance, with cites | Blocked: Weeks 2–7 are not stored   |
 
 ## How routing works today
 
@@ -168,7 +168,8 @@ type Item = {
   `kind: "sensation_lexicon"`. App service: `getSensationWords` in
   `mobile/lib/sensation-lexicon.ts`. The frontend saves the descriptions and
   returned words in the user's progress record and restores them without another
-  provider request. There is no `submissionId`, so an explicit retry generates again.
+  provider request. There is no `submissionId`, so an explicit retry generates
+  again.
 - Output checks: `original` values match the input verbatim; no suggestion
   repeats the original; no clinical or diagnostic terms; no explanation field
   exists, so the model cannot state a cause or a "correct" label.

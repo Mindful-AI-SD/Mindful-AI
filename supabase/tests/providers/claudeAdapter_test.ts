@@ -284,6 +284,8 @@ for (
     "These disorders are common",
     "Ask a therapist first",
     "Try medications",
+    "You seem clinically depressive",
+    "A therapeutic habit",
   ]
 ) {
   Deno.test(`clinical language is rejected: ${phrase}`, async () => {
