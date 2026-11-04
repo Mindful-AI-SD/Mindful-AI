@@ -1,3 +1,4 @@
+const { aiActivityStub } = require("./ai-activity-stub.cjs");
 const fs = require("node:fs");
 const path = require("node:path");
 const { parseEnv } = require("node:util");
@@ -50,6 +51,7 @@ async function simulateAuthBackend(context, step = "writing") {
       errors.push(`Signed-out data request: ${url.pathname}`);
       return respond({ message: "Sign in required" }, 401);
     }
+    if (url.pathname === "/functions/v1/ai-activity") return respond(aiActivityStub(request));
     const single = request.headers().accept?.includes("application/vnd.pgrst.object+json");
     const result = value => respond(single ? value : (value ? [value] : []));
     if (url.pathname === "/rest/v1/weeks") return result({ id: 1, week_number: 1, title: "Mindful Attention", theme: "Awareness", description: "Notice your experience." });

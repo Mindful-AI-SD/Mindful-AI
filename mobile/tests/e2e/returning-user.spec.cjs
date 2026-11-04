@@ -1,3 +1,4 @@
+const { aiActivityStub } = require("./helpers/ai-activity-stub.cjs");
 const { test, expect } = require("@playwright/test");
 const { parseEnv } = require("node:util");
 const fs = require("node:fs");
@@ -25,6 +26,7 @@ async function simulateBackend(context) {
     if (url.pathname === "/auth/v1/token") return respond({ access_token: jwt, refresh_token: "test-refresh", expires_in: 86400, token_type: "bearer", user });
     if (url.pathname === "/auth/v1/user") return respond(user);
     if (url.pathname === "/auth/v1/logout") return respond({});
+    if (url.pathname === "/functions/v1/ai-activity") return respond(aiActivityStub(request));
     const single = request.headers().accept?.includes("application/vnd.pgrst.object+json");
     const result = value => respond(single ? value : (value ? [value] : []));
     if (url.pathname === "/rest/v1/weeks") return result({ id: 1, week_number: 1, title: "Mindful Attention", theme: "Awareness and attention", description: "Notice your experience." });
@@ -58,9 +60,10 @@ for (const restart of [false, true]) {
     await page.getByRole("radio", { name: "Mood: 3 of 5" }).click();
     await page.getByRole("radio", { name: "Energy: 4 of 5" }).click();
     await page.getByRole("button", { name: "Continue to Practice", exact: true }).click();
-    await page.getByRole("button", { name: "Start breathing session", exact: true }).waitFor();
+    await page.getByRole("button", { name: "Choose 4-2-6 Breathing", exact: true }).click();
+    await page.getByRole("button", { name: "Start practice", exact: true }).waitFor();
     await page.clock.install();
-    await page.getByRole("button", { name: "Start breathing session", exact: true }).click();
+    await page.getByRole("button", { name: "Start practice", exact: true }).click();
     await page.clock.fastForward(600_000);
     await page.getByRole("button", { name: "Continue to check-in" }).click();
     await page.getByRole("radio", { name: "No", exact: true }).click();
@@ -72,7 +75,6 @@ for (const restart of [false, true]) {
     expect(db.progress.current_step).toBe("writing");
     if (restart) {
       await page.reload();
-      await page.getByRole("button", { name: "Notice and Reflect. In progress", exact: true }).click();
       await page.getByRole("button", { name: /^Resume:/ }).click();
       await expect(page.getByRole("textbox", { name: "Your writing", exact: true })).toHaveValue(writing);
       expect(db.progress.current_step).toBe("writing");
@@ -81,6 +83,7 @@ for (const restart of [false, true]) {
     await expect(page.getByRole("button", { name: "Submit writing" })).toBeEnabled();
     await page.getByRole("button", { name: "Submit writing" }).click();
     await expect(page.getByRole("heading", { name: "Mock intentions", exact: true })).toBeVisible();
+    await expect(page.getByText("Test data, not AI output.")).toBeVisible();
     expect(db.progress.current_step).toBe("intention_mirror");
     const savedIntentions = structuredClone(db.progress.generated_intentions);
     expect(savedIntentions).toHaveLength(3);
@@ -90,9 +93,8 @@ for (const restart of [false, true]) {
     }
     if (restart) {
       await page.reload();
-      await page.getByRole("button", { name: "Notice and Reflect. In progress", exact: true }).click();
       await page.getByRole("button", { name: /^Resume:/ }).click();
-      await expect(page.getByRole("heading", { name: "Mock intentions", exact: true })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Your saved intentions", exact: true })).toBeVisible();
       expect(db.progress.generated_intentions).toEqual(savedIntentions);
       expect(db.progress.writing).toBe(writing);
       for (const intention of savedIntentions) {
@@ -104,7 +106,7 @@ for (const restart of [false, true]) {
     await page.getByRole("textbox", { name: "What could data about you show?" }).fill("My daily habits.");
     await page.getByRole("textbox", { name: "What would that data leave out?" }).fill("Why I make choices.");
     await page.getByRole("button", { name: "Save and continue", exact: true }).click();
-    await page.getByRole("textbox", { name: "What did the mock intentions get right?" }).fill("They noticed attention.");
+    await page.getByRole("textbox", { name: "What did the intentions get right?" }).fill("They noticed attention.");
     await page.getByRole("textbox", { name: "What did they miss?" }).fill("My personal context.");
     await page.getByRole("textbox", { name: "What does the gap reveal?" }).fill("AI cannot know my full experience.");
     if (restart) {
@@ -112,11 +114,10 @@ for (const restart of [false, true]) {
       await expect.poll(() => db.progress.reflection_answers.ai_gap_reveals).toBe("AI cannot know my full experience.");
       expect(db.progress.status).toBe("in_progress");
       await page.reload();
-      await page.getByRole("button", { name: "Notice and Reflect. In progress", exact: true }).click();
-      await expect(page.getByText("Beat 4 of 4: Notice the gap", { exact: true })).toBeVisible();
+      await expect(page.getByText("Beat 4 of 4: Notice", { exact: true })).toBeVisible();
       await page.getByRole("button", { name: /^Resume:/ }).click();
       await expect(page.getByRole("heading", { name: "Notice the gap", exact: true })).toBeVisible();
-      await expect(page.getByRole("textbox", { name: "What did the mock intentions get right?" })).toHaveValue("They noticed attention.");
+      await expect(page.getByRole("textbox", { name: "What did the intentions get right?" })).toHaveValue("They noticed attention.");
       await expect(page.getByRole("textbox", { name: "What did they miss?" })).toHaveValue("My personal context.");
       await expect(page.getByRole("textbox", { name: "What does the gap reveal?" })).toHaveValue("AI cannot know my full experience.");
       expect(db.progress.current_step).toBe("ai_gap_reflection");
@@ -137,7 +138,6 @@ for (const restart of [false, true]) {
       ai_gap_reveals: "AI cannot know my full experience.",
     });
     await page.reload();
-    await page.getByRole("button", { name: "Notice and Reflect. Completed", exact: true }).click();
     await page.getByRole("button", { name: /^Resume:/ }).click();
     await expect(page.getByRole("heading", { name: "Week 1 complete", exact: true })).toBeVisible();
     expect(db.errors).toEqual([]);

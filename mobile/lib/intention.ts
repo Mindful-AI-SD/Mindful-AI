@@ -1,4 +1,9 @@
-import { requestMockIntentions } from "./intention-mock";
+import {
+  type AiActivityError,
+  getAiActivity,
+  type SupportResource,
+} from "./ai-activity";
+import type { PrewrittenRecord, WeekOnePrewritten } from "./prewritten-content";
 
 export type IntentionRequest = {
   activityId: string;
@@ -8,11 +13,27 @@ export type IntentionRequest = {
 
 export type Intention = { title: string; explanation: string };
 
-// Matches supabase/schema/guidedReflectionSchema.ts's mock response.
 export type IntentionResponse = {
   intentions: [Intention, Intention, Intention];
-  provider: "mock";
+  provider: string;
 };
+
+// The server's fixed crisis response: show it and do not continue the activity.
+export type IntentionSupport = {
+  kind: "support";
+  message: string;
+  resources: SupportResource[];
+};
+
+// Fixed non-AI content, which the student chooses from. Never a generated answer.
+export type IntentionPrewritten =
+  & { kind: "prewritten" }
+  & PrewrittenRecord<WeekOnePrewritten>;
+
+export type IntentionData =
+  | IntentionResponse
+  | IntentionSupport
+  | IntentionPrewritten;
 
 export type IntentionError = {
   code:
@@ -20,6 +41,8 @@ export type IntentionError = {
     | "CANCELLED"
     | "AUTH_REQUIRED"
     | "NETWORK_ERROR"
+    | "INVALID_INPUT"
+    | "UNAVAILABLE"
     | "REQUEST_FAILED"
     | "INVALID_RESPONSE";
   message: string;
@@ -27,7 +50,7 @@ export type IntentionError = {
 };
 
 export type IntentionResult =
-  | { data: IntentionResponse; error: null }
+  | { data: IntentionData; error: null }
   | { data: null; error: IntentionError };
 
 function failure(
@@ -46,7 +69,8 @@ export type IntentionProvider = (
 function isResponse(value: unknown): value is IntentionResponse {
   if (!value || typeof value !== "object") return false;
   const data = value as Record<string, unknown>;
-  return data.provider === "mock" &&
+  return typeof data.provider === "string" && data.provider.trim().length > 0 &&
+    data.provider.length <= 50 &&
     Object.keys(data).length === 2 &&
     Array.isArray(data.intentions) && data.intentions.length === 3 &&
     data.intentions.every((item: unknown) => {
@@ -60,7 +84,53 @@ function isResponse(value: unknown): value is IntentionResponse {
     });
 }
 
-/** Uses a local mock provider; no confirmed remote endpoint exists yet. */
+function isOutcome(value: unknown): value is IntentionSupport | IntentionPrewritten {
+  const kind = (value as { kind?: unknown } | null)?.kind;
+  return kind === "support" || kind === "prewritten";
+}
+
+// Carries the general client's already student-safe error through the provider
+// interface, so its code and message reach the screen unchanged.
+class ServiceError extends Error {
+  failure: AiActivityError;
+
+  constructor(failure: AiActivityError) {
+    super("Intention request failed");
+    this.failure = failure;
+  }
+}
+
+// The real route: the authenticated ai-activity function, which runs the crisis
+// check and selects the mode on the server. The app holds no provider or key.
+async function requestServerIntentions(
+  request: IntentionRequest,
+  signal: AbortSignal,
+): Promise<IntentionData> {
+  const { data, error } = await getAiActivity("intention_mirror", {
+    activityId: request.activityId,
+    activityContext: request.activityContext,
+    input: { reflection: request.userReflection },
+  }, { signal });
+  if (error) throw new ServiceError(error);
+  if (data.outcome === "support") {
+    return {
+      kind: "support",
+      message: data.message,
+      resources: data.resources,
+    };
+  }
+  if (data.outcome === "prewritten") {
+    return {
+      kind: "prewritten",
+      provider: data.provider,
+      contentVersion: data.contentVersion,
+      labels: data.labels,
+      result: data.result,
+    };
+  }
+  return { intentions: data.result.intentions, provider: data.provider };
+}
+
 export function getIntentions(
   request: IntentionRequest,
   options: {
@@ -98,14 +168,18 @@ export function getIntentions(
     // Catch rejected promises and synchronous provider failures alike.
     void Promise.resolve().then(() => {
       if (!settled) {
-        return (options.provider ?? requestMockIntentions)(request, controller.signal);
+        return (options.provider ?? requestServerIntentions)(request, controller.signal);
       }
     }).then((data) => {
       if (settled) return;
-      finish(isResponse(data)
+      finish(isResponse(data) || isOutcome(data)
         ? { data, error: null }
         : failure("INVALID_RESPONSE", "We could not load three intentions. Please try again."));
-    }).catch(() => {
+    }).catch((error) => {
+      if (error instanceof ServiceError) {
+        finish({ data: null, error: error.failure });
+        return;
+      }
       finish(failure("REQUEST_FAILED", "We could not load your intentions. Please try again."));
     });
   });

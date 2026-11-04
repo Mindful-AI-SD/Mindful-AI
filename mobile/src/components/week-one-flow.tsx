@@ -8,6 +8,8 @@ import { ThemedView } from "./themed-view";
 import { IntentionMirrorScreen } from "./intention-mirror-screen";
 import { AiGapReflectionScreen } from "./ai-gap-reflection-screen";
 import { WeekOnePracticeSelector } from "./week-one-practice-selector";
+import { WeekOnePrewrittenReflection } from "./week-one-prewritten";
+import { readWeekOnePrewritten, WEEK_ONE_PREWRITTEN_INTENTION_KEY } from "../../lib/week-one-prewritten";
 import type { ModulePractice } from "../../lib/module-practice";
 import { useTheme } from "@/hooks/use-theme";
 import { returnToWriting, saveWeekOneArrival, saveWeekOneStep, startWeekOne } from "../../lib/week-one";
@@ -203,6 +205,7 @@ export function WeekOneFlow({ activityId, onExit, showModuleEntry = false, pract
   }
 
   const needsArrival = progress && progress.current_step !== "completed" && !hasArrivalRatings(progress.reflection_answers);
+  const savedPrewritten = readWeekOnePrewritten(progress?.reflection_answers);
 
   return (
     <ThemedView style={styles.flex}>
@@ -234,7 +237,11 @@ export function WeekOneFlow({ activityId, onExit, showModuleEntry = false, pract
           onBack={onExit}
           onIntentionsReady={() => undefined}
           initialIntentions={progress.current_step === "intention_mirror" && progress.generated_intentions.length === 3
-            ? { intentions: progress.generated_intentions as IntentionResponse["intentions"], provider: "mock" } : undefined}
+            ? { intentions: progress.generated_intentions as IntentionResponse["intentions"], provider: "saved" } : undefined}
+          initialPrewritten={savedPrewritten && progress.current_step === "intention_mirror" && progress.generated_intentions.length !== 3
+            ? { kind: "prewritten", ...savedPrewritten } : undefined}
+          initialPrewrittenIntention={progress.reflection_answers?.[WEEK_ONE_PREWRITTEN_INTENTION_KEY] ?? ""}
+          onSavePrewritten={answers => save(answers, progress.current_step === "writing")}
           onGenerated={async () => {
             if (progress.current_step === "writing" && !(await save())) throw new Error("Intentions were saved, but the next step could not be saved. Retry to continue.");
           }}
@@ -245,7 +252,13 @@ export function WeekOneFlow({ activityId, onExit, showModuleEntry = false, pract
       {!needsArrival && progress && progress.current_step in FORMS && (
         <Questions key={`${progress.current_step}:${attempt}`} progress={progress} busy={busy} onSave={save} onExit={onExit} />
       )}
-      {!needsArrival && progress?.current_step === "ai_gap_reflection" && (
+      {!needsArrival && progress?.current_step === "ai_gap_reflection" && savedPrewritten && progress.generated_intentions.length !== 3 && (
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+          <WeekOnePrewrittenReflection key={`prewritten-reflection:${attempt}`} record={savedPrewritten}
+            savedAnswers={progress.reflection_answers} busy={busy} onSave={save} onExit={onExit} />
+        </ScrollView>
+      )}
+      {!needsArrival && progress?.current_step === "ai_gap_reflection" && !(savedPrewritten && progress.generated_intentions.length !== 3) && (
         <AiGapReflectionScreen activityId={activityId} onBack={onExit}
           onOpenIntention={() => void change(() => returnToWriting(userId, activityId))}
           onContinue={() => save()} />
@@ -254,6 +267,7 @@ export function WeekOneFlow({ activityId, onExit, showModuleEntry = false, pract
         <ScrollView contentContainerStyle={styles.content}>
           <AccessibleHeading>Week 1 complete</AccessibleHeading>
           <ThemedText>Your mood and energy ratings, writing, intentions, and reflections are saved.</ThemedText>
+          {savedPrewritten && progress.generated_intentions.length !== 3 && <ThemedText type="small">{savedPrewritten.labels.resultFooter}</ThemedText>}
           <Pressable accessibilityRole="button" style={styles.button} onPress={onExit}>
             <ThemedText style={styles.buttonText}>Back to Week 1</ThemedText>
           </Pressable>

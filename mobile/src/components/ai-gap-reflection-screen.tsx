@@ -16,7 +16,7 @@ import {
 } from "../../lib/progress";
 
 const QUESTIONS: { key: keyof GapReflectionAnswers; label: string }[] = [
-  { key: "ai_gap_got_right", label: "What did the mock intentions get right?" },
+  { key: "ai_gap_got_right", label: "What did the intentions get right?" },
   { key: "ai_gap_missed", label: "What did they miss?" },
   { key: "ai_gap_reveals", label: "What does the gap reveal?" },
 ];
@@ -146,7 +146,7 @@ export function AiGapReflectionScreen({ activityId, onBack, onOpenIntention, onC
             {!isLoading && reflection?.intentions && (
               <>
                 <View style={styles.section}>
-                  <ThemedText type="subtitle" accessibilityRole="header">Your saved mock intentions</ThemedText>
+                  <ThemedText type="subtitle" accessibilityRole="header">Your saved intentions</ThemedText>
                   {reflection.intentions.map((intention, index) => (
                     <ThemedView key={index} style={styles.card} accessible
                       accessibilityLabel={`Intention ${index + 1} of 3. ${intention.title}. ${intention.explanation}`}>
