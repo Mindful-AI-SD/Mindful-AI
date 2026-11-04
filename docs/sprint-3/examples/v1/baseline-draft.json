@@ -1,0 +1,15 @@
+{
+  "contractVersion": "sprint3-storage/v1",
+  "answers": {
+    "q1": "Synthetic answer 1; no sponsor question is implied.",
+    "q2": "Synthetic answer 2; no sponsor question is implied.",
+    "q3": "Synthetic answer 3; no sponsor question is implied.",
+    "q4": "Synthetic answer 4; no sponsor question is implied.",
+    "q5": ""
+  },
+  "status": "draft",
+  "revision": 2,
+  "submittedAt": null,
+  "definitionId": "synthetic-five-questions",
+  "definitionVersion": 1
+}

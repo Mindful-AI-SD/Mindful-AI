@@ -1,0 +1,51 @@
+{
+  "contractVersion": "sprint3-storage/v1",
+  "original": {
+    "contractVersion": "sprint3-storage/v1",
+    "answers": {
+      "q1": "Synthetic answer 1; no sponsor question is implied.",
+      "q2": "Synthetic answer 2; no sponsor question is implied.",
+      "q3": "Synthetic answer 3; no sponsor question is implied.",
+      "q4": "Synthetic answer 4; no sponsor question is implied.",
+      "q5": "Synthetic answer 5; no sponsor question is implied."
+    },
+    "status": "submitted",
+    "revision": 3,
+    "submittedOperationId": "00000000-0000-4000-8000-000000000101",
+    "submittedAt": "2026-10-28T16:05:00Z",
+    "definitionId": "synthetic-five-questions",
+    "definitionVersion": 1
+  },
+  "definition": {
+    "definitionId": "synthetic-five-questions",
+    "definitionVersion": 1,
+    "isPublished": true,
+    "questions": [
+      {
+        "questionId": "q1",
+        "prompt": "Synthetic question 1; example text only, not sponsor wording.",
+        "maxCharacters": 2000
+      },
+      {
+        "questionId": "q2",
+        "prompt": "Synthetic question 2; example text only, not sponsor wording.",
+        "maxCharacters": 2000
+      },
+      {
+        "questionId": "q3",
+        "prompt": "Synthetic question 3; example text only, not sponsor wording.",
+        "maxCharacters": 2000
+      },
+      {
+        "questionId": "q4",
+        "prompt": "Synthetic question 4; example text only, not sponsor wording.",
+        "maxCharacters": 2000
+      },
+      {
+        "questionId": "q5",
+        "prompt": "Synthetic question 5; example text only, not sponsor wording.",
+        "maxCharacters": 2000
+      }
+    ]
+  }
+}

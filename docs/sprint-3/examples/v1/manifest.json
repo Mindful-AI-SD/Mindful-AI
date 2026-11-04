@@ -1,0 +1,57 @@
+{
+  "contractVersion": "sprint3-storage/v1",
+  "syntheticOnly": true,
+  "productionReady": false,
+  "questionIds": [
+    "q1",
+    "q2",
+    "q3",
+    "q4",
+    "q5"
+  ],
+  "questionTextAvailable": false,
+  "examples": [
+    "baseline-draft.json",
+    "baseline-original.json",
+    "baseline-retrieval.json",
+    "week-three-events.json",
+    "week-three-progress.json"
+  ],
+  "contractFinalized": true,
+  "baselineDefinition": {
+    "definitionId": "synthetic-five-questions",
+    "definitionVersion": 1,
+    "isPublished": true,
+    "questions": [
+      {
+        "questionId": "q1",
+        "prompt": "Synthetic question 1; example text only, not sponsor wording.",
+        "maxCharacters": 2000
+      },
+      {
+        "questionId": "q2",
+        "prompt": "Synthetic question 2; example text only, not sponsor wording.",
+        "maxCharacters": 2000
+      },
+      {
+        "questionId": "q3",
+        "prompt": "Synthetic question 3; example text only, not sponsor wording.",
+        "maxCharacters": 2000
+      },
+      {
+        "questionId": "q4",
+        "prompt": "Synthetic question 4; example text only, not sponsor wording.",
+        "maxCharacters": 2000
+      },
+      {
+        "questionId": "q5",
+        "prompt": "Synthetic question 5; example text only, not sponsor wording.",
+        "maxCharacters": 2000
+      }
+    ]
+  },
+  "externalInputs": {
+    "productionDefinition": "MIN-219",
+    "completionPolicy": "MIN-225"
+  }
+}

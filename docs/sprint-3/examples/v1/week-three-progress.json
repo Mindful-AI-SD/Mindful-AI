@@ -1,0 +1,54 @@
+{
+  "contractVersion": "sprint3-storage/v1",
+  "contentVersion": "synthetic-week-3-v1",
+  "activityId": "00000000-0000-4000-8000-000000000003",
+  "weekNumber": 3,
+  "revision": 2,
+  "status": "in_progress",
+  "currentBeat": "practice",
+  "events": [
+    {
+      "id": "example-tap-1",
+      "at": "2026-10-28T16:00:00Z",
+      "label": "Synthetic tap"
+    }
+  ],
+  "answers": {},
+  "resumeState": {
+    "elapsedActiveMs": 12000,
+    "positionMs": null,
+    "state": "paused"
+  },
+  "startedAt": "2026-10-28T15:59:00Z",
+  "completedAt": null,
+  "slug": "example-week-3-distraction-audit",
+  "weekId": 3,
+  "eventsRevision": 1,
+  "completionPolicyVersion": null,
+  "auditResult": {
+    "contractVersion": "distraction-audit-cache/v1",
+    "inputEventsRevision": 1,
+    "inputEvents": [
+      {
+        "id": "example-tap-1",
+        "at": "2026-10-28T16:00:00Z",
+        "label": "Synthetic tap"
+      }
+    ],
+    "provider": "mock",
+    "data": {
+      "totalEvents": 1,
+      "categories": [],
+      "uncategorized": {
+        "count": 1,
+        "percent": 100
+      },
+      "assignments": [
+        {
+          "eventId": "example-tap-1",
+          "category": null
+        }
+      ]
+    }
+  }
+}
