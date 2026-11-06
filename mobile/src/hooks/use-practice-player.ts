@@ -17,6 +17,11 @@ export interface PracticePlayerOptions {
   instructions?: string[];
   pauseOnBackground?: boolean;
   allowManualFinish?: boolean;
+  canStart?: () => boolean;
+  canComplete?: (
+    elapsedActiveMs: number,
+    requestedFinish: boolean,
+  ) => boolean;
   onComplete?: () => void;
   onStateChange?: (
     state: PracticePlayerState,
@@ -37,6 +42,7 @@ export interface PracticePlayerControls {
   finish: () => void;
   exit: () => void;
   restore: (session: PracticeSession | null) => void;
+  getElapsedMs: () => number;
 }
 
 export function usePracticePlayer(
@@ -48,6 +54,8 @@ export function usePracticePlayer(
     instructions = [],
     pauseOnBackground = true,
     allowManualFinish = durationMs === undefined,
+    canStart,
+    canComplete,
     onComplete,
     onStateChange,
     onTick,
@@ -90,8 +98,6 @@ export function usePracticePlayer(
   const [elapsedMs, setElapsedMs] =
     useState(initialElapsed);
 
-  // Explicit type prevents TypeScript from narrowing
-  // the ref to only idle, paused, and completed.
   const stateRef = useRef<PracticePlayerState>(
     initialState,
   );
@@ -107,12 +113,16 @@ export function usePracticePlayer(
     onComplete,
     onStateChange,
     onTick,
+    canStart,
+    canComplete,
   });
 
   callbacksRef.current = {
     onComplete,
     onStateChange,
     onTick,
+    canStart,
+    canComplete,
   };
 
   const updateState = useCallback(
@@ -154,26 +164,57 @@ export function usePracticePlayer(
     return accumulatedRef.current;
   }, [clampElapsed]);
 
-  const complete = useCallback(() => {
-    if (
-      stateRef.current !== "running" &&
-      stateRef.current !== "paused"
-    ) {
+  const getElapsedMs = useCallback(() => {
+    const activeElapsed =
+      activeStartRef.current === null
+        ? 0
+        : Math.max(0, Date.now() - activeStartRef.current);
+
+    return clampElapsed(
+      accumulatedRef.current + activeElapsed,
+    );
+  }, [clampElapsed]);
+
+  const complete = useCallback(
+    (requestedFinish = false) => {
+      if (
+        stateRef.current !== "running" &&
+        stateRef.current !== "paused"
+      ) {
+        return;
+      }
+
+      const elapsed = captureElapsed();
+
+      const allowed =
+        callbacksRef.current.canComplete?.(
+          elapsed,
+          requestedFinish,
+        ) ?? true;
+
+      if (!allowed) {
+        updateState("paused", elapsed);
+        return;
+      }
+
+      updateState("completed", elapsed);
+
+      if (!completionNotifiedRef.current) {
+        completionNotifiedRef.current = true;
+        callbacksRef.current.onComplete?.();
+      }
+    },
+    [captureElapsed, updateState],
+  );
+
+  const start = useCallback(() => {
+    if (stateRef.current !== "idle") {
       return;
     }
 
-    const elapsed = captureElapsed();
-
-    updateState("completed", elapsed);
-
-    if (!completionNotifiedRef.current) {
-      completionNotifiedRef.current = true;
-      callbacksRef.current.onComplete?.();
+    if (callbacksRef.current.canStart?.() === false) {
+      return;
     }
-  }, [captureElapsed, updateState]);
-
-  const start = useCallback(() => {
-    if (stateRef.current !== "idle") return;
 
     accumulatedRef.current = 0;
     activeStartRef.current = Date.now();
@@ -183,7 +224,9 @@ export function usePracticePlayer(
   }, [updateState]);
 
   const pause = useCallback(() => {
-    if (stateRef.current !== "running") return;
+    if (stateRef.current !== "running") {
+      return;
+    }
 
     const elapsed = captureElapsed();
 
@@ -191,7 +234,7 @@ export function usePracticePlayer(
       validDuration !== null &&
       elapsed >= validDuration
     ) {
-      complete();
+      complete(false);
       return;
     }
 
@@ -204,13 +247,19 @@ export function usePracticePlayer(
   ]);
 
   const resume = useCallback(() => {
-    if (stateRef.current !== "paused") return;
+    if (stateRef.current !== "paused") {
+      return;
+    }
+
+    if (callbacksRef.current.canStart?.() === false) {
+      return;
+    }
 
     if (
       validDuration !== null &&
       accumulatedRef.current >= validDuration
     ) {
-      complete();
+      complete(false);
       return;
     }
 
@@ -235,6 +284,10 @@ export function usePracticePlayer(
       return;
     }
 
+    if (callbacksRef.current.canStart?.() === false) {
+      return;
+    }
+
     accumulatedRef.current = 0;
     activeStartRef.current = Date.now();
     completionNotifiedRef.current = false;
@@ -243,13 +296,17 @@ export function usePracticePlayer(
   }, [updateState]);
 
   const finish = useCallback(() => {
-    if (!allowManualFinish) return;
+    if (!allowManualFinish) {
+      return;
+    }
 
-    complete();
+    complete(true);
   }, [allowManualFinish, complete]);
 
   const exit = useCallback(() => {
-    if (stateRef.current === "exited") return;
+    if (stateRef.current === "exited") {
+      return;
+    }
 
     activeStartRef.current = null;
     accumulatedRef.current = 0;
@@ -287,7 +344,9 @@ export function usePracticePlayer(
   );
 
   useEffect(() => {
-    if (state !== "running") return;
+    if (state !== "running") {
+      return;
+    }
 
     const interval = setInterval(() => {
       if (
@@ -309,7 +368,7 @@ export function usePracticePlayer(
         validDuration !== null &&
         elapsed >= validDuration
       ) {
-        complete();
+        complete(false);
       } else {
         setElapsedMs(elapsed);
         callbacksRef.current.onTick?.(elapsed);
@@ -324,26 +383,20 @@ export function usePracticePlayer(
     complete,
   ]);
 
-  useEffect(() => {
-    if (!pauseOnBackground) return;
+    useEffect(() => {
+    if (!pauseOnBackground) {
+      return;
+    }
 
     const subscription = AppState.addEventListener(
       "change",
-      nextState => {
+      (nextState) => {
         if (
           nextState !== "active" &&
           stateRef.current === "running"
         ) {
           const elapsed = captureElapsed();
-
-          if (
-            validDuration !== null &&
-            elapsed >= validDuration
-          ) {
-            complete();
-          } else {
-            updateState("paused", elapsed);
-          }
+          updateState("paused", elapsed);
         }
       },
     );
@@ -353,8 +406,6 @@ export function usePracticePlayer(
     pauseOnBackground,
     captureElapsed,
     updateState,
-    complete,
-    validDuration,
   ]);
 
   return {
@@ -372,5 +423,6 @@ export function usePracticePlayer(
     finish,
     exit,
     restore,
+    getElapsedMs,
   };
 }
