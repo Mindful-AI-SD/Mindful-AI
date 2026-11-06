@@ -1,13 +1,11 @@
 
-/**
- * Reusable Practice Player Contract
- *
- * Defines common behavior for guided, timed, and unguided
- * mindfulness practices.
- *
- * This file defines interfaces only. It does not replace
- * the current breathing player implementation.
- */
+import type {
+  PracticeMediaStatus as ExistingMediaStatus,
+} from "./practice-media.types";
+
+export type PracticeMediaStatus =
+  | ExistingMediaStatus
+  | "not-required";
 
 export type PracticePlayerState =
   | "idle"
@@ -15,6 +13,12 @@ export type PracticePlayerState =
   | "paused"
   | "completed"
   | "exited";
+
+export interface DistractionTapEvent {
+  id: string;
+  at: string;
+  label: string;
+}
 
 export type PracticeMode =
   | "breathing"
@@ -41,35 +45,44 @@ export type PracticeTiming =
       type: "open-ended";
     };
 
+export type PracticePlayerMedia =
+  | {
+      type: "audio" | "video";
+      source: string | number;
+    }
+  | {
+      type: "none";
+      source?: never;
+    };
+
 export interface PracticeConfig {
   id: string;
   title: string;
   mode: PracticeMode;
   description?: string;
-
   guidance: PracticeGuidance;
   timing: PracticeTiming;
-
-  /**
-   * Pause if the app becomes inactive or backgrounded.
-   */
   pauseOnBackground: boolean;
+  media?: PracticePlayerMedia;
+  requiresMedia?: boolean;
+  /** When supplied, show these tap labels while Practice is actively running. */
+  distractionTapLabels?: string[];
+  completionAllowed?: boolean;
 }
 
 export interface PracticeSession {
   practiceId: string;
-
   state: PracticePlayerState;
   elapsedActiveMs: number;
-
   startedAt: number | null;
   lastSavedAt: number | null;
-
-  /**
-   * Only true after the practice's completion
-   * requirements have been satisfied.
-   */
   completed: boolean;
+
+  /** Locally saved Week 3 practice-wandering taps. */
+  distractionEvents?: DistractionTapEvent[];
+
+  /** Current recording position in seconds, if this practice uses media. */
+  mediaPositionSeconds?: number;
 }
 
 export interface PracticePlayerCallbacks {
@@ -78,11 +91,6 @@ export interface PracticePlayerCallbacks {
   onResume?: () => void;
   onRestart?: () => void;
   onExit?: () => void;
-
-  /**
-   * Invoked after a valid completion.
-   * Returning false means progression was not saved.
-   */
   onComplete?: () => Promise<boolean> | boolean;
 }
 
@@ -92,29 +100,3 @@ export interface PracticePlayerProps
   session?: PracticeSession | null;
   isSaving?: boolean;
 }
-
-/**
- * Supported state transitions:
- *
- * idle      -> running
- * running   -> paused | completed | exited
- * paused    -> running | exited
- * completed -> running (restart) | exited
- *
- * Restart begins a new attempt with zero elapsed time.
- *
- * Timed practices:
- * - Complete when accumulated active time >= durationMs.
- *
- * Open-ended practices:
- * - Require an explicit Finish action.
- * - May specify a minimum active duration in future.
- *
- * Safety and persistence:
- * - Background time is never counted as active time.
- * - Restored running sessions reopen in paused state.
- * - Early exit must never mark a practice complete.
- * - Completion callbacks must not run more than once
- *   per successful session.
- * - Failed progress saves must remain retryable.
- */
