@@ -24,6 +24,14 @@ export function SensationResults({ data }: { data: LexiconWords }) {
   </View>;
 }
 
+function sensationValidationMessage(value: string, index: number): string | null {
+  const length = value.trim().length;
+  if (length === 0) return `Sensation ${index + 1} is required.`;
+  if (length < 2) return `Sensation ${index + 1} needs at least 2 characters.`;
+  if (length > 80) return `Sensation ${index + 1} must be 80 characters or fewer.`;
+  return null;
+}
+
 export function WeekTwoExplore({ mode, answers, data, support, busy, retry, onChange, onGenerate, onContinue }: {
   mode: ActivityModeState;
   answers: ReflectionAnswers; data: WeekTwoResult | null;
@@ -39,14 +47,19 @@ export function WeekTwoExplore({ mode, answers, data, support, busy, retry, onCh
     <ThemedText>{prewritten
       ? "Describe three sensations in your own words, using 2–80 characters for each."
       : "Describe three sensations in your own words, using 2–80 characters for each. Only these descriptions are sent for AI processing; leave out identifying details."}</ThemedText>
-    {SENSATION_KEYS.map((key, index) => <View key={key} style={styles.section}>
-      <ThemedText>{`Sensation ${index + 1}`}</ThemedText>
-      <TextInput accessibilityLabel={`Sensation ${index + 1}`} accessibilityHint="Use 2 to 80 characters. Save answers before leaving."
-        multiline editable={!busy} value={answers[key] ?? ""}
-        onChangeText={value => onChange(key, value)}
-        style={[styles.editor, { color: theme.text, backgroundColor: theme.backgroundElement }]} />
-    </View>)}
-    {!validSensations(answers) && <ThemedText>Enter three sensations of 2–80 characters each to generate words.</ThemedText>}
+    {SENSATION_KEYS.map((key, index) => {
+      const value = answers[key] ?? "";
+      const validationMessage = sensationValidationMessage(value, index);
+      return <View key={key} style={styles.section}>
+        <ThemedText>{`Sensation ${index + 1}`}</ThemedText>
+        <TextInput accessibilityLabel={`Sensation ${index + 1}`} accessibilityHint="Use 2 to 80 characters. Save answers before leaving."
+          multiline editable={!busy} value={value}
+          onChangeText={nextValue => onChange(key, nextValue)}
+          style={[styles.editor, { color: theme.text, backgroundColor: theme.backgroundElement }]} />
+        {validationMessage && <AccessibleStatus error>{validationMessage}</AccessibleStatus>}
+      </View>;
+    })}
+    {!validSensations(answers) && <ThemedText>Correct the fields above to enable Generate sensation words.</ThemedText>}
     <Pressable accessibilityRole="button" disabled={busy || blocked || !validSensations(answers)} style={styles.action}
       accessibilityState={{ disabled: busy || blocked || !validSensations(answers), busy }}
       accessibilityHint={prewritten ? "Saves your descriptions and shows the prewritten word list." : "Saves your descriptions and requests words from the Sensation Lexicon service."}

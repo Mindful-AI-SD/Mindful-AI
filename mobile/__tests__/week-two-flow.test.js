@@ -152,6 +152,25 @@ test("Explore sends only three descriptions, blocks duplicate taps while waiting
   expect(screen.getByRole("button", { name: "Complete Week 2" }).props.accessibilityState.disabled).toBe(true);
 });
 
+test("Explore identifies each invalid sensation before enabling generation", async () => {
+  const initial = exploreProgress();
+  initial.answers.week_two_sensation_1 = "";
+  initial.answers.week_two_sensation_2 = "x";
+  initial.answers.week_two_sensation_3 = "a".repeat(81);
+  loadWeekTwoArrival.mockResolvedValue(initial);
+  mockProgressSaving(initial);
+
+  const screen = await render(<WeekTwoFlow activityId="activity" onExit={jest.fn()} />);
+  await waitFor(() => expect(screen.getByText("Explore · Sensation Lexicon")).toBeTruthy());
+
+  expect(screen.getByText("Sensation 1 is required.")).toBeTruthy();
+  expect(screen.getByText("Sensation 2 needs at least 2 characters.")).toBeTruthy();
+  expect(screen.getByText("Sensation 3 must be 80 characters or fewer.")).toBeTruthy();
+  expect(screen.getByText("Correct the fields above to enable Generate sensation words.")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Generate sensation words" }).props.accessibilityState.disabled).toBe(true);
+  expect(getSensationWords).not.toHaveBeenCalled();
+});
+
 test("a support response preserves descriptions and does not offer continuation to Notice", async () => {
   const initial = exploreProgress();
   loadWeekTwoArrival.mockResolvedValue(initial);
