@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { baselineOperationId } from "../../lib/baseline";
+import { WEEK_THREE_PRACTICE } from "../../lib/week-three-practice";
 import { createWeekThreeScreenFixtureService } from "../../lib/week-three-screen-fixture-service";
 import { validResponseFields, validWeekThreeContent, validWeekThreeScreenProgress, type WeekThreeContent, type WeekThreeScreenProgress, type WeekThreeScreenService, type WeekThreeScreenWrite } from "../../lib/week-three-screen";
 import type { FourBeats } from "../../lib/four-beat-curriculum";
@@ -9,6 +10,7 @@ import { AccessibleHeading, AccessibleStatus } from "./accessibility";
 import { ThemedText } from "./themed-text";
 import { ThemedView } from "./themed-view";
 import { FourBeatModuleShell } from "./four-beat-module-shell";
+import { PracticeBeat } from "./practice-beat";
 import { ReflectionAnswerField } from "./reflection-answer-field";
 import { WEEK_THREE_CONTENT_FIXTURE, WEEK_THREE_SLUG_FIXTURE } from "./week-three-explore-notice.fixtures";
 
@@ -33,6 +35,7 @@ function WeekThreeSession({ userId, activityId, onExit, content = WEEK_THREE_CON
   const [message, setMessage] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [entryOpen, setEntryOpen] = useState(showModuleEntry);
+  const [practiceFinished, setPracticeFinished] = useState(false);
   const version = useRef(0);
   const active = useRef(false);
   const pending = useRef<SaveAttempt | null>(null);
@@ -93,12 +96,21 @@ function WeekThreeSession({ userId, activityId, onExit, content = WEEK_THREE_CON
   if (entryOpen) {
     const beats: FourBeats = [
       { id: "arrive", title: "Arrive", description: "Arrive is outside this Explore/Notice screen fixture." },
-      { id: "practice", title: "Practice", description: "The recorded tap log is supplied by Lucas's synthetic progress fixture." },
+      { id: "practice", title: "Practice", description: WEEK_THREE_PRACTICE.instructions },
       { id: "explore", title: "Explore", description: content.explore.instructions },
       { id: "notice", title: "Notice", description: content.notice.instructions },
     ];
-    return <FourBeatModuleShell title="Week 3" beats={beats} savedBeatId={beat} savedStepLabel={`${beat === "explore" ? "Explore" : "Notice"}${content.source.kind === "fixture" ? " (fixture)" : ""}`}
+    const savedBeatId = !practiceFinished ? "practice" : beat;
+    const savedStepLabel = !practiceFinished
+      ? "Practice (sponsor recording)"
+      : `${beat === "explore" ? "Explore" : "Notice"}${content.source.kind === "fixture" ? " (fixture)" : ""}`;
+    return <FourBeatModuleShell title="Week 3" beats={beats} savedBeatId={savedBeatId} savedStepLabel={savedStepLabel}
       onResume={() => setEntryOpen(false)} onExit={onExit} />;
+  }
+
+  if (showModuleEntry && !practiceFinished) {
+    return <PracticeBeat activityId={activityId} weekNumber={3} config={WEEK_THREE_PRACTICE}
+      continueLabel="Continue to Explore" onContinue={() => { setPracticeFinished(true); return false; }} onExit={onExit} />;
   }
 
   const readOnly = saved.status === "completed";

@@ -58,6 +58,7 @@ test("media loads, errors without advancing, retries at its saved position, and 
   const onContinue = jest.fn(() => new Promise(resolve => { finish = resolve; }));
   const screen = await render(<PracticeBeat config={config} weekNumber={1} activityId="activity" onContinue={onContinue} onExit={jest.fn()} />);
   await waitFor(() => expect(screen.getByText("Loading Practice media…")).toBeTruthy());
+  expect(screen.getByLabelText("MindfulAI logo")).toBeTruthy();
   expect(screen.getByText("Supplied transcript")).toBeTruthy();
   expect(screen.getByRole("button", { name: "Continue to Explore" }).props.accessibilityState.disabled).toBe(true);
   await act(async () => { mockMediaProps.onStatus("error", 12); });

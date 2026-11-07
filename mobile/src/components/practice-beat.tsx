@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Image, Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSignedInUserId } from "./auth-gate";
 import { AccessibleStatus } from "./accessibility";
@@ -12,11 +12,13 @@ import { practiceStorageKey, readPracticeSession, writePracticeSession, removePr
 import PracticeMedia from "./practice-media";
 import type { PracticeMediaStatus } from "./practice-media.types";
 
-type Props = { activityId: string; weekNumber: 1 | 2; config?: ModulePractice; isSaving?: boolean; embedded?: boolean;
+type Props = { activityId: string; weekNumber: 1 | 2 | 3; config?: ModulePractice; isSaving?: boolean; embedded?: boolean;
   onContinue: () => Promise<boolean> | boolean | void; onExit: () => void; continueLabel?: string };
 
 export function PracticeBeat(props: Props) {
-  const config = props.config ?? modulePractice(props.weekNumber);
+  const config = props.config ?? (props.weekNumber === 3
+    ? { id: "week-3-practice", title: "Practice", instructions: "", unavailable: "Week 3 Practice guidance is not configured." }
+    : modulePractice(props.weekNumber));
   if (config.legacyBreathing) return <BreathingPlayer activityId={props.activityId} onContinue={props.onContinue} onExit={props.onExit} isSaving={props.isSaving} />;
   return <RestoredPractice key={practiceSessionId(config)} {...props} config={config} />;
 }
@@ -132,6 +134,12 @@ function PracticeController({ config, session, storageKey, onContinue, onExit, i
   const transcript = config.media?.transcript;
   const complete = controls.state === "completed" && (!media || ready || session?.completed);
   const content = <>
+    {media?.type === "audio" && <Image
+      accessibilityLabel="MindfulAI logo"
+      resizeMode="contain"
+      source={require("../../assets/images/logo-glow.png")}
+      style={styles.practiceLogo}
+    />}
     <ThemedText accessibilityRole="header" type="subtitle">{config.title}</ThemedText>
     {!!config.instructions && <ThemedText>{config.instructions}</ThemedText>}
     {config.media?.attribution && <ThemedText>{config.media.attribution}</ThemedText>}
@@ -180,4 +188,4 @@ function PracticeController({ config, session, storageKey, onContinue, onExit, i
   return embedded ? <View style={styles.section}>{content}</View> : <ThemedView style={styles.flex}><SafeAreaView style={styles.flex}><ScrollView contentContainerStyle={styles.content}>{content}</ScrollView></SafeAreaView></ThemedView>;
 }
 
-const styles = StyleSheet.create({ flex: { flex: 1 }, content: { padding: 24, paddingTop: 48, width: "100%", maxWidth: 720, alignSelf: "center", gap: 20 }, section: { gap: 12 }, action: { minHeight: 48, minWidth: 48, padding: 12, justifyContent: "center" }, debugAction: { borderRadius: 12, backgroundColor: "#41644A" }, debugActionText: { color: "#ffffff", fontWeight: "700", textAlign: "center" } });
+const styles = StyleSheet.create({ flex: { flex: 1 }, content: { padding: 24, paddingTop: 48, width: "100%", maxWidth: 720, alignSelf: "center", gap: 20 }, practiceLogo: { width: 180, height: 180, alignSelf: "center" }, section: { gap: 12 }, action: { minHeight: 48, minWidth: 48, padding: 12, justifyContent: "center" }, debugAction: { borderRadius: 12, backgroundColor: "#41644A" }, debugActionText: { color: "#ffffff", fontWeight: "700", textAlign: "center" } });
