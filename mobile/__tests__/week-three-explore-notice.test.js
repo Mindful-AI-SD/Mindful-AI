@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react
 import { WeekThreeExploreNotice } from "../src/components/week-three-explore-notice";
 import { createWeekThreeScreenFixtureService } from "../lib/week-three-screen-fixture-service";
 import { WEEK_THREE_CONTENT_FIXTURE as content, WEEK_THREE_PROGRESS_FIXTURE as progress, WEEK_THREE_SLUG_FIXTURE as slug } from "../src/components/week-three-explore-notice.fixtures";
+let practiceProps;
 jest.mock("@react-native-async-storage/async-storage", () => require("@react-native-async-storage/async-storage/jest/async-storage-mock"));
 jest.mock("@/hooks/use-theme", () => ({ useTheme: () => ({ text: "#000", backgroundElement: "#fff" }) }));
 jest.mock("react-native-safe-area-context", () => ({ SafeAreaView: ({ children }) => require("react").createElement(require("react-native").View, null, children) }));
@@ -13,11 +14,31 @@ jest.mock("../src/components/accessibility", () => ({
   AccessibleHeading: ({ children }) => require("react").createElement(require("react-native").Text, null, children),
   AccessibleStatus: ({ children }) => require("react").createElement(require("react-native").Text, null, children),
 }));
+jest.mock("../src/components/practice-beat", () => ({ PracticeBeat: props => {
+  practiceProps = props;
+  return require("react").createElement(require("react-native").Pressable, {
+    accessibilityRole: "button", accessibilityLabel: "Mock complete Week 3 Practice", onPress: props.onContinue,
+  }, require("react").createElement(require("react-native").Text, null, "Week 3 audio Practice"));
+} }));
 const activityId = progress.activityId;
 const exploreLabel = "Explore response (example field)", noticeLabel = "Notice response (example field)";
-beforeEach(async () => { await AsyncStorage.clear(); });
+beforeEach(async () => { await AsyncStorage.clear(); practiceProps = null; });
 afterEach(cleanup);
 async function ready(screen, label = exploreLabel) { return await waitFor(() => screen.getByLabelText(label)); }
+
+test("the module entry gates Explore behind the sponsor-supplied Week 3 audio without awarding completion", async () => {
+  const service = createWeekThreeScreenFixtureService("a", activityId, content);
+  const screen = await render(<WeekThreeExploreNotice userId="a" activityId={activityId} service={service} onExit={jest.fn()} showModuleEntry />);
+  await waitFor(() => expect(screen.getByRole("button", { name: "Resume: Practice (sponsor recording)" })).toBeTruthy());
+  await fireEvent.press(screen.getByRole("button", { name: "Resume: Practice (sponsor recording)" }));
+  expect(screen.getByText("Week 3 audio Practice")).toBeTruthy();
+  expect(practiceProps.config.media.source.url).toContain("week-3-breath-anchor.mp3");
+  await fireEvent.press(screen.getByRole("button", { name: "Mock complete Week 3 Practice" }));
+  await ready(screen);
+  const saved = await service.loadWeekThreeProgress(slug);
+  expect(saved.status).toBe("in_progress");
+  expect(saved.completedAt).toBeNull();
+});
 
 test("shows the exact recorded log and saves/restores Explore and Notice without altering Practice or completion", async () => {
   const service = createWeekThreeScreenFixtureService("a", activityId, content);
