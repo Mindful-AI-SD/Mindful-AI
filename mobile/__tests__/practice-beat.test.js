@@ -131,6 +131,17 @@ test("timed guidance cannot finish or advance before its configured duration", a
   expect(screen.getByRole("button", { name: "Continue to Explore" }).props.accessibilityState.disabled).toBe(false);
 });
 
+test("development builds can complete a timed practice without waiting", async () => {
+  const screen = await render(<PracticeBeat config={{ id: "timed", title: "Timed practice", instructions: "Supplied timer guidance", durationMs: 600000 }}
+    weekNumber={2} activityId="activity" onContinue={jest.fn()} onExit={jest.fn()} />);
+  await waitFor(() => expect(screen.getByText("Start practice")).toBeTruthy());
+
+  await fireEvent.press(screen.getByRole("button", { name: "Debug complete practice now" }));
+
+  await waitFor(() => expect(screen.getByText("Practice status: completed")).toBeTruthy());
+  expect(screen.getByRole("button", { name: "Continue to Explore" }).props.accessibilityState.disabled).toBe(false);
+});
+
 test("opening and leaving an untouched Practice does not create a paused attempt", async () => {
   const plain = { id: "unguided", title: "Unguided practice", instructions: "Supplied guidance" };
   let screen = await render(<PracticeBeat config={plain} weekNumber={2} activityId="activity" onContinue={jest.fn()} onExit={jest.fn()} />);

@@ -4,6 +4,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { DevProgressTools } from "@/components/dev-progress-tools";
+import { SignOutButton } from "@/components/sign-out-button";
 
 export default function SettingsScreen() {
   return (
@@ -36,7 +38,7 @@ export default function SettingsScreen() {
               onPress={() => router.push("/settings/instructor")}
               style={styles.card}
             >
-              <ThemedText type="defaultSemiBold">
+              <ThemedText type="smallBold">
                 Instructor preview
               </ThemedText>
               <ThemedText>
@@ -48,6 +50,13 @@ export default function SettingsScreen() {
               This preview is for development and sponsor demonstrations. Real
               instructor access will require role-based authorization.
             </ThemedText>
+          </View>
+
+          {__DEV__ ? <DevProgressTools /> : null}
+
+          <View style={styles.section}>
+            <ThemedText type="subtitle">Account</ThemedText>
+            <SignOutButton />
           </View>
         </ScrollView>
       </SafeAreaView>

@@ -78,6 +78,7 @@ function PracticeController({ config, session, storageKey, onContinue, onExit, i
   }
   const controls = usePracticePlayer({
     durationMs: media ? undefined : config.durationMs,
+    allowManualFinish: __DEV__ || (media ? undefined : config.durationMs) === undefined,
     pauseOnBackground: true,
     onStateChange: (state, elapsedMs) => { void remember({ elapsedMs, completed: state === "completed" }, true); },
     onTick: elapsedMs => { void remember({ elapsedMs }); },
@@ -105,6 +106,11 @@ function PracticeController({ config, session, storageKey, onContinue, onExit, i
   async function leave() {
     controls.pause();
     if (await remember({}, true)) onExit();
+  }
+  function completeForDevelopment() {
+    if (!__DEV__ || controls.state === "completed") return;
+    if (controls.state === "idle") controls.start();
+    controls.finish();
   }
   async function advance() {
     if (active.current || !complete || isSaving || storageError) return;
@@ -159,6 +165,11 @@ function PracticeController({ config, session, storageKey, onContinue, onExit, i
         {controls.state === "paused" && <Pressable accessibilityRole="button" disabled={blocked} style={styles.action} onPress={controls.resume}><ThemedText>Resume practice</ThemedText></Pressable>}
         {controls.state !== "idle" && <Pressable accessibilityRole="button" disabled={blocked} style={styles.action} onPress={controls.restart}><ThemedText>Restart practice</ThemedText></Pressable>}
         {controls.remainingMs === null && (controls.state === "running" || controls.state === "paused") && <Pressable accessibilityRole="button" disabled={blocked} style={styles.action} onPress={controls.finish}><ThemedText>Finish practice</ThemedText></Pressable>}
+        {__DEV__ && controls.state !== "completed" && <Pressable accessibilityRole="button" accessibilityLabel="Debug complete practice now"
+          accessibilityHint="Development only. Marks this practice session complete without waiting for the timer."
+          disabled={blocked} style={[styles.action, styles.debugAction]} onPress={completeForDevelopment}>
+          <ThemedText style={styles.debugActionText}>Debug: complete practice now</ThemedText>
+        </Pressable>}
       </View>
     </>}
     {storageError && <><AccessibleStatus error>{storageError}</AccessibleStatus><Pressable accessibilityRole="button" style={styles.action}
@@ -169,4 +180,4 @@ function PracticeController({ config, session, storageKey, onContinue, onExit, i
   return embedded ? <View style={styles.section}>{content}</View> : <ThemedView style={styles.flex}><SafeAreaView style={styles.flex}><ScrollView contentContainerStyle={styles.content}>{content}</ScrollView></SafeAreaView></ThemedView>;
 }
 
-const styles = StyleSheet.create({ flex: { flex: 1 }, content: { padding: 24, paddingTop: 48, width: "100%", maxWidth: 720, alignSelf: "center", gap: 20 }, section: { gap: 12 }, action: { minHeight: 48, minWidth: 48, padding: 12, justifyContent: "center" } });
+const styles = StyleSheet.create({ flex: { flex: 1 }, content: { padding: 24, paddingTop: 48, width: "100%", maxWidth: 720, alignSelf: "center", gap: 20 }, section: { gap: 12 }, action: { minHeight: 48, minWidth: 48, padding: 12, justifyContent: "center" }, debugAction: { borderRadius: 12, backgroundColor: "#41644A" }, debugActionText: { color: "#ffffff", fontWeight: "700", textAlign: "center" } });
