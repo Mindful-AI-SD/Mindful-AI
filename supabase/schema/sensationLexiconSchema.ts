@@ -18,11 +18,10 @@ export const sensationLexiconSchema = z.object({
 const sensationLexiconItemSchema = z.object({
   original: sensation,
   isVague: z.boolean(),
-  suggestions: z.array(sensationSuggestion).max(5),
-}).strict().refine(
-  // Suggestions are offered for vague sensations, and only for those.
-  (item) => item.isVague === (item.suggestions.length > 0),
-);
+  // Every entry receives optional vocabulary. isVague remains independent
+  // metadata describing the student's original wording.
+  suggestions: z.array(sensationSuggestion).min(3).max(5),
+}).strict();
 
 export const sensationLexiconResponseSchema = z.object({
   items: z.tuple([

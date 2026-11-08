@@ -104,8 +104,8 @@ Deno.test("Week 2: adds originals from the request, not the model", async () => 
   assert.deepEqual(response.items.map((i) => i.original), syntheticSensations);
   assert.deepEqual(response.items[1].suggestions, [
     "fluttery",
-    "tingling",
     "hollow",
+    "wobbly",
   ]);
 });
 
@@ -318,7 +318,7 @@ Deno.test("clinical guard allows non-clinical wording", async () => {
 
 const badLexicons: Record<string, unknown> = {
   "two items": { items: modelOutput.sensation_lexicon.items.slice(0, 2) },
-  "suggestions without isVague": {
+  "fewer than three suggestions": {
     items: [
       { isVague: false, suggestions: ["fluttery"] },
       ...modelOutput.sensation_lexicon.items.slice(1),

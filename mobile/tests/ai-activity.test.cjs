@@ -8,9 +8,9 @@ const { turn } = environment;
 const common = { activityId: "550e8400-e29b-41d4-a716-446655440000", activityContext: "Explore lab" };
 const trimmed = ["tight shoulders", "a weird feeling in my chest", "fine"];
 const items = [
-  { original: trimmed[0], isVague: false, suggestions: [] },
-  { original: trimmed[1], isVague: true, suggestions: ["tingling", "buzzing"] },
-  { original: trimmed[2], isVague: true, suggestions: ["loose", "steady"] },
+  { original: trimmed[0], isVague: false, suggestions: ["firm", "heavy", "stiff"] },
+  { original: trimmed[1], isVague: true, suggestions: ["fluttery", "hollow", "wobbly"] },
+  { original: trimmed[2], isVague: true, suggestions: ["loose", "steady", "warm"] },
 ];
 const intentions = [1, 2, 3].map(n => ({ title: `Title ${n}`, explanation: `Explanation ${n}` }));
 const kinds = {
@@ -156,7 +156,7 @@ test("malformed responses are INVALID_RESPONSE, never shown as a result", async 
       withItems([items[2], items[1], items[0]]),
       item(0, { original: "tense shoulders" }),
       item(0, { suggestions: ["stiff"] }),
-      item(1, { suggestions: [] }),
+      item(1, { suggestions: ["hollow", "wobbly"] }),
       item(1, { isVague: "yes" }),
       item(1, { suggestions: "tingling" }),
       item(1, { suggestions: ["a", "b", "c", "d", "e", "f"] }),

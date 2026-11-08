@@ -66,17 +66,17 @@
       {
         "original": "tight shoulders",
         "isVague": false,
-        "suggestions": []
+        "suggestions": ["firm", "heavy", "stiff"]
       },
       {
         "original": "weird",
         "isVague": true,
-        "suggestions": ["tingling", "buzzing"]
+        "suggestions": ["fluttery", "hollow", "wobbly"]
       },
       {
         "original": "warm hands",
         "isVague": false,
-        "suggestions": []
+        "suggestions": ["cool", "soft", "pulsing"]
       }
     ],
     "provider": "mock"
@@ -89,12 +89,12 @@
           {
             "original": "tight shoulders",
             "isVague": false,
-            "suggestions": []
+            "suggestions": ["firm", "heavy", "stiff"]
           },
           {
             "original": "weird",
             "isVague": true,
-            "suggestions": ["tingling"]
+            "suggestions": ["fluttery", "hollow", "wobbly"]
           }
         ],
         "provider": "mock"
@@ -107,17 +107,17 @@
           {
             "original": "tight shoulders",
             "isVague": false,
-            "suggestions": []
+            "suggestions": ["firm", "heavy", "stiff"]
           },
           {
             "original": "weird",
             "isVague": true,
-            "suggestions": ["tingling"]
+            "suggestions": ["fluttery", "hollow", "wobbly"]
           },
           {
             "original": "warm hands",
             "isVague": false,
-            "suggestions": []
+            "suggestions": ["cool", "soft", "pulsing"]
           }
         ],
         "provider": "mock",

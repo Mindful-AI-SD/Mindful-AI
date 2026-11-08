@@ -142,11 +142,11 @@ test("Explore sends only three descriptions, blocks duplicate taps while waiting
   expect(screen.getByText("Loading or saving Week 2…")).toBeTruthy();
   expect(screen.queryByText("Continue to Notice")).toBeNull();
   await act(async () => { finish({ data: { kind: "words", provider: "mock", items: [
-    { original: "weird", isVague: true, suggestions: ["tingling"] },
-    { original: "warm", isVague: false, suggestions: [] },
-    { original: "tight", isVague: false, suggestions: [] },
+    { original: "weird", isVague: true, suggestions: ["tingling", "hollow", "wobbly"] },
+    { original: "warm", isVague: false, suggestions: ["cool", "soft", "pulsing"] },
+    { original: "tight", isVague: false, suggestions: ["firm", "heavy", "stiff"] },
   ] }, error: null }); });
-  await waitFor(() => expect(screen.getByText("Suggested words: tingling")).toBeTruthy());
+  await waitFor(() => expect(screen.getByText(/Suggested words: tingling/)).toBeTruthy());
   await fireEvent.press(screen.getByRole("button", { name: "Continue to Notice" }));
   await waitFor(() => expect(screen.getByText("Tracker ethics")).toBeTruthy());
   expect(screen.getByRole("button", { name: "Complete Week 2" }).props.accessibilityState.disabled).toBe(true);
@@ -188,19 +188,19 @@ test("a support response preserves descriptions and does not offer continuation 
 test("a failed new request keeps previously saved words for unchanged descriptions", async () => {
   const initial = exploreProgress();
   initial.lexicon = { kind: "words", provider: "mock", items: [
-    { original: "weird", isVague: true, suggestions: ["tingling"] },
-    { original: "warm", isVague: false, suggestions: [] },
-    { original: "tight", isVague: false, suggestions: [] },
+    { original: "weird", isVague: true, suggestions: ["tingling", "hollow", "wobbly"] },
+    { original: "warm", isVague: false, suggestions: ["cool", "soft", "pulsing"] },
+    { original: "tight", isVague: false, suggestions: ["firm", "heavy", "stiff"] },
   ] };
   initial.answers.week_two_lexicon = JSON.stringify(initial.lexicon);
   loadWeekTwoArrival.mockResolvedValue(initial);
   mockProgressSaving(initial);
   getSensationWords.mockResolvedValue({ data: null, error: { code: "TIMEOUT", message: "Request timed out" } });
   const screen = await render(<WeekTwoFlow activityId="activity" onExit={jest.fn()} />);
-  await waitFor(() => expect(screen.getByText("Suggested words: tingling")).toBeTruthy());
+  await waitFor(() => expect(screen.getByText(/Suggested words: tingling/)).toBeTruthy());
   await fireEvent.press(screen.getByRole("button", { name: "Generate sensation words" }));
   await waitFor(() => expect(screen.getByText("Request timed out")).toBeTruthy());
-  expect(screen.getByText("Suggested words: tingling")).toBeTruthy();
+  expect(screen.getByText(/Suggested words: tingling/)).toBeTruthy();
   expect(screen.getByLabelText("Sensation 1").props.value).toBe("weird");
   expect(saveWeekTwoAnswers.mock.calls[0][3].week_two_lexicon).toBe(initial.answers.week_two_lexicon);
 });

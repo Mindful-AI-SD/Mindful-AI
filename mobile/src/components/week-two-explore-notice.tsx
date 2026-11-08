@@ -17,9 +17,9 @@ export function SensationResults({ data }: { data: LexiconWords }) {
     <ThemedText accessibilityRole="header" type="subtitle">Sensation Lexicon results</ThemedText>
     {source && <ThemedText type="small">{source}</ThemedText>}
     {data.items.map((item, index) => <View key={index} style={styles.card} accessible
-      accessibilityLabel={`Sensation ${index + 1} of 3. ${item.original}. ${item.suggestions.length ? `Suggested words: ${item.suggestions.join(", ")}` : "No alternative words suggested."}`}>
+      accessibilityLabel={`Sensation ${index + 1} of 3. ${item.original}. ${item.suggestions.length ? `Suggested words: ${item.suggestions.join(", ")}` : "No additional words are available."}`}>
       <ThemedText type="smallBold">{item.original}</ThemedText>
-      <ThemedText>{item.suggestions.length ? `Suggested words: ${item.suggestions.join(", ")}` : "No alternative words suggested."}</ThemedText>
+      <ThemedText>{item.suggestions.length ? `Suggested words: ${item.suggestions.join(", ")}` : "No additional words are available."}</ThemedText>
     </View>)}
   </View>;
 }

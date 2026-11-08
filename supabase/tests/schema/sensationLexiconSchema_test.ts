@@ -12,9 +12,9 @@ const request = {
 
 const response = {
   items: [
-    { original: "tight shoulders", isVague: false, suggestions: [] },
-    { original: "weird", isVague: true, suggestions: ["tingling", "buzzing"] },
-    { original: "warm hands", isVague: false, suggestions: [] },
+    { original: "tight shoulders", isVague: false, suggestions: ["firm", "heavy", "stiff"] },
+    { original: "weird", isVague: true, suggestions: ["fluttery", "hollow", "wobbly"] },
+    { original: "warm hands", isVague: false, suggestions: ["cool", "soft", "pulsing"] },
   ],
   provider: "mock",
 };
@@ -220,25 +220,25 @@ const cases = [
     valid: false,
   },
   {
-    name: "rejects suggestions on an item that is not vague",
+    name: "accepts suggestions on an item that is not vague",
     schema: sensationLexiconResponseSchema,
     value: withItem(0, {
       original: "tight shoulders",
       isVague: false,
-      suggestions: ["stiff"],
+      suggestions: ["stiff", "firm", "heavy"],
     }),
-    valid: false,
+    valid: true,
   },
   {
-    name: "rejects a vague item with no suggestions",
+    name: "rejects an item with fewer than three suggestions",
     schema: sensationLexiconResponseSchema,
-    value: withItem(1, { original: "weird", isVague: true, suggestions: [] }),
+    value: withItem(1, { original: "weird", isVague: true, suggestions: ["hollow", "wobbly"] }),
     valid: false,
   },
   {
     name: "rejects a blank original",
     schema: sensationLexiconResponseSchema,
-    value: withItem(0, { original: " ", isVague: false, suggestions: [] }),
+    value: withItem(0, { original: " ", isVague: false, suggestions: ["soft", "firm", "heavy"] }),
     valid: false,
   },
 ];
@@ -268,7 +268,7 @@ const matchCases = [
     value: withItem(0, {
       original: "tense shoulders",
       isVague: false,
-      suggestions: [],
+      suggestions: ["firm", "heavy", "stiff"],
     }),
     matches: false,
   },
@@ -285,7 +285,7 @@ const matchCases = [
     value: withItem(1, {
       original: "weird",
       isVague: true,
-      suggestions: ["Weird", "tingling"],
+      suggestions: ["Weird", "tingling", "hollow"],
     }),
     matches: false,
   },
@@ -294,7 +294,7 @@ const matchCases = [
     value: withItem(1, {
       original: "weird",
       isVague: true,
-      suggestions: ["tingling", "Tingling"],
+      suggestions: ["tingling", "Tingling", "hollow"],
     }),
     matches: false,
   },
