@@ -173,13 +173,13 @@ function PracticeController({ config, session, storageKey, onContinue, onExit, i
         {controls.state === "paused" && <Pressable accessibilityRole="button" disabled={blocked} style={styles.action} onPress={controls.resume}><ThemedText>Resume practice</ThemedText></Pressable>}
         {controls.state !== "idle" && <Pressable accessibilityRole="button" disabled={blocked} style={styles.action} onPress={controls.restart}><ThemedText>Restart practice</ThemedText></Pressable>}
         {controls.remainingMs === null && (controls.state === "running" || controls.state === "paused") && <Pressable accessibilityRole="button" disabled={blocked} style={styles.action} onPress={controls.finish}><ThemedText>Finish practice</ThemedText></Pressable>}
-        {__DEV__ && controls.state !== "completed" && <Pressable accessibilityRole="button" accessibilityLabel="Debug complete practice now"
-          accessibilityHint="Development only. Marks this practice session complete without waiting for the timer."
-          disabled={blocked} style={[styles.action, styles.debugAction]} onPress={completeForDevelopment}>
-          <ThemedText style={styles.debugActionText}>Debug: complete practice now</ThemedText>
-        </Pressable>}
       </View>
     </>}
+    {__DEV__ && controls.state !== "completed" && <Pressable accessibilityRole="button" accessibilityLabel="Debug complete practice now"
+      accessibilityHint="Development only. Marks this practice session complete without waiting for the timer."
+      disabled={blocked} style={[styles.action, styles.debugAction]} onPress={completeForDevelopment}>
+      <ThemedText style={styles.debugActionText}>Debug: complete practice now</ThemedText>
+    </Pressable>}
     {storageError && <><AccessibleStatus error>{storageError}</AccessibleStatus><Pressable accessibilityRole="button" style={styles.action}
       onPress={() => void remember({}, true).then(saved => { if (saved) setStorageError(null); })}><ThemedText>Retry saving Practice</ThemedText></Pressable></>}
     <Pressable accessibilityRole="button" disabled={!complete || blocked || !!storageError} accessibilityState={{ disabled: !complete || blocked || !!storageError, busy: blocked }} style={styles.action} onPress={() => void advance()}><ThemedText>{continueLabel}</ThemedText></Pressable>
