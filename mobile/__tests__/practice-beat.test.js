@@ -143,6 +143,17 @@ test("development builds can complete a timed practice without waiting", async (
   expect(screen.getByRole("button", { name: "Continue to Explore" }).props.accessibilityState.disabled).toBe(false);
 });
 
+test("development builds can complete an audio practice without waiting", async () => {
+  const screen = await render(<PracticeBeat config={config} weekNumber={1} activityId="activity" onContinue={jest.fn()} onExit={jest.fn()} />);
+  await waitFor(() => expect(mockMediaProps).toBeTruthy());
+  await act(async () => { mockMediaProps.onStatus("ready", 0); });
+
+  await fireEvent.press(screen.getByRole("button", { name: "Debug complete practice now" }));
+
+  await waitFor(() => expect(screen.getByRole("button", { name: "Continue to Explore" }).props.accessibilityState.disabled).toBe(false));
+  expect(screen.queryByRole("button", { name: "Debug complete practice now" })).toBeNull();
+});
+
 test("opening and leaving an untouched Practice does not create a paused attempt", async () => {
   const plain = { id: "unguided", title: "Unguided practice", instructions: "Supplied guidance" };
   let screen = await render(<PracticeBeat config={plain} weekNumber={2} activityId="activity" onContinue={jest.fn()} onExit={jest.fn()} />);

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { AppState, Pressable, View } from "react-native";
+import { AppState, Pressable, StyleSheet, View } from "react-native";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { ThemedText } from "./themed-text";
@@ -21,14 +21,38 @@ function AudioPractice(props: PracticeMediaProps) {
     const subscription = AppState.addEventListener("change", state => { if (state !== "active") player.pause(); });
     return () => { subscription.remove(); };
   }, [player]);
-  return <View style={{ gap: 12 }}>
-    <Pressable accessibilityRole="button" disabled={!status.isLoaded} style={{ minHeight: 48, padding: 12 }} onPress={() => {
+  const duration = Number.isFinite(status.duration) ? Math.max(0, status.duration) : 0;
+  const currentTime = Number.isFinite(status.currentTime) ? Math.max(0, Math.min(status.currentTime, duration || status.currentTime)) : 0;
+  const remaining = Math.max(0, duration - currentTime);
+  const progress = duration > 0 ? currentTime / duration : 0;
+  const progressMaximum = Math.max(1, Math.round(duration));
+  return <View style={styles.audioPlayer}>
+    <View accessibilityRole="progressbar" accessibilityLabel="Practice audio progress"
+      accessibilityValue={{ min: 0, max: progressMaximum, now: Math.min(progressMaximum, Math.round(currentTime)) }}
+      style={styles.progressTrack}>
+      <View style={[styles.progressFill, { width: `${Math.min(100, progress * 100)}%` }]} />
+    </View>
+    <View style={styles.timeRow}>
+      <ThemedText accessibilityRole="timer">{formatTime(currentTime)} elapsed</ThemedText>
+      <ThemedText accessibilityRole="timer">{duration > 0 ? `${formatTime(remaining)} remaining` : "Loading duration…"}</ThemedText>
+    </View>
+    <View style={styles.controlRow}>
+    <Pressable accessibilityRole="button" accessibilityLabel={status.playing ? "Pause audio" : "Play audio"}
+      disabled={!status.isLoaded} style={[styles.control, !status.isLoaded && styles.disabled]} onPress={() => {
       try { if (status.playing) player.pause(); else player.play(); } catch { props.onStatus("error", status.currentTime); }
-    }}><ThemedText>{status.playing ? "Pause media" : "Play media"}</ThemedText></Pressable>
-    <Pressable accessibilityRole="button" disabled={!status.isLoaded} style={{ minHeight: 48, padding: 12 }} onPress={() => {
+    }}><ThemedText>{status.playing ? "Pause" : "Play"}</ThemedText></Pressable>
+    <Pressable accessibilityRole="button" accessibilityLabel="Restart audio"
+      disabled={!status.isLoaded} style={[styles.control, !status.isLoaded && styles.disabled]} onPress={() => {
       props.onRestart(); void player.seekTo(0).then(() => player.play()).catch(() => props.onStatus("error", status.currentTime));
-    }}><ThemedText>Restart media</ThemedText></Pressable>
+    }}><ThemedText>Restart</ThemedText></Pressable>
+    </View>
   </View>;
+}
+
+function formatTime(seconds: number): string {
+  const wholeSeconds = Math.max(0, Math.floor(seconds));
+  const minutes = Math.floor(wholeSeconds / 60);
+  return `${minutes}:${String(wholeSeconds % 60).padStart(2, "0")}`;
 }
 
 function VideoPractice(props: PracticeMediaProps) {
@@ -62,3 +86,13 @@ function VideoPractice(props: PracticeMediaProps) {
 export default function PracticeMedia(props: PracticeMediaProps) {
   return props.type === "audio" ? <AudioPractice {...props} /> : <VideoPractice {...props} />;
 }
+
+const styles = StyleSheet.create({
+  audioPlayer: { gap: 14, padding: 16, borderRadius: 16, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#CAD8CF" },
+  progressTrack: { height: 10, overflow: "hidden", borderRadius: 999, backgroundColor: "#DDE7E0" },
+  progressFill: { height: "100%", borderRadius: 999, backgroundColor: "#41644A" },
+  timeRow: { flexDirection: "row", justifyContent: "space-between", flexWrap: "wrap", gap: 8 },
+  controlRow: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  control: { minHeight: 48, minWidth: 112, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#DDE7E0" },
+  disabled: { opacity: 0.45 },
+});

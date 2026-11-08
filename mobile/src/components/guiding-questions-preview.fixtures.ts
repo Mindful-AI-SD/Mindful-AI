@@ -31,19 +31,25 @@ export type WeekAccessInput = {
 };
 
 export const BASELINE_DEFINITION_FIXTURE: BaselineDefinitionInput = {
-  definitionId: "synthetic-five-questions",
+  definitionId: "aim-ya-week-1-guiding-questions",
   definitionVersion: 1,
   isPublished: true,
-  questions: Array.from({ length: 5 }, (_, index) => ({
-    questionId: `q${index + 1}`,
-    prompt: `Synthetic question ${index + 1}; example text only, not sponsor wording.`,
-    maxCharacters: 2000,
-  })),
+  questions: [
+    { questionId: "q1", prompt: "Who am I?", maxCharacters: 2000 },
+    { questionId: "q2", prompt: "What do I really want?", maxCharacters: 2000 },
+    { questionId: "q3", prompt: "What's my Purpose in Life?", maxCharacters: 2000 },
+    { questionId: "q4", prompt: "What am I grateful for?", maxCharacters: 2000 },
+    {
+      questionId: "q5",
+      prompt: "What are my strengths and unique abilities?",
+      maxCharacters: 2000,
+    },
+  ],
 };
 
 export const BASELINE_DRAFT_FIXTURE: BaselineRecordInput = {
   contractVersion: "sprint3-storage/v1",
-  definitionId: "synthetic-five-questions",
+  definitionId: "aim-ya-week-1-guiding-questions",
   definitionVersion: 1,
   answers: Object.fromEntries(Array.from({ length: 5 }, (_, index) => [
     `q${index + 1}`,
