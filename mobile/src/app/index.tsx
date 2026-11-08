@@ -1,5 +1,6 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { baselineService } from "../../lib/baseline-helpers";
 import {
   ActivityIndicator,
   AppState,
@@ -155,7 +156,11 @@ export default function HomeScreen() {
   }
 
   if (activeScreen === "guiding-questions") {
-    return <GuidingQuestionsCapture userId={userId} onBack={returnToCurriculum} />;
+    return <GuidingQuestionsCapture
+    userId={userId}
+    service={baselineService}
+    onBack={returnToCurriculum}
+    />;
   }
 
   if (activeScreen === "week-one" && activeActivity) {
