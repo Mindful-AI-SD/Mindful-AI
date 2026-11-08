@@ -62,7 +62,7 @@ function fakeServer(provider: string, failWeekTwo = false) {
         items: request.input.sensations.map((original: string) => ({
           original,
           isVague: false,
-          suggestions: [],
+          suggestions: ["warm", "cool", "steady"],
         })),
       },
     }));

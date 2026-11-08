@@ -53,13 +53,13 @@ Deno.test("lexicon: defaults to the success scenario", async () => {
   assert(response.items.length === 3, "must return exactly three items");
 });
 
-Deno.test("lexicon: offers words only for the vague sensations", async () => {
+Deno.test("lexicon: offers words for every sensation while preserving vague metadata", async () => {
   const { items } = await generateMockSensationLexicon(CONTEXT, SENSATIONS);
 
   assert(!items[0].isVague, "a specific sensation must not be marked vague");
   assert(
-    items[0].suggestions.length === 0,
-    "a specific sensation must get no suggestions",
+    items[0].suggestions.length >= 3,
+    "a specific sensation must get optional vocabulary",
   );
   assert(items[1].isVague, "'weird' must be marked vague");
   assert(
@@ -91,7 +91,7 @@ Deno.test("lexicon: is deterministic for the same input", async () => {
 
 Deno.test("lexicon: recognizes vague words regardless of case or punctuation", async () => {
   const { items } = await generateMockSensationLexicon(CONTEXT, [
-    "WEIRD.",
+    "ODD.",
     "kind of off, honestly",
     "Okay",
   ]);
@@ -99,6 +99,24 @@ Deno.test("lexicon: recognizes vague words regardless of case or punctuation", a
   assert(
     items.every((item) => item.isVague && item.suggestions.length > 0),
     "case and punctuation must not hide a vague word",
+  );
+});
+
+Deno.test("lexicon: odd and weird use varied vocabulary instead of defaulting to tingling", async () => {
+  const { items } = await generateMockSensationLexicon(CONTEXT, [
+    "odd",
+    "weird",
+    "strange",
+  ]);
+
+  assert(
+    items.every((item) => item.suggestions.length >= 3),
+    "every vague entry must receive several alternatives",
+  );
+  assert(
+    !items[0].suggestions.includes("tingling") &&
+      !items[1].suggestions.includes("tingling"),
+    "odd and weird must not collapse to the same default word",
   );
 });
 
@@ -110,8 +128,8 @@ Deno.test("lexicon: does not match a vague word inside a longer word", async () 
   ]);
 
   assert(
-    items.every((item) => !item.isVague && item.suggestions.length === 0),
-    "'off', 'bad', and 'good' must only match as whole words",
+    items.every((item) => !item.isVague && item.suggestions.length >= 3),
+    "'off', 'bad', and 'good' must only match as whole words while specific entries still receive vocabulary",
   );
 });
 
@@ -140,6 +158,7 @@ Deno.test("lexicon: suggestions are single, non-clinical words", async () => {
   // One vague word per sensation is used, so probe each word on its own too.
   const probes = [
     "weird",
+    "odd",
     "strange",
     "funny",
     "off",
@@ -185,7 +204,7 @@ Deno.test("lexicon: instruction-like text is treated as an ordinary sensation", 
 
   assert(parsed.success, "the response must still match the schema");
   assert(
-    !response.items[0].isVague && response.items[0].suggestions.length === 0,
+    !response.items[0].isVague && response.items[0].suggestions.length >= 3,
     "injected text must not change the output",
   );
 });

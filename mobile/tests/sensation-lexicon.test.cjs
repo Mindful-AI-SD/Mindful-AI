@@ -12,9 +12,9 @@ const request = {
 };
 const trimmed = ["tight shoulders", "a weird feeling in my chest", "fine"];
 const items = [
-  { original: trimmed[0], isVague: false, suggestions: [] },
-  { original: trimmed[1], isVague: true, suggestions: ["tingling", "buzzing"] },
-  { original: trimmed[2], isVague: true, suggestions: ["loose", "steady"] },
+  { original: trimmed[0], isVague: false, suggestions: ["firm", "heavy", "stiff"] },
+  { original: trimmed[1], isVague: true, suggestions: ["fluttery", "hollow", "wobbly"] },
+  { original: trimmed[2], isVague: true, suggestions: ["loose", "steady", "warm"] },
 ];
 const response = { kind: "sensation_lexicon", provider: "mock", result: { items } };
 const support = {

@@ -3,7 +3,7 @@ import { DISTRACTION_CATEGORIES } from "../providers/types.ts";
 // The only place model prompts live. Server-only: nothing under mobile/ imports
 // this. Bump PROMPT_VERSION whenever any wording or output schema changes, so
 // usage and comparison evidence can be tied to the prompt that produced it.
-export const PROMPT_VERSION = "2026-11-04.2";
+export const PROMPT_VERSION = "2026-11-08.1";
 
 // Student text arrives JSON-encoded inside this tag. JSON.stringify does not
 // escape angle brackets, so encodeStudentInput does: student text cannot close
@@ -31,8 +31,8 @@ const SENSATION_LEXICON_SYSTEM =
   SAFETY_RULES +
   " You receive exactly three sensations, in order. Return exactly three items in the same order. " +
   "For each, set isVague to true only when the description is too general to say what was felt (for example: weird, fine, off, strange, bad). " +
-  "When isVague is true, offer two to five optional, plain, non-clinical sensory words of at most 40 characters each, such as tingling or fluttery. " +
-  "When isVague is false, suggestions must be an empty array. " +
+  "For every item, offer three to five distinct, optional, plain, non-clinical sensory alternatives of at most 40 characters each. " +
+  "Vary the alternatives across items and across vague descriptions; consider qualities such as temperature, pressure, movement, texture, weight, or steadiness instead of defaulting to one example. " +
   "Suggestions are possibilities, never the correct label. Do not repeat the student's own wording, repeat a word, " +
   "name a cause, or make any claim about measurement, accuracy, privacy, fairness, or consent. " +
   UNTRUSTED_INPUT_RULES;
@@ -126,7 +126,7 @@ export function sensationLexiconPrompt(
   return {
     system: SENSATION_LEXICON_SYSTEM,
     user: userMessage(
-      "Week 2, Sensation Lexicon. Offer optional words for any vague sensation.",
+      "Week 2, Sensation Lexicon. Offer optional sensory vocabulary for each sensation while separately identifying vague wording.",
       { sensations },
     ),
     outputSchema: OUTPUT_SCHEMAS.sensation_lexicon,

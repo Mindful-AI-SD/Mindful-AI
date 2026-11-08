@@ -186,9 +186,9 @@ describe("Week 2", () => {
 
   test("Claude results are labeled as AI-generated", async () => {
     const words = { kind: "words", provider: "claude", items: [
-      { original: "tight", isVague: false, suggestions: [] },
-      { original: "warm", isVague: false, suggestions: [] },
-      { original: "calm", isVague: false, suggestions: [] },
+      { original: "tight", isVague: false, suggestions: ["firm", "heavy", "stiff"] },
+      { original: "warm", isVague: false, suggestions: ["cool", "soft", "pulsing"] },
+      { original: "calm", isVague: false, suggestions: ["steady", "still", "loose"] },
     ] };
     const ui = await explore({ status: "ready", refresh: jest.fn(), mode: { mode: "claude", available: true, contentVersion: null, labels: null } }, words);
     expect(ui.getByText(/AI-generated with Claude/)).toBeTruthy();

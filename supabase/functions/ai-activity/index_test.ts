@@ -110,7 +110,11 @@ Deno.test("AI activity endpoint with real Supabase authentication middleware", a
   const items = sensations.map((original, index) => ({
     original,
     isVague: index === 1,
-    suggestions: index === 1 ? ["tingling", "buzzing"] : [],
+    suggestions: index === 1
+      ? ["fluttery", "hollow", "wobbly"]
+      : index === 0
+      ? ["firm", "heavy", "stiff"]
+      : ["cool", "soft", "pulsing"],
   }));
   const intentions = [
     { title: "Notice", explanation: "Breathe slowly." },
@@ -560,7 +564,7 @@ Deno.test("AI activity endpoint with real Supabase authentication middleware", a
               items: call.input.sensations.map((original) => ({
                 original: ` ${original} `,
                 isVague: false,
-                suggestions: [],
+                suggestions: ["warm", "cool", "steady"],
               })),
             },
           });
@@ -583,7 +587,7 @@ Deno.test("AI activity endpoint with real Supabase authentication middleware", a
             items: ["ok", "x".repeat(80), "warm hands"].map((original) => ({
               original,
               isVague: false,
-              suggestions: [],
+              suggestions: ["warm", "cool", "steady"],
             })),
           },
         });
@@ -723,7 +727,7 @@ Deno.test("AI activity endpoint with real Supabase authentication middleware", a
         assert.deepEqual(lexiconBody.result.items[0], {
           original: injection,
           isVague: false,
-          suggestions: [],
+          suggestions: ["warm", "cool", "tight", "loose"],
         });
         const mirrorResponse = await request(
           JSON.stringify({ ...mirror, input: { reflection: injection } }),
@@ -840,7 +844,7 @@ Deno.test("AI activity endpoint with real Supabase authentication middleware", a
           ]),
         ],
         [
-          "suggestions on a specific item",
+          "fewer than three suggestions",
           lexicon,
           withItems([
             { ...items[0], suggestions: ["stiff"] },

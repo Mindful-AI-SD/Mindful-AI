@@ -186,8 +186,8 @@ const readers: {
         typeof entry.original !== "string" ||
         entry.original !== input.sensations[index] ||
         typeof entry.isVague !== "boolean" ||
-        !Array.isArray(entry.suggestions) || entry.suggestions.length > 5 ||
-        entry.isVague !== (entry.suggestions.length > 0) ||
+        !Array.isArray(entry.suggestions) || entry.suggestions.length < 3 ||
+        entry.suggestions.length > 5 ||
         !entry.suggestions.every((suggestion) => isText(suggestion, 40))
       ) return null;
       const suggestions = entry.suggestions as string[];

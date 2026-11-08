@@ -28,9 +28,9 @@ const intentions = [
 ];
 
 const items = [
-  { original: "tight shoulders", isVague: false, suggestions: [] },
-  { original: "weird", isVague: true, suggestions: ["tingling", "buzzing"] },
-  { original: "warm hands", isVague: false, suggestions: [] },
+  { original: "tight shoulders", isVague: false, suggestions: ["firm", "heavy", "stiff"] },
+  { original: "weird", isVague: true, suggestions: ["fluttery", "hollow", "wobbly"] },
+  { original: "warm hands", isVague: false, suggestions: ["cool", "soft", "pulsing"] },
 ];
 
 const mirrorResponse = {

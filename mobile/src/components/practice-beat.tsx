@@ -137,7 +137,7 @@ function PracticeController({ config, session, storageKey, onContinue, onExit, i
     {media?.type === "audio" && <Image
       accessibilityLabel="MindfulAI logo"
       resizeMode="contain"
-      source={require("../../assets/images/logo-glow.png")}
+      source={require("../../assets/images/aimya-logo.png")}
       style={styles.practiceLogo}
     />}
     <ThemedText accessibilityRole="header" type="subtitle">{config.title}</ThemedText>

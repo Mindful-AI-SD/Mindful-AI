@@ -55,8 +55,8 @@ function lexiconFrom(answers: ReflectionAnswers): WeekTwoResult | null {
         !Array.isArray(value.items) || value.items.length !== 3 ||
         !value.items.every((item: { original: unknown; isVague: unknown; suggestions: unknown }, index: number) =>
           item && item.original === sensations[index] && typeof item.isVague === "boolean" &&
-          Array.isArray(item.suggestions) && (item.isVague ? item.suggestions.length >= 1 && item.suggestions.length <= 5 : item.suggestions.length === 0) &&
-          item.suggestions.every(word => typeof word === "string" && word.trim().length > 0 && word.length <= 80))) return null;
+          Array.isArray(item.suggestions) && item.suggestions.length >= 3 && item.suggestions.length <= 5 &&
+          item.suggestions.every(word => typeof word === "string" && word.trim().length > 0 && word.length <= 40))) return null;
     return value as LexiconWords;
   } catch { return null; }
 }

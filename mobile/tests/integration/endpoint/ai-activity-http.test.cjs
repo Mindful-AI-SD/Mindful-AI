@@ -221,7 +221,7 @@ test(
         assert.deepEqual(items.map((item) => item.isVague), [false, true, true]);
         for (const item of items) {
           assert.deepEqual(Object.keys(item).sort(), ["isVague", "original", "suggestions"]);
-          assert.equal(item.suggestions.length > 0, item.isVague);
+          assert.ok(item.suggestions.length >= 3 && item.suggestions.length <= 5);
         }
         saved.sensation_lexicon = result.body;
       });

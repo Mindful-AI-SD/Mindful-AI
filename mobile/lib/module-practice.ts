@@ -27,7 +27,20 @@ export function modulePractice(weekNumber: 1 | 2, description: string | null = n
         durationMs: !beat.media && durationMinutes && durationMinutes > 0 ? durationMinutes * 60000 : undefined };
     }
     return weekNumber === 1
-      ? { id: "week-1-breathing", title: "Mindful breathing", instructions: "", durationMs: 600000, legacyBreathing: true }
+      ? {
+        id: "week-1-mindful-walking-v1",
+        title: "Mindful walking",
+        instructions: "Listen to the complete guided practice before continuing.",
+        media: {
+          type: "audio",
+          source: {
+            kind: "url",
+            url: "https://hfqzbvsftjgvzkixgvdy.supabase.co/storage/v1/object/public/practice-media/week-1-practice.mp3",
+          },
+          durationSeconds: 787.618,
+          attribution: "Guided practice supplied by the AIM-YA sponsor.",
+        },
+      }
       : { id: "week-2-body-awareness", title: "Body awareness", instructions: "Take a quiet moment to notice sensations in your body without judging them. When you are ready, describe what you noticed in Explore." };
   } catch {
     return { id: `week-${weekNumber}-practice`, title: "Practice", instructions: "", unavailable: "Practice configuration could not be read. Return to the curriculum and retry." };

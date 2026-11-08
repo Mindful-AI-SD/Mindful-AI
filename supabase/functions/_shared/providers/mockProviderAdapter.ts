@@ -200,8 +200,9 @@ export type MockSensationLexiconResponse = {
 // copy. Every suggestion is a plain sensory word: no causes, no clinical or
 // diagnostic terms. Keys are the vague words the mock recognizes.
 const VAGUE_SENSATION_WORDS: Record<string, string[]> = {
-  weird: ["tingling", "fluttery", "buzzing", "prickly"],
-  strange: ["tingling", "floaty", "buzzing", "prickly"],
+  weird: ["fluttery", "prickly", "hollow", "jittery"],
+  odd: ["wobbly", "fuzzy", "hollow", "fluttery"],
+  strange: ["floaty", "buzzing", "prickly", "wobbly"],
   funny: ["fluttery", "ticklish", "tingling", "jittery"],
   off: ["unsteady", "heavy", "restless", "hollow"],
   bad: ["tight", "heavy", "achy", "sore"],
@@ -213,21 +214,26 @@ const VAGUE_SENSATION_WORDS: Record<string, string[]> = {
   good: ["loose", "light", "warm", "steady"],
 };
 
+const GENERAL_SENSATION_WORDS = [
+  "warm", "cool", "tight", "loose", "heavy", "light", "steady", "pulsing",
+  "soft", "firm", "still", "restless",
+];
+
 function describeSensation(original: string): SensationLexiconItem {
   const words: string[] = original.toLowerCase().match(/[a-z]+/g) ?? [];
   const vagueWord = words.find((word) => word in VAGUE_SENSATION_WORDS);
 
-  if (vagueWord === undefined) {
-    return { original, isVague: false, suggestions: [] };
-  }
+  const candidates = vagueWord === undefined
+    ? GENERAL_SENSATION_WORDS
+    : [...VAGUE_SENSATION_WORDS[vagueWord], ...GENERAL_SENSATION_WORDS];
 
   return {
     original,
-    isVague: true,
+    isVague: vagueWord !== undefined,
     // Never offer a word the student already used.
-    suggestions: VAGUE_SENSATION_WORDS[vagueWord].filter((suggestion) =>
-      !words.includes(suggestion)
-    ),
+    suggestions: [...new Set(candidates)]
+      .filter((suggestion) => !words.includes(suggestion))
+      .slice(0, 4),
   };
 }
 

@@ -41,9 +41,9 @@ export const modelOutput = {
   },
   sensation_lexicon: {
     items: [
-      { isVague: false, suggestions: [] },
-      { isVague: true, suggestions: ["fluttery", "tingling", "hollow"] },
-      { isVague: false, suggestions: [] },
+      { isVague: false, suggestions: ["firm", "heavy", "stiff"] },
+      { isVague: true, suggestions: ["fluttery", "hollow", "wobbly"] },
+      { isVague: false, suggestions: ["cool", "soft", "pulsing"] },
     ],
   },
   distraction_audit: {

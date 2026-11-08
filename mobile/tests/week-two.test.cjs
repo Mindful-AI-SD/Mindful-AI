@@ -6,9 +6,9 @@ const test = require("node:test");
 const ts = require("typescript");
 const sensations = { week_two_sensation_1: "weird", week_two_sensation_2: "warm", week_two_sensation_3: "tight" };
 const words = { kind: "words", provider: "mock", items: [
-  { original: "weird", isVague: true, suggestions: ["tingling", "fluttering"] },
-  { original: "warm", isVague: false, suggestions: [] },
-  { original: "tight", isVague: false, suggestions: [] },
+  { original: "weird", isVague: true, suggestions: ["fluttery", "hollow", "wobbly"] },
+  { original: "warm", isVague: false, suggestions: ["cool", "soft", "pulsing"] },
+  { original: "tight", isVague: false, suggestions: ["firm", "heavy", "stiff"] },
 ] };
 
 function database() {
@@ -108,7 +108,7 @@ test("changing sensations invalidates old words and Notice cannot open until new
   assert.equal((await db.api.loadWeekTwoProgress("a", "activity")).lexicon, null);
   await assert.rejects(db.api.saveWeekTwoAnswers("a", "activity", "week_two_explore", {}, "week_two_notice"), /three sensations/);
   await assert.rejects(db.api.saveWeekTwoAnswers("a", "activity", "week_two_explore", { week_two_lexicon: JSON.stringify(words) }), /does not match/);
-  const changed = { ...words, items: [{ original: "cool", isVague: false, suggestions: [] }, ...words.items.slice(1)] };
+  const changed = { ...words, items: [{ original: "cool", isVague: false, suggestions: ["warm", "soft", "steady"] }, ...words.items.slice(1)] };
   await db.api.saveWeekTwoAnswers("a", "activity", "week_two_explore", { week_two_lexicon: JSON.stringify(changed) });
   assert.equal((await db.api.saveWeekTwoAnswers("a", "activity", "week_two_explore", {}, "week_two_notice")).step, "week_two_notice");
 });

@@ -17,8 +17,12 @@ test("both weeks consume their configured media without using file duration as a
     expect(config.legacyBreathing).toBeUndefined();
   }
 });
-test("existing plain content keeps the breathing timer and Week 2 unguided experience", () => {
-  expect(modulePractice(1).legacyBreathing).toBe(true);
+test("existing plain content uses the sponsor Week 1 recording and keeps Week 2 unguided", () => {
+  const weekOne = modulePractice(1);
+  expect(weekOne.legacyBreathing).toBeUndefined();
+  expect(weekOne.title).toBe("Mindful walking");
+  expect(weekOne.media?.source.url).toContain("week-1-practice.mp3");
+  expect(weekOne.media?.durationSeconds).toBe(787.618);
   expect(modulePractice(2).durationMs).toBeUndefined();
   expect(modulePractice(2, content(2), 5).durationMs).toBe(300000);
 });

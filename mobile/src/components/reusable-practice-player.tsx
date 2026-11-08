@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import {
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -840,6 +841,15 @@ export function ReusablePracticePlayer({
         </Text>
       ))}
 
+      {config.media?.type === "audio" && (
+        <Image
+          accessibilityLabel="AIM-YA logo"
+          resizeMode="contain"
+          source={require("../../assets/images/aimya-logo.png")}
+          style={styles.practiceLogo}
+        />
+      )}
+
       {distractionTapLabels.length > 0 && (
         <View style={styles.tapLogger}>
           <Text accessibilityRole="header" style={styles.tapLoggerTitle}>
@@ -1031,6 +1041,12 @@ const styles = StyleSheet.create({
   text: {
     fontSize: 16,
     lineHeight: 24,
+  },
+  practiceLogo: {
+    alignSelf: "center",
+    width: "100%",
+    maxWidth: 360,
+    height: 280,
   },
   tapLogger: {
     padding: 16,
