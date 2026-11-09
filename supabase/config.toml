@@ -448,3 +448,9 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/ai-activity/deno.json"
 entrypoint = "./functions/ai-activity/index.ts"
+
+[functions.week-three-audit]
+enabled = true
+verify_jwt = false
+import_map = "./functions/week-three-audit/deno.json"
+entrypoint = "./functions/week-three-audit/index.ts"

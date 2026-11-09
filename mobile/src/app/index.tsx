@@ -84,7 +84,7 @@ export default function HomeScreen() {
       setWeekAccess(access);
       if (!access[selectedWeek]?.allowed) return;
       const weekOne = await getPublishedWeek(selectedWeek);
-      const progress = selectedWeek === 3 ? [] : await getActivityProgress(
+      const progress = await getActivityProgress(
         userId,
         weekOne.activities.map((activity) => activity.id),
       );

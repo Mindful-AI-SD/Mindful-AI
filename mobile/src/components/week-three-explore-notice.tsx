@@ -13,6 +13,7 @@ import { FourBeatModuleShell } from "./four-beat-module-shell";
 import { PracticeBeat } from "./practice-beat";
 import { ReflectionAnswerField } from "./reflection-answer-field";
 import { WEEK_THREE_CONTENT_FIXTURE, WEEK_THREE_SLUG_FIXTURE } from "./week-three-explore-notice.fixtures";
+import { WeekThreeModule } from "./week-three-module";
 
 type Props = {
   userId: string; activityId: string; onExit: () => void;
@@ -21,6 +22,9 @@ type Props = {
 type SaveAttempt = { request: WeekThreeScreenWrite; exit: boolean };
 
 export function WeekThreeExploreNotice(props: Props) {
+  // Explicit injected preview ports stay available for old fixture reviews.
+  // Normal curriculum navigation uses the handoff and authenticated progress.
+  if (!props.content && !props.service) return <WeekThreeModule userId={props.userId} activityId={props.activityId} onExit={props.onExit} showModuleEntry={props.showModuleEntry} />;
   return <WeekThreeSession key={`${props.userId}:${props.activityId}:${props.content?.contentVersion ?? WEEK_THREE_CONTENT_FIXTURE.contentVersion}`} {...props} />;
 }
 
