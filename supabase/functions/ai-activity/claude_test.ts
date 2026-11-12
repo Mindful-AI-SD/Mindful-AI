@@ -82,7 +82,13 @@ Deno.test("ai-activity in Claude mode, through the real middleware", async (t) =
     .setIssuer("http://127.0.0.1:54321/auth/v1")
     .setExpirationTime("5m").sign(privateKey);
 
-  const endpoint = createAiActivityEndpoint(undefined, undefined, published);
+  // The daily cap has its own tests in index_test.ts; here every claim is allowed.
+  const endpoint = createAiActivityEndpoint(
+    undefined,
+    undefined,
+    published,
+    () => Promise.resolve(),
+  );
   const send = (body: unknown) =>
     endpoint.fetch(
       new Request("http://localhost/ai-activity", {

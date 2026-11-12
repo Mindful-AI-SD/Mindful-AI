@@ -45,6 +45,7 @@ export type IntentionError = {
     | "INVALID_INPUT"
     | "UNAVAILABLE"
     | "MODE_CHANGED"
+    | "RATE_LIMITED"
     | "REQUEST_FAILED"
     | "INVALID_RESPONSE";
   message: string;

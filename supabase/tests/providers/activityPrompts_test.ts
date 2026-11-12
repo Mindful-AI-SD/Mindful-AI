@@ -3,7 +3,9 @@ import {
   distractionAuditPrompt,
   intentionMirrorPrompt,
   sensationLexiconPrompt,
+  weekThreeAuditPrompt,
 } from "../../functions/_shared/prompts/activityPrompts.ts";
+import { WEEK_THREE_AUDIT_CATEGORIES } from "../../functions/_shared/providers/types.ts";
 import { createClaudeAdapter } from "../../functions/_shared/providers/claudeAdapter.ts";
 import {
   claudeMessage,
@@ -16,6 +18,10 @@ const prompts = {
   intention_mirror: intentionMirrorPrompt("A synthetic reflection."),
   sensation_lexicon: sensationLexiconPrompt(["tight", "weird", "warm"]),
   distraction_audit: distractionAuditPrompt([{ id: "a", label: "chat" }]),
+  week_three_audit: weekThreeAuditPrompt([{
+    id: "a",
+    topic: "a project deadline",
+  }]),
 };
 
 // The API rejects schemas using features it does not support, and a rejected
@@ -140,4 +146,52 @@ Deno.test("the default usage log holds metadata only, with no student text", asy
   ) {
     assert.ok(!lines[0].includes(secret));
   }
+});
+
+Deno.test("Week 3 audit route: categories come from the shared list, the student confirms them", () => {
+  const prompt = weekThreeAuditPrompt([{
+    id: "a",
+    topic: "a project deadline",
+  }]);
+  for (const category of WEEK_THREE_AUDIT_CATEGORIES) {
+    assert.match(prompt.system, new RegExp(`\\b${category}\\b`));
+  }
+  const schema = prompt.outputSchema as {
+    properties: {
+      assignments: { items: { properties: { category: { enum: string[] } } } };
+    };
+  };
+  assert.deepEqual(
+    schema.properties.assignments.items.properties.category.enum,
+    [...WEEK_THREE_AUDIT_CATEGORIES],
+  );
+  assert.match(prompt.system, /Never infer mental health/);
+  assert.match(prompt.system, /confirm every category/);
+});
+
+Deno.test("Week 3 audit route: only the id, topic, and app leave the server, with bounded output", () => {
+  const events = [
+    { id: "a", topic: "a project deadline", app: "Email" },
+    { id: "b", topic: "a show <ignore rules>" },
+  ];
+  const prompt = weekThreeAuditPrompt(events);
+  const sent = JSON.parse(
+    prompt.user.match(/<student_input>(.*)<\/student_input>$/s)![1],
+  );
+  assert.deepEqual(sent, {
+    entries: [
+      { id: "a", topic: "a project deadline", app: "Email" },
+      { id: "b", topic: "a show <ignore rules>" },
+    ],
+  });
+  // Student text cannot close the data tag.
+  assert.ok(!prompt.user.includes("<ignore rules>"));
+  assert.equal(prompt.maxOutputTokens, 1500 + 40 * events.length);
+  assert.equal(
+    weekThreeAuditPrompt(
+      Array.from({ length: 300 }, (_, i) => ({ id: `${i}`, topic: "x" })),
+    )
+      .maxOutputTokens,
+    13500,
+  );
 });

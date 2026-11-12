@@ -249,6 +249,22 @@ export function getActivityProvider<K extends AiActivityKind>(
   return ACTIVITY_PROVIDERS[kind][name];
 }
 
+/**
+ * Whether this call will reach a model, and so count against the student's
+ * daily request limit. Mock, prewritten, a mode with no key, and an empty Week
+ * 3 log (answered by the server alone) do not.
+ */
+export function activityCallUsesModel(call: AiActivityCall): boolean {
+  let name: ProviderName;
+  try {
+    name = resolveProviderName();
+  } catch {
+    return false;
+  }
+  if (name !== "claude" || resolveClaudeConfig().apiKey === null) return false;
+  return !(call.kind === "distraction_audit" && call.input.events.length === 0);
+}
+
 const DEFAULT_ACTIVITY_DEADLINE_MS = 5_000;
 
 /**

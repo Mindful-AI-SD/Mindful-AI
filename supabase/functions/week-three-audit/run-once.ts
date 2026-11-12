@@ -7,7 +7,7 @@ export type AuditLedger<T> = {
 };
 // Claim before spending. A lost success acknowledgement must never re-run the
 // provider; a processing claim stays recoverable by retrying the same ID.
-export async function runOnce<T>(digest: string, ledger: AuditLedger<T>, generate: () => Promise<T>, failureStatus: () => number): Promise<{ status: number; result?: T }> {
+export async function runOnce<T>(digest: string, ledger: AuditLedger<T>, generate: () => Promise<T>, failureStatus: (error: unknown) => number): Promise<{ status: number; result?: T }> {
   if (!await ledger.claim()) {
     const previous = await ledger.read();
     if (!previous) return { status: 503 };
@@ -17,7 +17,7 @@ export async function runOnce<T>(digest: string, ledger: AuditLedger<T>, generat
   }
   let result: T;
   try { result = await generate(); }
-  catch { const status = failureStatus(); await ledger.fail(status); return { status }; }
+  catch (error) { const status = failureStatus(error); await ledger.fail(status); return { status }; }
   // Preserve the processing claim if writing the receipt fails. Don't mark an
   // already spent call as a new retryable provider failure.
   return await ledger.succeed(result) ? { status: 200, result } : { status: 503 };

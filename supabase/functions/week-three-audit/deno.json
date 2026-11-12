@@ -3,6 +3,7 @@
     "@anthropic-ai/sdk": "npm:@anthropic-ai/sdk@^1.4.0",
     "@supabase/server": "npm:@supabase/server@^1",
     "@supabase/supabase-js": "npm:@supabase/supabase-js@^2",
+    "jose": "npm:jose@^6",
     "zod": "npm:zod@^4.0.0"
   }
 }

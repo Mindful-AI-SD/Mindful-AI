@@ -150,7 +150,7 @@ here.
 | Sponsor review of the prewritten content (still "Ready for review") | Dr. Haberlin, Isa   |
 | IRB decision on sending student text to a model                     | Dr. Haberlin        |
 | Crisis wording and resources                                        | Dr. Haberlin        |
-| Per-student rate limit for Claude                                   | Team                |
+| Confirm the per-student daily cap (built, default 30 requests)      | Team                |
 
 ### Questions for Isa about the content pack
 

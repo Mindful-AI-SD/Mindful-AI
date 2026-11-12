@@ -249,9 +249,11 @@ The user comes from the session. A client-supplied provider, user ID, result, `d
 | 404 | `ACTIVITY_NOT_FOUND` | Activity missing or not published |
 | 408 | `PROVIDER_TIMEOUT` | The deadline for the mode, or an adapter timeout |
 | 409 | `MODE_CHANGED` | The request's `expectedMode` no longer matches the server's mode. Nothing was sent |
+| 429 | `RATE_LIMITED` | The student reached today's limit of Claude requests (`CLAUDE_DAILY_REQUEST_LIMIT`, default 30). Nothing was sent |
 | 501 | `PROVIDER_NOT_CONFIGURED` | The selected provider is not implemented |
 | 502 | `PROVIDER_ERROR` | Provider failure, or output that fails the schema or does not match the request |
 | 503 | `ACTIVITY_CHECK_UNAVAILABLE` | The activity lookup failed |
+| 503 | `USAGE_CHECK_UNAVAILABLE` | Today's Claude request count could not be checked, so nothing was sent |
 
 For the Week 3 Distraction Audit, the provider only assigns each event a category (or none). The server computes the counts and percentages in `supabase/functions/_shared/providers/distractionAudit.ts`: the denominator is every logged event, percentages are whole numbers that total exactly 100, and an empty log is answered without calling a provider. The mock assigns categories by keyword from a placeholder list of six. A worked example with exact expected output is in `supabase/functions/_shared/providers/activityContracts.md` and is the test fixture `supabase/tests/fixtures/distractionAuditExample.ts`. The mobile client does not support this kind yet.
 

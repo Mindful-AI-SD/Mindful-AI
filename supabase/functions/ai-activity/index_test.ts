@@ -12,6 +12,10 @@ import {
 import { aiActivityResponseSchema } from "../../schema/aiActivitySchema.ts";
 import { CRISIS_SUPPORT_RESPONSE } from "../_shared/crisisSupport.ts";
 import {
+  RequestQuotaExceededError,
+  RequestQuotaUnavailableError,
+} from "../_shared/providers/requestQuota.ts";
+import {
   exampleEvents,
   exampleResult,
 } from "../../tests/fixtures/distractionAuditExample.ts";
@@ -1337,6 +1341,184 @@ Deno.test("AI activity endpoint with real Supabase authentication middleware", a
           );
           assert.ok(!text.includes(validToken));
         }
+      },
+    );
+    // The per-student daily cap. Claude mode with a key, a fake runner, and a
+    // fake claim: no model or database is reached.
+    const inClaudeMode = async (run: () => Promise<void>) => {
+      const keys = ["GUIDED_REFLECTION_PROVIDER", "ANTHROPIC_API_KEY"];
+      const saved = Object.fromEntries(
+        keys.map((key) => [key, Deno.env.get(key)]),
+      );
+      Deno.env.set("GUIDED_REFLECTION_PROVIDER", "claude");
+      Deno.env.set("ANTHROPIC_API_KEY", "test-key-not-real");
+      try {
+        await run();
+      } finally {
+        for (const key of keys) {
+          const value = saved[key];
+          if (value === undefined) Deno.env.delete(key);
+          else Deno.env.set(key, value);
+        }
+      }
+    };
+    const counted = (claim: () => Promise<void>) => {
+      const seen = { claims: 0, runs: 0 };
+      const handler = createActualEndpoint(
+        (call) => {
+          seen.runs++;
+          return Promise.resolve(
+            call.kind === "intention_mirror"
+              ? { ...mirrorOutput, provider: "claude" }
+              : { ...lexiconOutput, provider: "claude" },
+          );
+        },
+        undefined,
+        published,
+        () => {
+          seen.claims++;
+          return claim();
+        },
+      );
+      return { seen, handler };
+    };
+    await t.step(
+      "daily cap: a request over today's limit gets 429 and no model call",
+      async () => {
+        await inClaudeMode(async () => {
+          const { seen, handler } = counted(() =>
+            Promise.reject(new RequestQuotaExceededError())
+          );
+          const response = await request(
+            JSON.stringify(mirror),
+            validToken,
+            "POST",
+            handler,
+          );
+          assert.equal(response.status, 429);
+          assert.deepEqual(await response.json(), {
+            error: "RATE_LIMITED",
+            message:
+              "You have reached today's limit for AI responses. Your work is saved. Please try again tomorrow.",
+          });
+          assert.deepEqual(seen, { claims: 1, runs: 0 });
+        });
+      },
+    );
+    await t.step(
+      "daily cap: when the count cannot be checked, no model call is made",
+      async () => {
+        await inClaudeMode(async () => {
+          const { seen, handler } = counted(() =>
+            Promise.reject(new RequestQuotaUnavailableError())
+          );
+          const response = await request(
+            JSON.stringify(lexicon),
+            validToken,
+            "POST",
+            handler,
+          );
+          assert.equal(response.status, 503);
+          assert.deepEqual(await response.json(), {
+            error: "USAGE_CHECK_UNAVAILABLE",
+            message: "Could not check today's AI usage. Please try again.",
+          });
+          assert.deepEqual(seen, { claims: 1, runs: 0 });
+        });
+      },
+    );
+    await t.step(
+      "daily cap: an allowed request is counted once, then reaches the model",
+      async () => {
+        await inClaudeMode(async () => {
+          const { seen, handler } = counted(() => Promise.resolve());
+          const response = await request(
+            JSON.stringify(mirror),
+            validToken,
+            "POST",
+            handler,
+          );
+          assert.equal(response.status, 200);
+          assert.equal((await response.json()).provider, "claude");
+          assert.deepEqual(seen, { claims: 1, runs: 1 });
+        });
+      },
+    );
+    await t.step(
+      "daily cap: requests refused before a model call are never counted",
+      async () => {
+        await inClaudeMode(async () => {
+          const { seen, handler } = counted(() => Promise.resolve());
+          const refused = [
+            [
+              JSON.stringify({
+                ...mirror,
+                input: { reflection: "I want to hurt myself" },
+              }),
+              200,
+            ],
+            ["not json", 400],
+            [JSON.stringify({ ...mirror, input: { reflection: "ab" } }), 400],
+            [JSON.stringify({ ...mirror, expectedMode: "prewritten" }), 409],
+          ] as const;
+          for (const [body, status] of refused) {
+            const response = await request(body, validToken, "POST", handler);
+            assert.equal(response.status, status);
+            await response.body?.cancel();
+          }
+          const missing = createActualEndpoint(
+            () => Promise.reject(new Error("must not run")),
+            undefined,
+            () => Promise.resolve(false),
+            () => {
+              seen.claims++;
+              return Promise.resolve();
+            },
+          );
+          const notFound = await request(
+            JSON.stringify(mirror),
+            validToken,
+            "POST",
+            missing,
+          );
+          assert.equal(notFound.status, 404);
+          await notFound.body?.cancel();
+          assert.deepEqual(seen, { claims: 0, runs: 0 });
+        });
+      },
+    );
+    await t.step(
+      "daily cap: mock, prewritten, and an empty Week 3 log are not counted",
+      async () => {
+        const { seen, handler } = counted(() => Promise.resolve());
+        const mockResponse = await request(
+          JSON.stringify(mirror),
+          validToken,
+          "POST",
+          handler,
+        );
+        assert.equal(mockResponse.status, 200);
+        await mockResponse.body?.cancel();
+        await inClaudeMode(async () => {
+          const empty = createActualEndpoint(
+            undefined,
+            undefined,
+            published,
+            () => {
+              seen.claims++;
+              return Promise.resolve();
+            },
+          );
+          const response = await request(
+            JSON.stringify({ ...audit, input: { events: [] } }),
+            validToken,
+            "POST",
+            empty,
+          );
+          assert.equal(response.status, 200);
+          await response.body?.cancel();
+        });
+        assert.equal(seen.claims, 0);
       },
     );
     await t.step("authenticated PUT returns 405 with Allow", async () => {

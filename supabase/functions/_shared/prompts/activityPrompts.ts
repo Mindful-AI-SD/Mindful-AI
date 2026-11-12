@@ -1,9 +1,12 @@
-import { DISTRACTION_CATEGORIES } from "../providers/types.ts";
+import {
+  DISTRACTION_CATEGORIES,
+  WEEK_THREE_AUDIT_CATEGORIES,
+} from "../providers/types.ts";
 
 // The only place model prompts live. Server-only: nothing under mobile/ imports
 // this. Bump PROMPT_VERSION whenever any wording or output schema changes, so
 // usage and comparison evidence can be tied to the prompt that produced it.
-export const PROMPT_VERSION = "2026-11-08.1";
+export const PROMPT_VERSION = "2026-11-12.1";
 
 // Student text arrives JSON-encoded inside this tag. JSON.stringify does not
 // escape angle brackets, so encodeStudentInput does: student text cannot close
@@ -46,6 +49,21 @@ const DISTRACTION_AUDIT_SYSTEM =
   "Do not count events or calculate percentages; the app does that. " +
   UNTRUSTED_INPUT_RULES;
 
+// The Week 3 audit route (week-three-audit). Category meanings are the ones the
+// Week 3 handoff defines; students confirm or correct every proposal.
+const WEEK_THREE_AUDIT_SYSTEM =
+  "You propose a category for each entry in a student's three-day distraction audit. " +
+  SAFETY_RULES +
+  ` Classify each entry into exactly one of: ${
+    WEEK_THREE_AUDIT_CATEGORIES.join(", ")
+  }. ` +
+  "Planning is future tasks or decisions; memory is past events; worry is feared or uncertain outcomes; " +
+  "social_comparison compares self with others; entertainment is stimulating media; other is anything else. " +
+  "Return exactly one assignment for every entry, in the given order, using each id exactly as given. " +
+  "Do not add, drop, or merge entries. Return only assignments. Never infer mental health, personality, " +
+  "motivations, recommendations, or personal insights. Students will review and confirm every category. " +
+  UNTRUSTED_INPUT_RULES;
+
 const object = (properties: Record<string, unknown>) => ({
   type: "object",
   additionalProperties: false,
@@ -81,6 +99,14 @@ const OUTPUT_SCHEMAS = {
             { type: "null" },
           ],
         },
+      }),
+    ),
+  }),
+  week_three_audit: object({
+    assignments: array(
+      object({
+        eventId: { type: "string" },
+        category: { type: "string", enum: [...WEEK_THREE_AUDIT_CATEGORIES] },
       }),
     ),
   }),
@@ -145,6 +171,29 @@ export function distractionAuditPrompt(
       { events: events.map(({ id, label }) => ({ eventId: id, label })) },
     ),
     outputSchema: OUTPUT_SCHEMAS.distraction_audit,
+    maxOutputTokens: 1500 + 40 * events.length,
+  };
+}
+
+// Only the entry id, topic, and optional app or content type are sent: the
+// route never sends baseline answers, reflections, durations, or timestamps.
+// Output is bounded like the Week 3 kind above; an entry needs few tokens.
+export function weekThreeAuditPrompt(
+  events: readonly { id: string; topic: string; app?: string }[],
+): ActivityPrompt {
+  return {
+    system: WEEK_THREE_AUDIT_SYSTEM,
+    user: userMessage(
+      "Week 3, distraction audit. Propose one category for each entry.",
+      {
+        entries: events.map(({ id, topic, app }) => ({
+          id,
+          topic,
+          ...(app === undefined ? {} : { app }),
+        })),
+      },
+    ),
+    outputSchema: OUTPUT_SCHEMAS.week_three_audit,
     maxOutputTokens: 1500 + 40 * events.length,
   };
 }

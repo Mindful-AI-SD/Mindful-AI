@@ -530,6 +530,7 @@ Deno.test("config: defaults, bounds, and invalid values", () => {
     effort: "low",
     maxOutputTokens: 16_000,
     refusalFallback: true,
+    dailyRequestLimit: 30,
   });
   const warn = console.warn;
   const warned: string[] = [];
@@ -540,12 +541,14 @@ Deno.test("config: defaults, bounds, and invalid values", () => {
       CLAUDE_MAX_RETRIES: "9",
       CLAUDE_EFFORT: "max",
       CLAUDE_MAX_OUTPUT_TOKENS: "many",
+      CLAUDE_DAILY_REQUEST_LIMIT: "0",
     }));
     assert.equal(invalid.timeoutMs, 12_000);
     assert.equal(invalid.maxRetries, 1);
     assert.equal(invalid.effort, "low");
     assert.equal(invalid.maxOutputTokens, 16_000);
-    assert.equal(warned.length, 4);
+    assert.equal(invalid.dailyRequestLimit, 30);
+    assert.equal(warned.length, 5);
     assert.ok(!warned.join().includes("999999"), "warnings hide values");
   } finally {
     console.warn = warn;

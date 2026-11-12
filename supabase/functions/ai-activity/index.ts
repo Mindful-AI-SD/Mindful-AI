@@ -6,6 +6,7 @@ import {
   aiActivityResponseSchema,
 } from "../../schema/aiActivitySchema.ts";
 import {
+  activityCallUsesModel,
   describeActivityMode,
   resolveActivityDeadlineMs,
   resolveProviderName,
@@ -17,9 +18,15 @@ import {
   ProviderTimeoutError,
 } from "../_shared/providers/types.ts";
 import {
+  collectStudentText,
   containsCrisisLanguage,
   CRISIS_SUPPORT_RESPONSE,
 } from "../_shared/crisisSupport.ts";
+import {
+  type ClaimModelRequest,
+  requestQuotaClaimer,
+  RequestQuotaExceededError,
+} from "../_shared/providers/requestQuota.ts";
 
 type Runner = (call: AiActivityCall) => Promise<unknown>;
 // Resolves true when the activity exists and is published for this user.
@@ -46,6 +53,11 @@ const errors = {
     error: "MODE_CHANGED",
     message: "This activity changed. Please review it and try again.",
   },
+  429: {
+    error: "RATE_LIMITED",
+    message:
+      "You have reached today's limit for AI responses. Your work is saved. Please try again tomorrow.",
+  },
   501: {
     error: "PROVIDER_NOT_CONFIGURED",
     message: "This activity is not available yet.",
@@ -64,19 +76,20 @@ function failure(status: keyof typeof errors, headers?: Headers): Response {
   return Response.json(errors[status], { status, headers });
 }
 
-// Every string a student may have typed, whatever the activity kind and
-// however the input is nested.
-function studentTexts(input: unknown): string[] {
-  if (typeof input === "string") return [input];
-  if (input === null || typeof input !== "object") return [];
-  return Object.values(input).flatMap(studentTexts);
-}
+// A second 503: the daily request count could not be checked, so no model call
+// was made.
+const usageCheckUnavailable = () =>
+  Response.json({
+    error: "USAGE_CHECK_UNAVAILABLE",
+    message: "Could not check today's AI usage. Please try again.",
+  }, { status: 503 });
 
 // Injection is server-side only, for testing failures without replacing the adapter.
 export function createAiActivityEndpoint(
   runner: Runner = runAiActivity,
   timeoutOverrideMs?: number,
   lookupOverride?: ActivityLookup,
+  claimOverride?: ClaimModelRequest,
 ) {
   const authenticated = withSupabase({ auth: "user" }, async (req, ctx) => {
     if (!ctx.userClaims?.id) return failure(401);
@@ -100,7 +113,7 @@ export function createAiActivityEndpoint(
     // Crisis language gets the fixed support response before validation and
     // the provider, even when the request would otherwise be rejected.
     const rawInput = (body as { input?: unknown } | null)?.input;
-    if (containsCrisisLanguage(studentTexts(rawInput))) {
+    if (containsCrisisLanguage(collectStudentText(rawInput))) {
       return Response.json(CRISIS_SUPPORT_RESPONSE);
     }
     const input = aiActivityRequestSchema.safeParse(body);
@@ -130,6 +143,17 @@ export function createAiActivityEndpoint(
       if (!await isPublished(request.activityId)) return failure(404);
     } catch {
       return failure(503);
+    }
+
+    // Counted only when the call will reach a model, after every check that
+    // could refuse the request without one.
+    if (activityCallUsesModel(request)) {
+      try {
+        await (claimOverride ?? requestQuotaClaimer(ctx.supabase))();
+      } catch (error) {
+        if (error instanceof RequestQuotaExceededError) return failure(429);
+        return usageCheckUnavailable();
+      }
     }
 
     let timer: ReturnType<typeof setTimeout> | undefined;

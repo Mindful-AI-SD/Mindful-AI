@@ -93,3 +93,11 @@ export function containsCrisisLanguage(texts: readonly string[]): boolean {
     return CRISIS_PATTERNS.some((pattern) => pattern.test(normalized));
   });
 }
+
+// Every string a student may have typed in a request, however it is nested, so
+// each route checks all of it before validation and before any provider.
+export function collectStudentText(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  if (value === null || typeof value !== "object") return [];
+  return Object.values(value).flatMap(collectStudentText);
+}

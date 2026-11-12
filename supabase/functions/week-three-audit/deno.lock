@@ -4,6 +4,7 @@
     "npm:@anthropic-ai/sdk@^1.4.0": "1.6.0_zod@4.6.7",
     "npm:@supabase/server@1": "1.9.2_@supabase+supabase-js@2.119.0",
     "npm:@supabase/supabase-js@2": "2.119.0",
+    "npm:jose@6": "6.2.15",
     "npm:zod@4": "4.6.7"
   },
   "npm": {
@@ -129,6 +130,7 @@
       "npm:@anthropic-ai/sdk@^1.4.0",
       "npm:@supabase/server@1",
       "npm:@supabase/supabase-js@2",
+      "npm:jose@6",
       "npm:zod@4"
     ]
   }

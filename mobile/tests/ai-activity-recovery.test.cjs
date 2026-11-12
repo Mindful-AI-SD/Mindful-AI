@@ -15,7 +15,7 @@ const kinds = {
     response: provider => ({
       kind: "sensation_lexicon", provider,
       result: { items: sensations.map((original, index) => ({
-        original, isVague: index > 0, suggestions: index > 0 ? ["tingling", "steady"] : [],
+        original, isVague: index > 0, suggestions: ["tingling", "steady", "loose"],
       })) },
     }),
   },
