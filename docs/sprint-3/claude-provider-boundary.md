@@ -35,6 +35,7 @@ Set these as Supabase secrets. None is sent to the app.
 | `CLAUDE_EFFORT`              | `low`               | `low`, `medium`, or `high`. Thinking is adaptive and counts toward output tokens.                  |
 | `CLAUDE_MAX_OUTPUT_TOKENS`   | `16000`             | 256 to 16000. A ceiling over the per-activity limits below.                                        |
 | `CLAUDE_REFUSAL_FALLBACK`    | `default`           | `default` or `off`. See [Refusals](#refusals).                                                     |
+| `CLAUDE_DAILY_REQUEST_LIMIT` | `30`                | 1 to 500 model requests per student per UTC day, across both Claude routes. Over it: HTTP 429.     |
 
 An out-of-range value is ignored in favor of the default, with a logged warning
 that names the setting only.
@@ -83,6 +84,8 @@ student's request. The server does all Week 3 arithmetic.
 | Model unavailable to the account (404)              | 501  | `PROVIDER_NOT_CONFIGURED` | Mode unavailable message         |
 | Deadline passed                                     | 408  | `PROVIDER_TIMEOUT`        | "Taking too long", retry offered |
 | Mode changed after the student read the notice      | 409  | `MODE_CHANGED`            | Notice refreshes, nothing sent   |
+| Student over today's request limit                  | 429  | `RATE_LIMITED`            | "Try again tomorrow", work kept  |
+| Today's request count could not be checked          | 503  | `USAGE_CHECK_UNAVAILABLE` | Error, retry offered             |
 | Rate limit, overload, or 5xx after retries          | 502  | `PROVIDER_ERROR`          | Error, retry offered             |
 | Refusal, truncated, or invalid output               | 502  | `PROVIDER_ERROR`          | Error, retry offered             |
 
@@ -121,6 +124,7 @@ Live use cannot start until each of these is met. Code is not the blocker.
 | IRB decision on sending student text to a model | Dr. Haberlin                          | Open; synthetic text only    |
 | Crisis wording approval                         | Dr. Haberlin                          | Open; blocks real students   |
 
-The in-app bounds above limit the cost of one request but not the total number
-of requests. **The account's spending limit is the only total cap**, and there
-is no per-student rate limit yet. Set the limit before enabling Claude.
+The in-app bounds above limit the cost of one request, and the daily cap limits
+how many requests each student can make. **The account's spending limit is still
+the only cap on total spend** across all students. Set it before enabling
+Claude.

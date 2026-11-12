@@ -34,6 +34,8 @@ import {
 export const CLAUDE_PROVIDER_NAME = "claude";
 export const DEFAULT_CLAUDE_MODEL = "claude-sonnet-5-5";
 export const CLAUDE_MAX_TIMEOUT_MS = 14_000;
+export const DEFAULT_DAILY_REQUEST_LIMIT = 30;
+export const MAX_DAILY_REQUEST_LIMIT = 500;
 
 const EFFORT_LEVELS = ["low", "medium", "high"] as const;
 type Effort = (typeof EFFORT_LEVELS)[number];
@@ -46,6 +48,8 @@ export type ClaudeConfig = {
   effort: Effort;
   maxOutputTokens: number;
   refusalFallback: boolean;
+  // Model requests one student may start per UTC day, on every Claude route.
+  dailyRequestLimit: number;
 };
 
 type ReadEnv = (name: string) => string | undefined;
@@ -97,15 +101,26 @@ export function resolveClaudeConfig(read: ReadEnv = readDenoEnv): ClaudeConfig {
       16_000,
     ),
     refusalFallback: read("CLAUDE_REFUSAL_FALLBACK") !== "off",
+    dailyRequestLimit: boundedInteger(
+      read,
+      "CLAUDE_DAILY_REQUEST_LIMIT",
+      DEFAULT_DAILY_REQUEST_LIMIT,
+      1,
+      MAX_DAILY_REQUEST_LIMIT,
+    ),
   };
 }
 
 // One log line per call. Only metadata: never student text, model output,
 // prompts, API error messages, or keys.
+// Every Claude route logs under its own kind. week_three_audit is the separate
+// Week 3 route; the others are ai-activity kinds.
+export type ClaudeCallKind = AiActivityKind | "week_three_audit";
+
 export type ClaudeCallRecord = {
   event: "ai_usage" | "ai_provider_failure";
   provider: typeof CLAUDE_PROVIDER_NAME;
-  kind: AiActivityKind;
+  kind: ClaudeCallKind;
   promptVersion: string;
   requestedModel: string;
   servedModel: string | null;
@@ -116,6 +131,11 @@ export type ClaudeCallRecord = {
   outputTokens: number | null;
   failure: string | null;
   httpStatus: number | null;
+};
+
+export type StructuredCallOptions = {
+  // A route that keeps its own billing ledger can turn SDK retries off.
+  maxRetries?: number;
 };
 
 export type ClaudeAdapterOptions = {
@@ -232,9 +252,10 @@ export function createClaudeAdapter(options: ClaudeAdapterOptions = {}) {
   });
 
   async function call<T>(
-    kind: AiActivityKind,
+    kind: ClaudeCallKind,
     prompt: ActivityPrompt,
     read: (value: unknown) => T,
+    callOptions: StructuredCallOptions = {},
   ): Promise<T> {
     const config = resolveClaudeConfig(readEnv);
     const startedAt = now();
@@ -271,7 +292,7 @@ export function createClaudeAdapter(options: ClaudeAdapterOptions = {}) {
     const client = new Anthropic({
       apiKey: config.apiKey,
       authToken: null,
-      maxRetries: config.maxRetries,
+      maxRetries: callOptions.maxRetries ?? config.maxRetries,
       timeout: config.timeoutMs,
       ...(options.fetch ? { fetch: options.fetch } : {}),
     });
@@ -456,6 +477,9 @@ export function createClaudeAdapter(options: ClaudeAdapterOptions = {}) {
     generateGuidedReflection,
     generateSensationLexicon,
     generateDistractionAudit,
+    // For a Claude route outside ai-activity: the same deadline, stop-reason
+    // and schema checks, refusal handling, and usage log as every activity.
+    generateStructured: call,
   };
 }
 

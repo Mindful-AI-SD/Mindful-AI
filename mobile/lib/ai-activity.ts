@@ -87,6 +87,7 @@ export type AiActivityError = {
     | "NETWORK_ERROR"
     | "UNAVAILABLE"
     | "MODE_CHANGED"
+    | "RATE_LIMITED"
     | "REQUEST_FAILED"
     | "INVALID_RESPONSE";
   message: string;
@@ -294,6 +295,13 @@ function transportFailure(
   }
   if (status === 501) {
     return failure("UNAVAILABLE", MODE_UNAVAILABLE_MESSAGE, status);
+  }
+  if (status === 429) {
+    return failure(
+      "RATE_LIMITED",
+      "You have reached today's limit for AI responses. Your work is saved. Please try again tomorrow.",
+      status,
+    );
   }
   if (status === 409) {
     return failure(

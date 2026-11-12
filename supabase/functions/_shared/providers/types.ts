@@ -107,6 +107,21 @@ export const PROVIDER_NAMES = [
 
 export type ProviderName = (typeof PROVIDER_NAMES)[number];
 
+// Categories for the Week 3 audit route (week-three-audit), taken from the
+// sponsor-facing Week 3 handoff. The older distraction_audit kind keeps its own
+// list in DISTRACTION_CATEGORIES.
+export const WEEK_THREE_AUDIT_CATEGORIES = [
+  "planning",
+  "memory",
+  "worry",
+  "social_comparison",
+  "entertainment",
+  "other",
+] as const;
+
+export type WeekThreeAuditCategory =
+  (typeof WEEK_THREE_AUDIT_CATEGORIES)[number];
+
 export const AI_ACTIVITY_KINDS = [
   "intention_mirror",
   "sensation_lexicon",

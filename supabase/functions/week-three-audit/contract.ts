@@ -1,7 +1,9 @@
 import { z } from "zod";
+import { WEEK_THREE_AUDIT_CATEGORIES } from "../_shared/providers/types.ts";
 // The existing distraction_audit contract deliberately remains unchanged: its
 // older category vocabulary and integer percentages are a different version.
-export const category = z.enum(["planning", "memory", "worry", "social_comparison", "entertainment", "other"]);
+// One list, shared with the prompt in _shared/prompts/activityPrompts.ts.
+export const category = z.enum(WEEK_THREE_AUDIT_CATEGORIES);
 export const requestSchema = z.object({
   activityId: z.uuid(), operationId: z.uuid(),
   events: z.array(z.object({ id: z.uuid(), topic: z.string().min(1).max(2000).refine(text => !!text.trim()), app: z.string().max(200).optional() }).strict()).min(1).max(300),

@@ -1,10 +1,11 @@
 # Claude tuning and usage controls
 
-**Status: offline work is done, and live tuning is blocked.** Comparing real
-output with the rubric and measuring real token use both need a live key. See
-the blocker in [claude-live-verification.md](claude-live-verification.md).
-Nothing below is a measured Claude result unless it says so, and no live figure
-exists yet.
+**Status: offline work and usage controls are done; live tuning and measured
+usage are still blocked on the key** (rechecked 2026-11-12: no key is available
+to this work). Comparing real output with the rubric and measuring real token
+use both need a live key. See the blocker in
+[claude-live-verification.md](claude-live-verification.md). Nothing below is a
+measured Claude result unless it says so, and no live figure exists yet.
 
 ## Rubric
 
@@ -63,19 +64,42 @@ team rather than loosening a limit quietly.
 
 ## Spending controls
 
-| Control                | Where                               | Limits                     | Status        |
-| ---------------------- | ----------------------------------- | -------------------------- | ------------- |
-| Monthly spending limit | Anthropic Console, on the workspace | **Total spend**            | Not confirmed |
-| Output token limit     | Adapter, per activity               | One response               | Built         |
-| Input limits           | Shared schemas, before any call     | One request                | Built         |
-| Retry cap              | `CLAUDE_MAX_RETRIES`, default 1     | Attempts per request       | Built         |
-| Single deadline        | `CLAUDE_TIMEOUT_MS`, default 12000  | Time, and cancels the call | Built         |
-| Per-student rate limit | Not built                           | Requests per student       | **Gap**       |
+| Control                | Where                                    | Limits                                 | Status             |
+| ---------------------- | ---------------------------------------- | -------------------------------------- | ------------------ |
+| Monthly spending limit | Anthropic Console, on the workspace      | **Total spend**                        | Not confirmed      |
+| Output token limit     | Adapter, per activity                    | One response                           | Built              |
+| Input limits           | Shared schemas, before any call          | One request                            | Built              |
+| Retry cap              | `CLAUDE_MAX_RETRIES`, default 1          | Attempts per request                   | Built              |
+| Single deadline        | `CLAUDE_TIMEOUT_MS`, default 12000       | Time, and cancels the call             | Built              |
+| Daily cap per student  | `CLAUDE_DAILY_REQUEST_LIMIT`, default 30 | Model requests per student per UTC day | Built (2026-11-12) |
 
-**The per-student gap matters.** Any signed-in student can keep sending requests
-until the workspace limit stops them, and at that point Claude is unavailable
-for everyone. Building a limit needs a table and a migration, and it should be
-decided before real students use Claude.
+The daily cap covers both Claude routes, `ai-activity` and `week-three-audit`. A
+request is counted only when it is about to reach the model: mock, prewritten, a
+missing key, a crisis response, an invalid request, a mode change, an empty Week
+3 log, and a replayed Week 3 receipt are never counted. A request over the cap
+gets HTTP 429 with no model call. If the count cannot be checked, the request
+gets 503 and no model call either, so the cap fails closed.
+
+Counts live in `ai_request_counts` (migration `20261112000000`), which holds a
+date and a number per student and nothing else. Students can read their own
+count but cannot write it; only the `claim_ai_request` database function adds to
+it, using the caller's own session. A local integration test confirms that a
+student cannot reset, raise, or delete their count.
+
+The default of 30 is a starting point, not a measured figure: a student doing
+Weeks 1 to 3 in one sitting makes a handful of requests. Revisit it once live
+usage is measured.
+
+## Week 3 audit route
+
+The separate `week-three-audit` route (Christopher's Week 3 screens) now uses
+the same controls as `ai-activity`: the crisis check before anything else, its
+prompt in `activityPrompts.ts` under `PROMPT_VERSION`, the shared adapter's
+deadline and output checks, the daily cap, and the same metadata-only `ai_usage`
+log (`kind: "week_three_audit"`). Its output limit is now 1,500 + 40 tokens per
+entry instead of a flat 12,000. Its categories, its one-decimal percentages, its
+billing ledger, and its screens are unchanged, and SDK retries stay off for it
+because its ledger decides when a request may be billed again.
 
 ## Cost estimates
 
@@ -84,11 +108,17 @@ Claude Sonnet 5.5 list prices of $2 input and $10 output per million tokens, and
 the input sizes are rough assumptions. Replace them with measured `ai_usage`
 figures.
 
-| Activity                 | Assumed input | Output limit | Most one request can cost |
-| ------------------------ | ------------- | ------------ | ------------------------- |
-| Week 1 Intention Mirror  | ~900 tokens   | 2,000        | ~$0.022                   |
-| Week 2 Sensation Lexicon | ~450 tokens   | 2,000        | ~$0.021                   |
-| Week 3, 300-event log    | ~6,000 tokens | 13,500       | ~$0.147                   |
+| Activity                              | Assumed input | Output limit | Most one request can cost |
+| ------------------------------------- | ------------- | ------------ | ------------------------- |
+| Week 1 Intention Mirror               | ~900 tokens   | 2,000        | ~$0.022                   |
+| Week 2 Sensation Lexicon              | ~450 tokens   | 2,000        | ~$0.021                   |
+| Week 3, 300-event log                 | ~6,000 tokens | 13,500       | ~$0.147                   |
+| Week 3 audit route, 300 short entries | ~9,000 tokens | 13,500       | ~$0.153                   |
+
+The audit route accepts entry topics of up to 2,000 characters each, so a
+deliberately long 300-entry request could reach roughly 165,000 input tokens,
+about $0.47 at most. The daily cap limits how often that can happen; a total
+input bound would need a change to Week 3's own limits.
 
 Typical requests should cost less, since few will reach the output limit. A
 retried failure can bill again, and a refusal fallback bills at the serving

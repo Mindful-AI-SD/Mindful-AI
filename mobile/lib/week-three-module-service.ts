@@ -21,6 +21,15 @@ export class WeekThreeRequestError extends Error {
   constructor(message: string, public readonly definitive = false) { super(message); }
 }
 
+// The fixed support response from crisisSupport.ts, as one readable message.
+function readSupport(value: unknown): string | null {
+  const body = value as { outcome?: unknown; message?: unknown; resources?: unknown } | null;
+  if (body?.outcome !== "support" || typeof body.message !== "string" || !Array.isArray(body.resources)) return null;
+  const resources = body.resources.flatMap((item: { name?: unknown; contact?: unknown }) =>
+    typeof item?.name === "string" && typeof item.contact === "string" ? [`${item.name}: ${item.contact}`] : []);
+  return [body.message, ...resources].join(" ");
+}
+
 export function createWeekThreeModuleService(userId: string, activityId: string): WeekThreeModuleService {
   async function owner() {
     const { data, error } = await supabase.auth.getSession();
@@ -94,8 +103,17 @@ export function createWeekThreeModuleService(userId: string, activityId: string)
       await owner();
       if (error) {
         const status = (error as { context?: { status?: number } }).context?.status;
-        throw new WeekThreeRequestError(status === 408 ? "Live AI timed out. Your entries remain saved. Retry or choose the prewritten version." : "Live AI could not categorize these entries. Your entries remain saved. Retry or choose the prewritten version.", [400, 401, 404, 408, 501, 502].includes(status ?? 0));
+        throw new WeekThreeRequestError(
+          status === 408 ? "Live AI timed out. Your entries remain saved. Retry or choose the prewritten version."
+            : status === 429 ? "You have reached today's limit for live AI. Your entries remain saved. Choose the prewritten version or try again tomorrow."
+            : "Live AI could not categorize these entries. Your entries remain saved. Retry or choose the prewritten version.",
+          [400, 401, 404, 408, 429, 501, 502].includes(status ?? 0),
+        );
       }
+      // The server's fixed crisis response: no categories were produced. Show
+      // the message and resources, and do not treat it as a model answer.
+      const support = readSupport(result);
+      if (support) throw new WeekThreeRequestError(support, true);
       if (result?.provider !== "claude" || !Array.isArray(result.assignments) || result.assignments.length !== events.length ||
         result.assignments.some((assignment: { eventId: string; category: unknown }, index: number) => assignment.eventId !== events[index].id || !isCategory(assignment.category))) throw new WeekThreeRequestError("Live AI returned invalid categories. Your entries remain saved; retry or choose prewritten.", true);
       return result as Categorization;

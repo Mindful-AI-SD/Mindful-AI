@@ -65,3 +65,25 @@ test("AI sends only minimized entries through the proxy and rejects unknown cate
   supabase.functions.invoke.mockResolvedValue({ data: { provider: "claude", assignments: [{ eventId: "entry", category: "thoughts" }] }, error: null });
   await expect(service.categorize(data, "operation", signal)).rejects.toThrow(/invalid categories/);
 });
+test("a crisis support response is shown as its message and resources, never as categories", async () => {
+  const data = newWeekThreeModule();
+  data.entries = [{ id: "entry", source: "practice", topic_trigger: "Synthetic entry", app_content_type: "", duration_minutes: null, occurred_at: "2026-11-09T08:00:00Z" }];
+  supabase.functions.invoke.mockResolvedValue({ data: {
+    outcome: "support", message: "Help is available now.",
+    resources: [{ name: "988 Suicide & Crisis Lifeline", contact: "Call or text 988." }],
+  }, error: null });
+  const service = createWeekThreeModuleService("student", "activity");
+  const error = await service.categorize(data, "operation", new AbortController().signal).catch(cause => cause);
+  expect(error.message).toBe("Help is available now. 988 Suicide & Crisis Lifeline: Call or text 988.");
+  expect(error.definitive).toBe(true);
+});
+test("the daily limit is reported plainly and ends that request ID", async () => {
+  const data = newWeekThreeModule();
+  data.entries = [{ id: "entry", source: "practice", topic_trigger: "Synthetic entry", app_content_type: "", duration_minutes: null, occurred_at: "2026-11-09T08:00:00Z" }];
+  supabase.functions.invoke.mockResolvedValue({ data: null, error: { context: { status: 429 } } });
+  const service = createWeekThreeModuleService("student", "activity");
+  const error = await service.categorize(data, "operation", new AbortController().signal).catch(cause => cause);
+  expect(error.message).toMatch(/today's limit for live AI/);
+  expect(error.message).toMatch(/entries remain saved/);
+  expect(error.definitive).toBe(true);
+});
