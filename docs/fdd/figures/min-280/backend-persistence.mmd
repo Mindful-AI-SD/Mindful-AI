@@ -1,0 +1,47 @@
+erDiagram
+    AUTH_USERS ||--o| BASELINE_RECORDS : owns
+    BASELINE_DEFINITIONS ||--o{ BASELINE_RECORDS : versions
+    AUTH_USERS ||--o{ BASELINE_WRITE_RECEIPTS : owns
+    AUTH_USERS ||--o{ PROGRESS : owns
+    WEEKS ||--o{ ACTIVITIES : contains
+    ACTIVITIES ||--o{ PROGRESS : scopes
+    AUTH_USERS ||--o{ WEEK_THREE_AUDIT_REQUESTS : owns
+    ACTIVITIES ||--o{ WEEK_THREE_AUDIT_REQUESTS : scopes
+    AUTH_USERS ||--o{ AI_REQUEST_COUNTS : owns
+    BASELINE_DEFINITIONS {
+        text definition_id PK
+        integer definition_version PK
+        jsonb questions
+    }
+    BASELINE_RECORDS {
+        uuid user_id PK,FK
+        text definition_id FK
+        integer definition_version FK
+        jsonb answers
+        text status
+        bigint revision
+    }
+    BASELINE_WRITE_RECEIPTS {
+        uuid user_id PK,FK
+        uuid operation_id PK
+        text request_hash
+        bigint resulting_revision
+    }
+    PROGRESS {
+        uuid user_id PK,FK
+        uuid activity_id PK,FK
+        jsonb reflection_answers
+        text status
+    }
+    WEEK_THREE_AUDIT_REQUESTS {
+        uuid user_id PK,FK
+        uuid operation_id PK
+        uuid activity_id FK
+        text input_digest
+        jsonb result
+    }
+    AI_REQUEST_COUNTS {
+        uuid user_id PK,FK
+        date usage_date PK
+        integer request_count
+    }
