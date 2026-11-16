@@ -1,5 +1,41 @@
 # MIN-274 — Backend build and operational guidance
 
+## Current-state reconciliation — 12 November 2026
+
+The candidate source is now main `ce3b81f8f1b4f0281490ae4a9649b7f847c81f66`. The
+October local inventory/tool observations below remain historical, including its
+old claim that PR #55 is unmerged or Claude/non-AI implementations are
+unavailable.
+
+| Operational topic        | Current evidence                                                                                                                                                                                             |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Main migrations          | Eleven versions: the original six, baseline `20261029000000`, audio `20261107000000`, published baseline `20261108000000`, audit ledger `20261109000000`, quota `20261112000000`                             |
+| Historical local drift   | Local DB still retains MIN-110 `20261015000000` and old draft `20261029010000`/`20261029020000`; they are not source prerequisites for this main candidate                                                   |
+| New local candidate only | Separate candidate MIN-226 boundary migration `20261112010000` was applied locally for nine security tests. It is not merged/deployed and must not be silently included in a main handoff                    |
+| Functions/modes          | Main includes `ai-activity` Claude/prewritten and newer `week-three-audit`; the latter needs its service-only ledger and server credential. Per-student daily counts now cover both Claude routes            |
+| Secrets and billing      | Existing provider setting/key names come from actual source. No secret values, new invented mode or live usage claim is introduced. Spending-limit/privacy approval and live verification remain outstanding |
+| Local tests              | Main baseline 24 tests, mobile/service 187, shared backend 432, mindfulness 33 steps, AI 156 steps and Week 3 audit 12 tests/3 steps passed. These are local results, not a shared deployment                |
+| Baseline failures        | Unchanged current-main frontend TypeScript reports eight CSS/native-tabs/media diagnostics; do not attribute those to this documentation or the SQL-only replacement                                         |
+| Seed/recovery            | Missing seed reference remains an operational gap. No reset, backup restore, host-crash test or shared restart/recovery acceptance was performed                                                             |
+
+The safest current handoff identifies the exact commit and migration set,
+published curriculum and saved-state prerequisites, function/secret presence
+without values, actual retained provenance and owner baseline retrieval. It must
+also expose the reproduced direct REST prerequisite gap and the remaining
+MIN-225 approval boundary. A remote target/deployment inventory and another
+teammate's two-account recovery run are still required before MIN-244 signoff.
+
+Current sources:
+[source migrations](https://github.com/Mindful-AI-SD/Mindful-AI/tree/ce3b81f8f1b4f0281490ae4a9649b7f847c81f66/supabase/migrations),
+[local-only tests](https://github.com/Mindful-AI-SD/Mindful-AI/blob/ce3b81f8f1b4f0281490ae4a9649b7f847c81f66/mobile/tests/integration/baseline.test.cjs),
+[quota controls](https://github.com/Mindful-AI-SD/Mindful-AI/blob/ce3b81f8f1b4f0281490ae4a9649b7f847c81f66/supabase/migrations/20261112000000_ai_request_counts.sql),
+[Week 3 handoff limits](https://github.com/Mindful-AI-SD/Mindful-AI/blob/ce3b81f8f1b4f0281490ae4a9649b7f847c81f66/mobile/verification/week-three-handoff.md),
+[live verification remains unexecuted](https://github.com/Mindful-AI-SD/Mindful-AI/blob/ce3b81f8f1b4f0281490ae4a9649b7f847c81f66/docs/sprint-3/claude-live-verification.md).
+Existing commands remain subject to the selected candidate's actual files and
+migration history; no service rollout is authorized by this document.
+
+## Historical October 29 contribution and source snapshot
+
 **FDD draft for review · 29 October 2026.** This approximately three-page
 manuscript contribution covers verified repository/local facts and future-use
 risks; final pagination depends on FDD assembly and operational table sizing. It
