@@ -1,0 +1,102 @@
+{
+  "registerVersion": 1,
+  "reviewDate": "2026-11-16",
+  "mainCommit": "ce3b81f8f1b4f0281490ae4a9649b7f847c81f66",
+  "classification": "Sanitized local evidence index, not deployment evidence",
+  "databaseCaveat": "Local integration database includes historical migrations 20261015000000, 20261029010000, 20261029020000 and separate PR68 candidate 20261112010000. It is not a clean main-only deployment. Baseline testing temporarily recognized already-recorded history; no historical DDL was replayed.",
+  "runtimeTestsRerunForThisDocumentationChange": false,
+  "records": [
+    {
+      "id": "E1",
+      "date": "2026-11-16",
+      "scope": "local synthetic test data; not shared deployment",
+      "sourceCommit": "ce3b81f8f1b4f0281490ae4a9649b7f847c81f66",
+      "command": "node --test mobile/tests/integration/baseline.test.cjs",
+      "passed": 24,
+      "failed": 0,
+      "localLogSha256": "cf11817c29ad8e1ae1dfbe65ee842bb327c53dc577baa37403044690a76d5c71",
+      "logRetention": "Ephemeral local log; hash is a correlation aid, not a published or independently reproducible test attestation."
+    },
+    {
+      "id": "E2",
+      "date": "2026-11-16",
+      "scope": "local synthetic test data; not shared deployment",
+      "sourceCommit": "8e2d1b4597ece727992d82ec27a307f7eaab49f4",
+      "command": "node --test mobile/tests/integration/week-three-progress-boundary.test.cjs",
+      "passed": 9,
+      "failed": 0,
+      "localLogSha256": "db0cd734f8654b92e24bc54dc63454a916b88a9d73119fb3009806e91874bcc3",
+      "logRetention": "Ephemeral local log; hash is a correlation aid, not a published or independently reproducible test attestation."
+    },
+    {
+      "id": "E3",
+      "date": "2026-11-16",
+      "scope": "local synthetic test data; not shared deployment",
+      "sourceCommit": "ce3b81f8f1b4f0281490ae4a9649b7f847c81f66",
+      "command": "node --test mobile/tests/integration/progress-helpers.test.cjs",
+      "passed": 8,
+      "failed": 0,
+      "localLogSha256": "4a0e3ad3d7fa8e1a2311d5485e614f6de62a9e72deb6fe2e9d405f5b5ca2afea",
+      "logRetention": "Ephemeral local log; hash is a correlation aid, not a published or independently reproducible test attestation."
+    },
+    {
+      "id": "E4",
+      "date": "2026-11-16",
+      "scope": "local synthetic test data; not shared deployment",
+      "sourceCommit": "ce3b81f8f1b4f0281490ae4a9649b7f847c81f66",
+      "command": "node --test mobile/tests/*.test.cjs",
+      "passed": 187,
+      "failed": 0,
+      "localLogSha256": "120d7eb4d1702d2f920232c2fa1ed4788aa540c655a7e0f67815e327e4f25e7d",
+      "logRetention": "Ephemeral local log; hash is a correlation aid, not a published or independently reproducible test attestation."
+    },
+    {
+      "id": "E5",
+      "date": "2026-11-16",
+      "scope": "local synthetic test data; not shared deployment",
+      "sourceCommit": "ce3b81f8f1b4f0281490ae4a9649b7f847c81f66",
+      "command": "deno task tests",
+      "passed": {
+        "shared": 432,
+        "mindfulnessTests": 1,
+        "mindfulnessSteps": 33,
+        "aiTests": 3,
+        "aiSteps": 156,
+        "weekThreeAuditTests": 12,
+        "weekThreeAuditSteps": 3
+      },
+      "failed": 0,
+      "localLogSha256": "feb6e20dec2d2261a1125c25278fd5ff14ce25b9eda114bafc7fc4f696c70f67",
+      "logRetention": "Ephemeral local log; hash is a correlation aid, not a published or independently reproducible test attestation."
+    },
+    {
+      "id": "E6",
+      "date": "2026-11-16",
+      "scope": "untouched main source; existing installed dependencies",
+      "sourceCommit": "ce3b81f8f1b4f0281490ae4a9649b7f847c81f66",
+      "results": {
+        "typescript": "8 existing CSS/native-tabs/media diagnostics",
+        "npmCi": "Existing dependency lock mismatch; no lockfile repair",
+        "sqlLint": "No schema errors in local database including historical/candidate migrations",
+        "clientSecurity": "Passed"
+      },
+      "runtimeRerunForMin280": false
+    }
+  ],
+  "draftHeads": {
+    "57": "27539c102313c16f22b116bd8c5b4561fdc3e215",
+    "58": "9cfce16487969f411a5dcc7539a14dba7bde8f50",
+    "59": "6503fb6135156cfe78c964752d6af8e75bf1c5a0",
+    "68": "8e2d1b4597ece727992d82ec27a307f7eaab49f4",
+    "69": "528a273e775e9f476f9c414449a7c31103c0665a"
+  },
+  "unverified": [
+    "Assembled FDD three-page addition and cumulative 20-page total",
+    "Shared deployed migration/function/configuration inventory",
+    "Teammate owner-isolation and restart/recovery acceptance",
+    "Live Claude verification",
+    "Approved MIN-225 final completion policy",
+    "Canonical slug/configuration decision",
+    "Complete historical result provenance"
+  ]
+}

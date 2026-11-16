@@ -1,0 +1,20 @@
+sequenceDiagram
+    participant Student as Signed-in client
+    participant RPC as Restricted baseline RPC
+    participant DB as Owner record and receipts
+    Student->>RPC: Operation ID, definition, expected revision, answers
+    RPC->>RPC: Derive owner from authentication
+    RPC->>DB: Begin atomic owner write and lock
+    alt Same operation and request hash already committed
+        DB-->>RPC: Stored acknowledgement
+        RPC-->>Student: Replay acknowledgement
+    else New valid operation
+        RPC->>DB: Check revision and original immutability
+        RPC->>DB: Save draft or fix submitted original and receipt
+        DB-->>RPC: Commit together
+        RPC-->>Student: Acknowledgement
+    else Changed retry, stale revision or immutable original
+        DB-->>RPC: Reject and roll back transaction
+        RPC-->>Student: Controlled conflict, preserve saved data
+    end
+    Note over Student,DB: Uncertain network outcome: retry same operation or reload owner state
