@@ -1,5 +1,46 @@
 # MIN-268 — Cross-week and instructor data design
 
+## Current-state reconciliation — 12 November 2026
+
+Main is now `ce3b81f8f1b4f0281490ae4a9649b7f847c81f66`. The October text below
+remains a dated design/source snapshot, not a statement that its former
+dependency statuses still apply. Current baseline and provider work must not be
+labelled unmerged.
+
+- Baseline definitions/original retrieval are merged through PR #55, and main
+  now seeds the approved five-question definition. MIN-219 is Done. No Week 8 UI
+  or combined historical-reflection service follows from that capability.
+- The newer Week 3 module saves in existing owner progress JSON. It does not use
+  the old PR #56 event envelope, category arithmetic, separate tables or content
+  mapping. That prototype stays unmerged and should be replaced only by
+  still-needed, narrowly scoped backend protections.
+- Claude/prewritten modes now exist on main. Source labels and some content
+  versions are retained, but Week 1's generated-intention save stores only the
+  array, and Week 3 retains current state rather than an append-only result
+  history. MIN-232 Done therefore does not prove complete provenance coverage.
+- The helper and audit route enforce earlier-week saved completion. A direct
+  REST prerequisite bypass was reproduced on main; a local candidate MIN-226
+  replacement passed nine database tests. That fix is not current main.
+- The newer source-backed Week 3 flow does not settle MIN-225 approval, which
+  remains In Progress. No final completion policy is invented here.
+- Production instructor membership/roster queries and Week 8 presentation remain
+  proposed. Historical MIN-132/MIN-144 Done statuses do not establish those
+  APIs.
+- No executed shared-deployment recovery result was found. MIN-238 and MIN-244
+  must be judged from candidate evidence, not board status.
+
+Current sources:
+[published baseline](https://github.com/Mindful-AI-SD/Mindful-AI/blob/ce3b81f8f1b4f0281490ae4a9649b7f847c81f66/supabase/migrations/20261108000000_publish_week_one_baseline.sql),
+[current Week 3 module](https://github.com/Mindful-AI-SD/Mindful-AI/blob/ce3b81f8f1b4f0281490ae4a9649b7f847c81f66/mobile/lib/week-three-module.ts),
+[actual save path](https://github.com/Mindful-AI-SD/Mindful-AI/blob/ce3b81f8f1b4f0281490ae4a9649b7f847c81f66/mobile/lib/week-three-module-service.ts),
+[Week 1 save boundary](https://github.com/Mindful-AI-SD/Mindful-AI/blob/ce3b81f8f1b4f0281490ae4a9649b7f847c81f66/mobile/lib/progress.ts),
+[provider implementation/evidence limits](https://github.com/Mindful-AI-SD/Mindful-AI/blob/ce3b81f8f1b4f0281490ae4a9649b7f847c81f66/docs/sprint-3/claude-provider-boundary.md).
+The earlier cross-week diagrams and proposals are historical design
+illustrations; they do not imply deployment or adoption of the old parallel Week
+3 schema.
+
+## Historical October 29 contribution and source snapshot
+
 **FDD draft · 29 October 2026.** This contribution supplies approximately four
 additional manuscript pages before references; final pagination depends on FDD
 assembly and figure sizing. It distinguishes accepted repository behavior,
