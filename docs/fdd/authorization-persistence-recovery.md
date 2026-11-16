@@ -1,5 +1,39 @@
 # MIN-262 — Authorization, persistence and recovery
 
+## Current-state reconciliation — 12 November 2026
+
+The implementation baseline is now main
+`ce3b81f8f1b4f0281490ae4a9649b7f847c81f66`. The dated October contribution below
+is retained as historical evidence; its references to unmerged PR #55, prototype
+PR #56, absent production definitions, unavailable providers and old test totals
+are **not current-state claims**.
+
+| Boundary            | Verified current state                                                                                                                                                                                                                                                   |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Baseline            | PR #55 is merged. Main publishes the approved version-1 five-question definition. Restricted RPC/RLS, immutable originals and owner-only original retrieval remain implemented; 24 local database tests passed again                                                     |
+| Week 3              | Main's newer module stores versioned state in existing `progress` JSON and uses timestamp/step CAS. The old separate-table PR #56 is unmerged and is not the active module                                                                                               |
+| Providers           | Claude and prewritten paths are merged. The Claude adapter has fake-server validation and current quota controls, but the live-verification document still records no live or shared-deployment result                                                                   |
+| Prerequisites       | The audit endpoint checks all published prior-week activities. Direct REST insertion on unchanged main still succeeded without prerequisites; a separate candidate MIN-226 replacement passed nine local RLS tests. Do not represent that replacement as merged/deployed |
+| Recovery/provenance | Atomic baseline retries are verified. Current Week 3 audit has a service-only claim ledger. Persisted Week 1 intentions still lose provider metadata at the save boundary, so complete historical provenance is not established                                          |
+| Deployment          | No target/deployed-version/restart acceptance record was supplied. MIN-238's Done status is not deployment evidence; MIN-244 remains incomplete                                                                                                                          |
+
+The new Week 3 flow includes source-backed completion behavior, while MIN-225
+remains In Progress and some team implementation rules are explicitly pending
+review. No new final predicate is authorized here. Owner-editable legacy
+completion is a saved-state signal, not independent learning attestation.
+Instructor production authorization and Week 8 UI remain unimplemented.
+
+Current evidence:
+[baseline definition](https://github.com/Mindful-AI-SD/Mindful-AI/blob/ce3b81f8f1b4f0281490ae4a9649b7f847c81f66/supabase/migrations/20261108000000_publish_week_one_baseline.sql),
+[Week 3 persistence](https://github.com/Mindful-AI-SD/Mindful-AI/blob/ce3b81f8f1b4f0281490ae4a9649b7f847c81f66/mobile/lib/week-three-module-service.ts),
+[audit route](https://github.com/Mindful-AI-SD/Mindful-AI/blob/ce3b81f8f1b4f0281490ae4a9649b7f847c81f66/supabase/functions/week-three-audit/index.ts),
+[current usage controls](https://github.com/Mindful-AI-SD/Mindful-AI/blob/ce3b81f8f1b4f0281490ae4a9649b7f847c81f66/docs/sprint-3/claude-tuning-and-usage.md),
+[deployment limits](https://github.com/Mindful-AI-SD/Mindful-AI/blob/ce3b81f8f1b4f0281490ae4a9649b7f847c81f66/mobile/verification/week-three-handoff.md).
+Local tests use synthetic accounts/data; no shared deployment or real student
+processing is claimed.
+
+## Historical October 29 contribution and source snapshot
+
 **FDD review draft · evidence checked 29 October 2026.** The four sections below
 provide approximately four manuscript pages of substantive FDD material before
 references, with final pagination dependent on the team's layout and figure
