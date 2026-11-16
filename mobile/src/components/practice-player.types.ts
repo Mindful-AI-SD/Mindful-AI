@@ -1,7 +1,5 @@
 
-import type {
-  PracticeMediaStatus as ExistingMediaStatus,
-} from "./practice-media.types";
+import type { PracticeMediaStatus as ExistingMediaStatus } from "./practice-media.types";
 
 export type PracticeMediaStatus =
   | ExistingMediaStatus
@@ -65,9 +63,9 @@ export interface PracticeConfig {
   pauseOnBackground: boolean;
   media?: PracticePlayerMedia;
   requiresMedia?: boolean;
-  /** When supplied, show these tap labels while Practice is actively running. */
   distractionTapLabels?: string[];
   completionAllowed?: boolean;
+  textAlternative?: string;
 }
 
 export interface PracticeSession {
@@ -77,11 +75,7 @@ export interface PracticeSession {
   startedAt: number | null;
   lastSavedAt: number | null;
   completed: boolean;
-
-  /** Locally saved Week 3 practice-wandering taps. */
   distractionEvents?: DistractionTapEvent[];
-
-  /** Current recording position in seconds, if this practice uses media. */
   mediaPositionSeconds?: number;
 }
 

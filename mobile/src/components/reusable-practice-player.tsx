@@ -42,6 +42,7 @@ interface Props {
   userId: string;
   onContinue?: () => Promise<boolean> | boolean | void;
   onExit?: () => void;
+  onDistractionTap?: (event: DistractionTapEvent) => void;
   isSaving?: boolean;
 }
 
@@ -50,21 +51,38 @@ export function ReusablePracticePlayer({
   userId,
   onContinue,
   onExit,
+  onDistractionTap,
   isSaving = false,
 }: Props) {
   const hasMedia =
     config.media?.type === "audio" ||
     config.media?.type === "video";
 
-  const requiresMedia =
+  const originalRequiresMedia =
     hasMedia || config.requiresMedia === true;
+
+  const [textFallback, setTextFallback] = useState(false);
+
+  const requiresMedia =
+    originalRequiresMedia && !textFallback;
 
   const effectiveConfig: PracticeConfig = useMemo(
     () => ({
       ...config,
+      media: textFallback ? { type: "none" } : config.media,
       requiresMedia,
     }),
-    [config, requiresMedia],
+    [config, requiresMedia, textFallback],
+  );
+
+  // This configuration stays independent of the selected fallback so
+  // changing media modes does not accidentally reload the saved session.
+  const sessionConfig: PracticeConfig = useMemo(
+    () => ({
+      ...config,
+      requiresMedia: originalRequiresMedia,
+    }),
+    [config, originalRequiresMedia],
   );
 
   const durationMs =
@@ -76,6 +94,8 @@ export function ReusablePracticePlayer({
     config.guidance.type === "guided"
       ? config.guidance.instructions
       : [];
+
+  const textAlternative = config.textAlternative?.trim() ?? "";
 
   const distractionTapLabels = useMemo(() => {
     const seen = new Set<string>();
@@ -333,6 +353,11 @@ export function ReusablePracticePlayer({
           distractionEventsRef.current = [];
           setDistractionEvents([]);
           tapSequenceRef.current = 0;
+          sessionStartedAtRef.current = null;
+          playerRef.current = {
+            state: "idle",
+            elapsedMs: 0,
+          };
           restore(null);
           return;
         }
@@ -342,7 +367,10 @@ export function ReusablePracticePlayer({
 
         const restoredDistractionEvents =
           saved.session.distractionEvents ?? [];
-        distractionEventsRef.current = restoredDistractionEvents;
+
+        distractionEventsRef.current =
+          restoredDistractionEvents;
+
         setDistractionEvents(restoredDistractionEvents);
         tapSequenceRef.current = 0;
 
@@ -362,9 +390,9 @@ export function ReusablePracticePlayer({
         const validCompletion =
           saved.session.completed &&
           canCompletePractice({
-            config: effectiveConfig,
+            config: sessionConfig,
             elapsedActiveMs: elapsed,
-            mediaStatus: requiresMedia
+            mediaStatus: originalRequiresMedia
               ? saved.mediaVerified
                 ? "paused"
                 : "error"
@@ -380,16 +408,21 @@ export function ReusablePracticePlayer({
         playedRef.current = saved.mediaVerified;
         setHasPlayedMedia(saved.mediaVerified);
 
-        if (requiresMedia && !saved.mediaVerified) {
+        if (originalRequiresMedia && !saved.mediaVerified) {
           mediaStatusRef.current = "loading";
           setMediaStatus("loading");
-        } else if (requiresMedia) {
+        } else if (originalRequiresMedia) {
           mediaStatusRef.current = "paused";
           setMediaStatus("paused");
         } else {
           mediaStatusRef.current = "not-required";
           setMediaStatus("not-required");
         }
+
+        playerRef.current = {
+          state: validCompletion ? "completed" : "paused",
+          elapsedMs: elapsed,
+        };
 
         restore({
           ...saved.session,
@@ -418,9 +451,9 @@ export function ReusablePracticePlayer({
   }, [
     userId,
     config.id,
-    effectiveConfig,
-    requiresMedia,
     config.timing.type,
+    sessionConfig,
+    originalRequiresMedia,
     restore,
   ]);
 
@@ -429,6 +462,14 @@ export function ReusablePracticePlayer({
       status: PracticeMediaStatus,
       positionSeconds?: number,
     ) => {
+      // Ignore stale events from the media player when written guidance
+      // has already been selected.
+      if (textFallback) {
+        mediaStatusRef.current = "not-required";
+        setMediaStatus("not-required");
+        return;
+      }
+
       const previousStatus = mediaStatusRef.current;
 
       mediaStatusRef.current = status;
@@ -464,7 +505,7 @@ export function ReusablePracticePlayer({
         setMediaFailed(true);
 
         setError(
-          "Media playback failed. Your practice cannot continue using this attempt.",
+          "Media playback failed. You can retry the media or use written guidance if it is available.",
         );
       }
 
@@ -512,7 +553,7 @@ export function ReusablePracticePlayer({
         });
       }
     },
-    [pause, start, resume, saveSession],
+    [pause, start, resume, saveSession, textFallback],
   );
 
   useEffect(() => {
@@ -521,6 +562,36 @@ export function ReusablePracticePlayer({
       elapsedMs,
     };
   }, [state, elapsedMs]);
+
+  const resetAttempt = useCallback(() => {
+    playedRef.current = false;
+    setHasPlayedMedia(false);
+
+    mediaPositionRef.current = 0;
+    lastSavedMediaPositionRef.current = 0;
+    setMediaPositionSeconds(0);
+
+    sessionStartedAtRef.current = null;
+    lastSavedSecondRef.current = -1;
+
+    playerRef.current = {
+      state: "idle",
+      elapsedMs: 0,
+    };
+
+    restore(null);
+    setRestartToken((value) => value + 1);
+
+    // Queue the clear before any new session saves. This prevents an older
+    // failed-media attempt from being restored after switching modes.
+    void queueSave(() =>
+      clearPracticeSession(userId, config.id),
+    ).catch(() => {
+      if (mountedRef.current) {
+        setError("Could not reset the saved practice session.");
+      }
+    });
+  }, [restore, queueSave, userId, config.id]);
 
   const handleStart = () => {
     if (restoring || saving || isSaving) {
@@ -573,6 +644,44 @@ export function ReusablePracticePlayer({
 
     setRestartToken((value) => value + 1);
     restart();
+  };
+
+  const handleUseWrittenGuidance = () => {
+    if (
+      restoring ||
+      saving ||
+      isSaving ||
+      !textAlternative
+    ) {
+      return;
+    }
+
+    mediaFailedRef.current = false;
+    setMediaFailed(false);
+    setError(null);
+
+    setTextFallback(true);
+
+    mediaStatusRef.current = "not-required";
+    setMediaStatus("not-required");
+
+    resetAttempt();
+  };
+
+  const handleRetryMedia = () => {
+    if (restoring || saving || isSaving) {
+      return;
+    }
+
+    mediaFailedRef.current = false;
+    setMediaFailed(false);
+    setError(null);
+
+    mediaStatusRef.current = "loading";
+    setMediaStatus("loading");
+
+    setTextFallback(false);
+    resetAttempt();
   };
 
   const handleFinish = () => {
@@ -629,9 +738,9 @@ export function ReusablePracticePlayer({
         pause();
       }
 
-      // Exiting is never itself a completion action. If pause races with the
-      // timer boundary, preserve an unfinished session as paused.
+      // Exiting is never itself a completion action.
       const elapsed = getElapsedMs();
+
       const savedState: PracticePlayerState =
         wasCompletedBeforeExit ? "completed" : "paused";
 
@@ -713,6 +822,8 @@ export function ReusablePracticePlayer({
         return;
       }
 
+      // Only clear local progress after the parent confirms that its
+      // transition was saved successfully.
       await queueSave(() =>
         clearPracticeSession(userId, config.id),
       );
@@ -728,7 +839,7 @@ export function ReusablePracticePlayer({
   };
 
   const totalSeconds = Math.ceil(
-  (remainingMs ?? elapsedMs) / 1000,
+    (remainingMs ?? elapsedMs) / 1000,
   );
 
   const formattedTime =
@@ -779,6 +890,7 @@ export function ReusablePracticePlayer({
     }
 
     const existingEvents = distractionEventsRef.current;
+
     if (existingEvents.length >= 300) {
       return;
     }
@@ -786,6 +898,7 @@ export function ReusablePracticePlayer({
     const existingIds = new Set(
       existingEvents.map((event) => event.id),
     );
+
     let id = "";
 
     do {
@@ -798,13 +911,15 @@ export function ReusablePracticePlayer({
       at: new Date().toISOString(),
       label,
     };
+
     const nextEvents = [...existingEvents, event];
 
-    // Keep the UI and local ref in sync before queueing durable device storage.
+    // Update local state and durable-session data before notifying the module.
     distractionEventsRef.current = nextEvents;
     setDistractionEvents(nextEvents);
 
     const elapsed = getElapsedMs();
+
     playerRef.current = {
       state: "running",
       elapsedMs: elapsed,
@@ -817,6 +932,18 @@ export function ReusablePracticePlayer({
         );
       }
     });
+
+    // Notify the parent once for each accepted event. A parent callback
+    // failure must not undo the player's local tap log.
+    try {
+      onDistractionTap?.(event);
+    } catch {
+      if (mountedRef.current) {
+        setError(
+          "The tap was recorded locally, but the module could not record it.",
+        );
+      }
+    }
   };
 
   return (
@@ -841,7 +968,25 @@ export function ReusablePracticePlayer({
         </Text>
       ))}
 
-      {config.media?.type === "audio" && (
+      {textFallback && !!textAlternative && (
+        <View style={styles.fallback}>
+          <Text accessibilityRole="header" style={styles.fallbackTitle}>
+            Written practice guidance
+          </Text>
+          <Text style={styles.text}>{textAlternative}</Text>
+          <Text style={styles.text}>
+            Follow these instructions at your own pace. When you are ready
+            to finish, use the Finish button.
+          </Text>
+          <Control
+            label="Try media again"
+            disabled={busy}
+            onPress={handleRetryMedia}
+          />
+        </View>
+      )}
+
+      {!textFallback && config.media?.type === "audio" && (
         <Image
           accessibilityLabel="AIM-YA logo"
           resizeMode="contain"
@@ -886,7 +1031,7 @@ export function ReusablePracticePlayer({
 
       {!restoring && (
         <PracticeMediaPlayer
-          media={config.media}
+          media={effectiveConfig.media}
           state={state}
           restartToken={restartToken}
           position={mediaPositionSeconds}
@@ -908,6 +1053,23 @@ export function ReusablePracticePlayer({
           Required media is not ready. This practice cannot start
           or complete until playback works.
         </Text>
+      )}
+
+      {mediaFailed && !!textAlternative && (
+        <View style={styles.fallback}>
+          <Text style={styles.fallbackTitle}>
+            The recording could not be played.
+          </Text>
+          <Text style={styles.text}>
+            You can retry the recording or continue with the written
+            instructions instead.
+          </Text>
+          <Control
+            label="Use written guidance instead"
+            disabled={busy}
+            onPress={handleUseWrittenGuidance}
+          />
+        </View>
       )}
 
       {error && (
@@ -960,14 +1122,7 @@ export function ReusablePracticePlayer({
           <Control
             label="Retry media"
             disabled={busy}
-            onPress={() => {
-              mediaFailedRef.current = false;
-              setMediaFailed(false);
-              setError(null);
-              mediaStatusRef.current = "loading";
-              setMediaStatus("loading");
-              setRestartToken((value) => value + 1);
-            }}
+            onPress={handleRetryMedia}
           />
         )}
 
@@ -1056,6 +1211,17 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   tapLoggerTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  fallback: {
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#b9cbbd",
+    borderRadius: 12,
+    gap: 12,
+  },
+  fallbackTitle: {
     fontSize: 18,
     fontWeight: "700",
   },

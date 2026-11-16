@@ -573,4 +573,116 @@ describe("ReusablePracticePlayer integration", () => {
       ).toBeNull();
     },
   );
+
+    test("required audio failure allows switching to written guidance", async () => {
+    mockMedia.status = "error";
+
+    const onContinue = jest.fn(async () => true);
+
+    const screen = await render(
+      <ReusablePracticePlayer
+        config={{
+          ...audioConfig,
+          textAlternative:
+            "Use the breath as an anchor and gently return your attention to it.",
+        }}
+        userId="user-1"
+        onContinue={onContinue}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", {
+          name: "Use written guidance instead",
+        }),
+      ).toBeTruthy();
+    });
+
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: "Use written guidance instead",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Written practice guidance"),
+      ).toBeTruthy();
+
+      expect(
+        screen.getByText(
+          "Use the breath as an anchor and gently return your attention to it.",
+        ),
+      ).toBeTruthy();
+    });
+
+    expect(
+      screen.getByRole("button", {
+        name: "Try media again",
+      }),
+    ).toBeTruthy();
+
+    expect(onContinue).not.toHaveBeenCalled();
+    expect(clearPracticeSession).toHaveBeenCalledWith(
+      "user-1",
+      audioConfig.id,
+    );
+  });
+
+  test("written guidance can retry media after a failure", async () => {
+    mockMedia.status = "error";
+
+    const screen = await render(
+      <ReusablePracticePlayer
+        config={{
+          ...audioConfig,
+          textAlternative: "Follow the written breathing instructions.",
+        }}
+        userId="user-1"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", {
+          name: "Use written guidance instead",
+        }),
+      ).toBeTruthy();
+    });
+
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: "Use written guidance instead",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Written practice guidance"),
+      ).toBeTruthy();
+    });
+
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: "Try media again",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText("Written practice guidance"),
+      ).toBeNull();
+
+      expect(
+        screen.getByText(/Media: error/),
+      ).toBeTruthy();
+    });
+
+    expect(
+      screen.getByRole("button", {
+        name: "Use written guidance instead",
+      }),
+    ).toBeTruthy();
+  });
 });
