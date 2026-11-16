@@ -11,7 +11,45 @@ jest.mock("../src/components/themed-view", () => ({ ThemedView: ({ children }) =
 jest.mock("../src/components/accessibility", () => ({ AccessibleHeading: ({ children }) => require("react").createElement(require("react-native").Text, null, children), AccessibleStatus: ({ children }) => require("react").createElement(require("react-native").Text, null, children) }));
 jest.mock("../src/components/practice-beat", () => ({ PracticeBeat: props => require("react").createElement(require("react-native").Pressable,
   { accessibilityRole: "button", accessibilityLabel: `Test complete ${props.config.id.startsWith("week3-two-minute-sit-v1") ? "week3-two-minute-sit-v1" : props.config.id}`, onPress: props.onContinue }, require("react").createElement(require("react-native").Text, null, props.config.title)) }));
-const clone = value => JSON.parse(JSON.stringify(value));
+jest.mock("../src/components/reusable-practice-player", () => ({
+  ReusablePracticePlayer: ({ config, onContinue, onExit }) =>
+    require("react").createElement(
+      require("react-native").View,
+      null,
+      require("react").createElement(
+        require("react-native").Text,
+        null,
+        config.title
+      ),
+      require("react").createElement(
+        require("react-native").Pressable,
+        {
+          accessibilityRole: "button",
+          accessibilityLabel: `Test complete ${config.id}`,
+          onPress: onContinue,
+        },
+        require("react").createElement(
+          require("react-native").Text,
+          null,
+          config.title
+        )
+      ),
+      require("react").createElement(
+        require("react-native").Pressable,
+        {
+          accessibilityRole: "button",
+          accessibilityLabel: "Test exit practice",
+          onPress: onExit,
+        },
+        require("react").createElement(
+          require("react-native").Text,
+          null,
+          "Exit practice"
+        )
+      )
+    ),
+}));
+  const clone = value => JSON.parse(JSON.stringify(value));
 function memory(initial = newWeekThreeModule()) {
   let current = { data: clone(initial), updatedAt: null, operationId: null };
   let revision = 0;
